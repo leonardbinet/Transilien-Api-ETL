@@ -54,7 +54,7 @@ while (datetime.now() - begin_time).seconds < 3600:
             # not stop the whole process if no result
             print(e)
             with open("log.txt", "a") as myfile:
-                myfile.write(str(station))
+                myfile.write(str(station) + "\n")
             continue
 
     time_passed = (datetime.now() - loop_begin_time).seconds
