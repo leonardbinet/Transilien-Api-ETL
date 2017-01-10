@@ -11,7 +11,7 @@ from pymongo import MongoClient
 # import defusedxml.ElementTree as ET
 from .api_client import ApiClient
 from multiprocessing import Pool
-
+from .utils import connect_mongoclient
 
 API_USER = os.environ["API_USER"]
 API_PASSWORD = os.environ["API_PASSWORD"]
@@ -49,9 +49,9 @@ def xml_to_json_with_params(xml_string, station):
 
 def mongo_insert_json_item(json_items):
     # Connect to mongodb:
-    c = MongoClient(host=MONGO_HOST)
+    c = connect_mongoclient(
+        host=MONGO_HOST, user=MONGO_USER, password=MONGO_PASSWORD)
     db = c[MONGO_DB_NAME]
-    db.authenticate(MONGO_USER, MONGO_PASSWORD)
     collection = db["departures"]
     collection.insert_many(json_items)
 
