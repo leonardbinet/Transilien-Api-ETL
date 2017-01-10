@@ -10,6 +10,8 @@ import pandas as pd
 from pymongo import MongoClient
 # import defusedxml.ElementTree as ET
 from .api_client import ApiClient
+from multiprocessing import Pool
+
 
 API_USER = os.environ["API_USER"]
 API_PASSWORD = os.environ["API_PASSWORD"]
@@ -69,31 +71,29 @@ def extract_save_station(station):
         print("Cannot save in Mongo")
 
 
-def operate_timer(station_list, cycle_time_sec, stop_time_sec=3600, max_per_minute=250):
+def operate_timer(station_list=station_ids, cycle_time_sec=1200, stop_time_sec=3600, max_per_minute=250):
     # Define blocks
     # Set stop time
     begin_time = datetime.now()
     while (datetime.now() - begin_time).seconds < stop_time_sec:
         # Set cycle loop
         loop_begin_time = datetime.now()
-        for station in station_list[:max_per_minute]:
-            try:
-                extract_save_station(station)
-            except Exception as e:
-                print(e)
-                continue
+
+        pool = Pool(processes=10)
+        pool.map(extract_save_station, station_list[:max_per_minute])
+        pool.close()
+        pool.join()
+
         time_passed = (datetime.now() - loop_begin_time).seconds
         print(time_passed)
         # Max per minute
         if time_passed < 60:
             time.sleep(60 - time_passed)
 
-        for station in station_ids[max_per_minute:]:
-            try:
-                extract_save_station(station)
-            except Exception as e:
-                print(e)
-                continue
+        pool = Pool(processes=10)
+        pool.map(extract_save_station, station_list[max_per_minute:])
+        pool.close()
+        pool.join()
 
         # Wait until beginning of next cycle
         time_passed = (datetime.now() - loop_begin_time).seconds
@@ -102,9 +102,8 @@ def operate_timer(station_list, cycle_time_sec, stop_time_sec=3600, max_per_minu
             time.sleep(cycle_time_sec - time_passed)
 
 
-begin_time = datetime.now()
-
 if __name__ == '__main__':
+    begin_time = datetime.now()
     # Programm run for an hour before new instance
     while (datetime.now() - begin_time).seconds < 3600:
 
