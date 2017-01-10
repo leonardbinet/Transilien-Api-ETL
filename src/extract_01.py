@@ -26,7 +26,7 @@ MONGO_PASSWORD = os.environ["MONGO_PASSWORD"]
 
 
 # Bug d'import sur pythonanywhere
-df_gares = pd.read_csv("Data/gares_transilien.csv", sep=";")
+df_gares = pd.read_csv("data/gares_transilien.csv", sep=";")
 station_ids = df_gares["Code UIC"].values
 
 
