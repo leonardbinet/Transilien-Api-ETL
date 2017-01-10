@@ -1,7 +1,8 @@
-# TODO
+# API TRANSILIEN
 
 ## Setup
-Create Virtualenv:
+
+### Create virtual environment
 
 ```
 conda create -n api_transilien python=3
@@ -10,30 +11,26 @@ source activate api_transilien
 pip install -r requirements.txt
 ```
 
-## Extraire données
-Pour lancer le script: (par défault, cycle de 1200 secondes:20 minutes)
+### Create secret.json file
+It is needed to create a JSON file in the root directory (same level as main.py):
+```
+{
+    "API_USER" : "your_api_user",
+    "API_PASSWORD" : "your_api_password",
+
+    "MONGO_HOST":"***",
+    "MONGO_USER":"***",
+    "MONGO_DB_NAME":"***",
+    "MONGO_PASSWORD":"***"
+}
+```
+
+## Extract data from Transilien API
+To launch script: (default, cycle of 1200 seconds: 20 minutes)
 ```
 python main.py extract
 ```
-Sinon pour choisir votre temps de cycle: celui ci fera un cycle de 2 minutes (120 secondes).
+Or you can choose your cycle: for instance 2 minutes (120 seconds).
 ```
 python main.py extract 120
 ```
-
-### Choisir les lignes à suivre
-Liste de lignes que l'on veut suivre
-
-=> Liste de gares que l'on veut suivre
-
-=> Les regarder toutes les minutes
-
-### Choisir 'tempo' et granularité
-Réflechir à quel rythme choisir, et voir s'il est nécessaire de regarder tous les arrêts
-
-
-## Relier données:
-
-- Trouver données des plannings.
-- Savoir relier plannings des trains à leur horaires réels
-
-## Faire un prototype de prédiction simple
