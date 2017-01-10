@@ -9,14 +9,14 @@ _RETRIABLE_STATUSES = set([500, 503, 504])
 
 class ApiClient():
 
-    def __init__(self, user, password="", retry_timeout=20, core_url='https://api.navitia.io/v1/'):
+    def __init__(self, user, password="", retry_timeout=20, core_url='http://api.transilien.com/'):
         self.core_url = core_url
         self.user = user
         self.password = password
         self.retry_timeout = retry_timeout
         self.requested_urls = []
 
-    def _get(self, url, extra_params=None, verbose=False, first_request_time=None, retry_counter=0, ignore_fail=False):
+    def _get(self, url, extra_params=None, verbose=False, first_request_time=None, retry_counter=0):
         if verbose and not first_request_time:
             print("Import on url %s " % url)
 
@@ -36,16 +36,9 @@ class ApiClient():
 
         full_url = os.path.join(self.core_url, url)
 
-        try:
-            response = requests.get(
-                url=full_url, auth=(self.user, self.password), params=(extra_params or {}))
-            self.requested_urls.append(response.url)
-
-        except Exception as e:
-            if not ignore_fail:
-                raise SystemError
-            else:
-                return False
+        response = requests.get(
+            url=full_url, auth=(self.user, self.password), params=(extra_params or {}))
+        self.requested_urls.append(response.url)
 
         # Warn if not 200
         if response.status_code != 200:
@@ -54,6 +47,11 @@ class ApiClient():
         if response.status_code in _RETRIABLE_STATUSES:
             # Retry request.
             print("WARNING: retry number %d" % retry_counter)
-            return self._get(url=url, extra_params=extra_params, first_request_time=first_request_time, retry_counter=retry_counter + 1, verbose=verbose, ignore_fail=ignore_fail)
+            return self._get(url=url, extra_params=extra_params, first_request_time=first_request_time, retry_counter=retry_counter + 1, verbose=verbose)
 
         return response
+
+    def request_station(self, station, verbose=False, ignore_fail=False, extra_params=None):
+        # example_url = "http://api.transilien.com/gare/87393009/depart/"
+        url = os.path.join("gare", str(station), "depart")
+        return self._get(url=url, verbose=verbose, extra_params=extra_params)
