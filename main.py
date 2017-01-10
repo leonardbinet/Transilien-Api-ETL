@@ -107,6 +107,7 @@ def extract_save_station(station, api_user, api_password, collection):
     core_url = "http://api.transilien.com/"
     url = os.path.join(core_url, "gare", str(station), "depart")
     response = requests.get(url, auth=(API_USER, API_PASSWORD))
+    print(response.text)
     mydict = xmltodict.parse(response.text)
     trains = mydict["passages"]["train"]
     df_trains = pd.DataFrame(trains)
@@ -114,6 +115,8 @@ def extract_save_station(station, api_user, api_password, collection):
     ).strftime('%Y%m%dT%H%M%S')
     df_trains["station"] = station
     data_json = json.loads(df_trains.to_json(orient='records'))
+    print(data_json)
+    print(df_trains.to_json(orient='records'))
     collection.insert_many(data_json)
 
 # Connect to mongodb:
@@ -121,6 +124,7 @@ c = MongoClient(host=MONGO_HOST)
 db = c[MONGO_DB_NAME]
 db.authenticate(MONGO_USER, MONGO_PASSWORD)
 collection = db["departures"]
+# db.command("collstats","departures")
 
 # Bug d'import sur pythonanywhere
 # df_gares = pd.read_csv("Data/gares_transilien.csv", sep=";")
