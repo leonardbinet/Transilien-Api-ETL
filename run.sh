@@ -1,2 +1,2 @@
-workon api_transilien
+source activate api_transilien
 python main.py
