@@ -7,33 +7,15 @@ import json
 import xmltodict
 import pandas as pd
 # import mysql.connector
-from pymongo import MongoClient
 # import defusedxml.ElementTree as ET
-from .api_client import ApiClient
+from api_client import get_api_client
 from multiprocessing import Pool
-from .utils import connect_mongoclient
-
-API_USER = os.environ["API_USER"]
-API_PASSWORD = os.environ["API_PASSWORD"]
-MYSQL_USER = os.environ["MYSQL_USER"]
-MYSQL_PASSWORD = os.environ["MYSQL_PASSWORD"]
-MYSQL_DB_NAME = os.environ["MYSQL_DB_NAME"]
-MYSQL_HOST = os.environ["MYSQL_HOST"]
-MONGO_HOST = os.environ["MONGO_HOST"]
-MONGO_USER = os.environ["MONGO_USER"]
-MONGO_DB_NAME = os.environ["MONGO_DB_NAME"]
-MONGO_PASSWORD = os.environ["MONGO_PASSWORD"]
+from utils import mongo_get_collection
 
 
 # Bug d'import sur pythonanywhere
 df_gares = pd.read_csv("data/gares_transilien.csv", sep=";")
 station_ids = df_gares["Code UIC"].values
-
-
-def request_station_xml(station, user=API_USER, password=API_PASSWORD):
-    client = ApiClient(user=user, password=password)
-    response = client.request_station(station=station, verbose=True)
-    return response
 
 
 def xml_to_json_with_params(xml_string, station):
@@ -47,18 +29,10 @@ def xml_to_json_with_params(xml_string, station):
     return data_json
 
 
-def mongo_insert_json_item(json_items):
-    # Connect to mongodb:
-    c = connect_mongoclient(
-        host=MONGO_HOST, user=MONGO_USER, password=MONGO_PASSWORD)
-    db = c[MONGO_DB_NAME]
-    collection = db["departures"]
-    collection.insert_many(json_items)
-
-
 def extract_save_station(station):
     try:
-        response = request_station_xml(station)
+        client = get_api_client()
+        response = client.request_station(station=station, verbose=True)
     except:
         print("Cannot query station %s" % station)
     try:
@@ -66,7 +40,8 @@ def extract_save_station(station):
     except:
         print("Cannot parse")
     try:
-        mongo_insert_json_item(data_json)
+        collection = mongo_get_collection("departures")
+        collection.insert_many(data_json)
     except:
         print("Cannot save in Mongo")
 

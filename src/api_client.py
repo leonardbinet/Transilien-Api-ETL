@@ -3,8 +3,16 @@ from datetime import datetime, timedelta
 import requests
 import os
 import time
+from secrets import get_secret
+
+API_USER = get_secret("API_USER")
+API_PASSWORD = get_secret("API_PASSWORD")
 
 _RETRIABLE_STATUSES = set([500, 503, 504])
+
+
+def get_api_client():
+    return ApiClient(user=API_USER, password=API_PASSWORD)
 
 
 class ApiClient():

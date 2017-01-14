@@ -1,7 +1,4 @@
-# Run configuration script
-import settings
-import os
-import src.extract_01 as ex
+import src.task_01_extract as ex
 
 
 def execute_from_command_line(args):
