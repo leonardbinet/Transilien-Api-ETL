@@ -1,9 +1,7 @@
 import pandas as pd
 import os
-import ipdb
 from datetime import datetime
 import calendar
-from utils import mongo_get_collection
 
 
 def get_flat_df():

@@ -6,11 +6,12 @@ import requests
 import json
 import xmltodict
 import pandas as pd
+from multiprocessing import Pool
+
 # import mysql.connector
 # import defusedxml.ElementTree as ET
-from api_client import get_api_client
-from multiprocessing import Pool
-from utils import mongo_get_collection
+from .utils_api_client import get_api_client
+from .utils_mongo import mongo_get_collection
 
 
 # Bug d'import sur pythonanywhere
