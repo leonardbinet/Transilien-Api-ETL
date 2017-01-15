@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import requests
 import os
 import time
-from .utils_secrets import get_secret
+from src.utils_secrets import get_secret
 
 API_USER = get_secret("API_USER")
 API_PASSWORD = get_secret("API_PASSWORD")

@@ -3,3 +3,6 @@ secret.json
 deploy.md
 log.txt
 hidden/*
+
+# data
+data/gtfs-lines-last/flat.csv

@@ -1,6 +1,6 @@
 from pymongo import MongoClient
 
-from .utils_secrets import get_secret
+from src.utils_secrets import get_secret
 
 
 MONGO_HOST = get_secret("MONGO_HOST")

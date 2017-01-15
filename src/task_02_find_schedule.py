@@ -1,12 +1,16 @@
 import pandas as pd
 import os
+from os import sys, path
 from datetime import datetime
 import calendar
+import ipdb
+
+data_path = "../data/gtfs-lines-last"
 
 
-def get_flat_df():
-    data_path = "../data/gtfs-lines-last"
+def write_flat_df():
     trips = pd.read_csv(os.path.join(data_path, "trips.txt"))
+    trips["train_id"] = trips.trip_id.str.extract("^.{5}(\d{6})")
     calendar = pd.read_csv(os.path.join(data_path, "calendar.txt"))
     stop_times = pd.read_csv(os.path.join(data_path, "stop_times.txt"))
     stops = pd.read_csv(os.path.join(data_path, "stops.txt"))
@@ -15,8 +19,8 @@ def get_flat_df():
     df_merged = df_merged.merge(calendar, on="service_id", how="left")
     df_merged = df_merged.merge(stops, on="stop_id", how="left")
 
-    df_merged["train_id"] = df_merged.trip_id.str.extract("^.{5}(\d{6})")
     df_merged["station_id"] = df_merged.stop_id.str.extract("DUA(\d{7})")
+    df_merged.to_csv(os.path.join(data_path, "flat.csv"))
     return df_merged
 
 # trip_id is unique for ONE DAY
@@ -26,10 +30,10 @@ def get_flat_df():
 
 def api_passage_information_to_trip_id(num, arrival_date, station=None, miss=None, term=None, df_merged=None, ignore_multiple=False):
     if not isinstance(df_merged, pd.core.frame.DataFrame):
-        df_merged = get_flat_df()
+        df_merged = pd.read_csv(os.path.join(data_path, "flat.csv"))
     weekday = arrival_date_to_week_day(arrival_date)
     # Find possible trip_ids
-    df_poss = df_merged[df_merged.train_id == num]
+    df_poss = df_merged[df_merged.train_id == int(num)]
     df_poss = df_poss[df_poss[weekday] == 1]
 
     potential_trip_ids = list(df_poss.trip_id.unique())
@@ -41,7 +45,7 @@ def api_passage_information_to_trip_id(num, arrival_date, station=None, miss=Non
     elif n == 1:
         return potential_trip_ids[0]
     else:
-        print("Multiple trip ids found")
+        print("Multiple trip ids found: %d matches" % n)
         if ignore_multiple:
             return potential_trip_ids[0]
         else:
@@ -57,11 +61,11 @@ def arrival_date_to_week_day(arrival_date):
 
 def get_scheduled_arrival_time_from_trip_id_and_station(trip_id, station, df_merged=None, ignore_multiple=False):
     if not isinstance(df_merged, pd.core.frame.DataFrame):
-        df_merged = get_flat_df()
+        df_merged = pd.read_csv(os.path.join(data_path, "flat.csv"))
     # Station ids are not exactly the same: don't use last digit
-    station = station[:-1]
-    condition_trip = df_merged.trip_id == trip_id
-    condition_station = df_merged.station_id == str(station)
+    station = str(station)[:-1]
+    condition_trip = df_merged.trip_id == str(trip_id)
+    condition_station = df_merged.station_id == int(station)
     pot_scheduled_arrival_time = df_merged[condition_trip][
         condition_station].arrival_time.unique()
     pot_scheduled_arrival_time = list(pot_scheduled_arrival_time)
@@ -72,7 +76,7 @@ def get_scheduled_arrival_time_from_trip_id_and_station(trip_id, station, df_mer
     elif n == 1:
         return pot_scheduled_arrival_time[0]
     else:
-        print("Multiple scheduled time found")
+        print("Multiple scheduled time found: %d matches" % n)
         if ignore_multiple:
             return pot_scheduled_arrival_time[0]
         else:
@@ -109,7 +113,11 @@ def api_passage_information_to_delay(num, arrival_date, station, miss=None, term
     return delay
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
+    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+    from src.utils_mongo import mongo_get_collection
+    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+
     # Example
     miss = "HAVA"
     term = "87281899"
@@ -117,6 +125,26 @@ if __name__ == "__main__":
     station = "87113803"
     num = "118622"
 
-    df_merged = get_flat_df()
-    delay = api_passage_information_to_delay(
-        num, arrival_date, station, df_merged=df_merged)
+    collection = mongo_get_collection("departures")
+    departures = list(collection.find({}).limit(100))
+    # ipdb.set_trace()
+
+    try:
+        df_merged = pd.read_csv(os.path.join(data_path, "flat.csv"))
+    except:
+        print("Not found")
+        df_merged = write_flat_df()
+
+    for departure in departures:
+        arrival_date = departure["date"]["#text"]
+        station = departure["station"]
+        num = departure["num"]
+        print("SEARCH: num %s" % num)
+        trip_id = api_passage_information_to_trip_id(
+            num, arrival_date, df_merged=df_merged)
+        if not trip_id:
+            continue
+        print("Trip id: %s" % trip_id)
+        delay = api_passage_information_to_delay(
+            num, arrival_date, station, df_merged=df_merged)
+        print("Delay: %s seconds" % delay)

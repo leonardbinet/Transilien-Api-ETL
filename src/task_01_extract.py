@@ -10,8 +10,8 @@ from multiprocessing import Pool
 
 # import mysql.connector
 # import defusedxml.ElementTree as ET
-from .utils_api_client import get_api_client
-from .utils_mongo import mongo_get_collection
+from src.utils_api_client import get_api_client
+from src.utils_mongo import mongo_get_collection
 
 
 # Bug d'import sur pythonanywhere
