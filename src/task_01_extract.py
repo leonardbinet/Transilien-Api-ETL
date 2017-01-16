@@ -14,8 +14,11 @@ from src.utils_api_client import get_api_client
 from src.utils_mongo import mongo_get_collection
 
 
+data_path = "../data/"
+
 # Bug d'import sur pythonanywhere
-df_gares = pd.read_csv("data/gares_transilien.csv", sep=";")
+df_gares = pd.read_csv(os.path.join(
+    data_path, "gares_transilien.csv"), sep=";")
 station_ids = df_gares["Code UIC"].values
 
 

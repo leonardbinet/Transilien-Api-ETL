@@ -5,16 +5,17 @@ from datetime import datetime
 import calendar
 import ipdb
 
-data_path = "../data/gtfs-lines-last"
+data_path = "../data/"
+gtfs_path = os.path.join(data_path, "gtfs-lines-last")
 
 
 def write_flat_stop_times_df():
-    trips = pd.read_csv(os.path.join(data_path, "trips.txt"))
+    trips = pd.read_csv(os.path.join(gtfs_path, "trips.txt"))
     trips["train_id"] = trips["trip_id"].str.extract("^.{5}(\d{6})")
 
-    calendar = pd.read_csv(os.path.join(data_path, "calendar.txt"))
-    stop_times = pd.read_csv(os.path.join(data_path, "stop_times.txt"))
-    stops = pd.read_csv(os.path.join(data_path, "stops.txt"))
+    calendar = pd.read_csv(os.path.join(gtfs_path, "calendar.txt"))
+    stop_times = pd.read_csv(os.path.join(gtfs_path, "stop_times.txt"))
+    stops = pd.read_csv(os.path.join(gtfs_path, "stops.txt"))
 
     df_merged = stop_times.merge(trips, on="trip_id", how="left")
     df_merged = df_merged.merge(calendar, on="service_id", how="left")
@@ -28,7 +29,7 @@ def write_flat_stop_times_df():
         "thursday", "friday", "saturday", "sunday",
         "start_date", "end_date", "train_id"
     ]
-    df_merged[useful].to_csv(os.path.join(data_path, "flat.csv"))
+    df_merged[useful].to_csv(os.path.join(gtfs_path, "flat.csv"))
     return df_merged[useful]
 
 # trip_id is unique for ONE DAY
@@ -38,7 +39,7 @@ def write_flat_stop_times_df():
 
 def api_passage_information_to_trip_id(num, departure_date, station=None, miss=None, term=None, df_merged=None, ignore_multiple=False):
     if not isinstance(df_merged, pd.core.frame.DataFrame):
-        df_merged = pd.read_csv(os.path.join(data_path, "flat.csv"))
+        df_merged = pd.read_csv(os.path.join(gtfs_path, "flat.csv"))
 
     weekday = departure_date_to_week_day(departure_date)
     yyyymmdd_format = departure_date_to_yyyymmdd_date(departure_date)
@@ -82,7 +83,7 @@ def departure_date_to_yyyymmdd_date(departure_date):
 
 def get_scheduled_departure_time_from_trip_id_and_station(trip_id, station, df_merged=None, ignore_multiple=False):
     if not isinstance(df_merged, pd.core.frame.DataFrame):
-        df_merged = pd.read_csv(os.path.join(data_path, "flat.csv"))
+        df_merged = pd.read_csv(os.path.join(gtfs_path, "flat.csv"))
     # Station ids are not exactly the same: don't use last digit
     station = str(station)[:-1]
     condition_trip = df_merged["trip_id"] == str(trip_id)
@@ -139,7 +140,7 @@ def api_passage_information_to_delay(num, departure_date, station, miss=None, te
 
 
 def get_services_of_day(yyyymmdd_format):
-    all_services = pd.read_csv(os.path.join(data_path, "calendar.txt"))
+    all_services = pd.read_csv(os.path.join(gtfs_path, "calendar.txt"))
     datetime_format = datetime.strptime(yyyymmdd_format, "%Y%m%d")
     weekday = calendar.day_name[datetime_format.weekday()].lower()
 
@@ -153,7 +154,7 @@ def get_services_of_day(yyyymmdd_format):
 
 
 def get_trips_of_day(yyyymmdd_format):
-    all_trips = pd.read_csv(os.path.join(data_path, "trips.txt"))
+    all_trips = pd.read_csv(os.path.join(gtfs_path, "trips.txt"))
     services_on_day = get_services_of_day(
         yyyymmdd_format)
     trips_condition = all_trips["service_id"].isin(services_on_day)
@@ -161,25 +162,32 @@ def get_trips_of_day(yyyymmdd_format):
     return trips_on_day
 
 
-def get_stop_times_df_of_day(yyyymmdd_format, stop_filter=None):
+def get_stop_times_df_of_day(yyyymmdd_format, stop_filter=None, station_filter=None):
     """
     stop_filter is a list of stops you want, it must be in GTFS format:
-
+    station_filter is a list of stations you want, it must be api format
     """
-    all_stop_times = pd.read_csv(os.path.join(data_path, "stop_times.txt"))
+
+    all_stop_times = pd.read_csv(os.path.join(gtfs_path, "stop_times.txt"))
     trips_on_day = get_trips_of_day(yyyymmdd_format)
     cond1 = all_stop_times["trip_id"].isin(trips_on_day)
     matching_stop_times = all_stop_times[cond1]
-
-    if stop_filter:
-        cond2 = all_stop_times["stop_id"].isin(stop_filter)
-        matching_stop_times = matching_stop_times[cond2]
 
     matching_stop_times["train_id"] = matching_stop_times[
         "trip_id"].str.extract("^.{5}(\d{6})")
     matching_stop_times["station_id"] = matching_stop_times[
         "stop_id"].str.extract("DUA(\d{7})")
     matching_stop_times["day"] = yyyymmdd_format
+
+    if stop_filter:
+        cond2 = matching_stop_times["stop_id"].isin(stop_filter)
+        matching_stop_times = matching_stop_times[cond2]
+
+    if station_filter:
+        ipdb.set_trace()
+        cond3 = matching_stop_times["station_id"].isin(station_filter)
+        matching_stop_times = matching_stop_times[cond3]
+
     return matching_stop_times
 
 
@@ -187,6 +195,10 @@ if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     from src.utils_mongo import mongo_get_collection
 
+    df_gares = pd.read_csv(os.path.join(
+        data_path, "gares_transilien.csv"), sep=";")
+    station_ids = df_gares["Code UIC"].values
+    station_gtif_ids = list(map(lambda x: str(x)[:-1], station_ids))
     # Example
     # miss = "HAVA"
     # term = "87281899"
@@ -199,7 +211,7 @@ if __name__ == '__main__':
     # ipdb.set_trace()
 
     try:
-        df_merged = pd.read_csv(os.path.join(data_path, "flat.csv"))
+        df_merged = pd.read_csv(os.path.join(gtfs_path, "flat.csv"))
     except:
         print("Not found")
         df_merged = write_flat_stop_times_df()
@@ -222,3 +234,6 @@ if __name__ == '__main__':
     print("##### 2ND PART ######")
     yyyymmdd_format = "20161201"
     stop_times = get_stop_times_df_of_day(yyyymmdd_format)
+
+    filtered_stop_times = get_stop_times_df_of_day(
+        yyyymmdd_format, station_filter=list(station_gtif_ids[:10]))
