@@ -8,7 +8,7 @@ import ipdb
 data_path = "../data/gtfs-lines-last"
 
 
-def write_flat_df():
+def write_flat_stop_times_df():
     trips = pd.read_csv(os.path.join(data_path, "trips.txt"))
     trips["train_id"] = trips["trip_id"].str.extract("^.{5}(\d{6})")
 
@@ -138,6 +138,51 @@ def api_passage_information_to_delay(num, departure_date, station, miss=None, te
     return delay
 
 
+def get_services_of_day(yyyymmdd_format):
+    all_services = pd.read_csv(os.path.join(data_path, "calendar.txt"))
+    datetime_format = datetime.strptime(yyyymmdd_format, "%Y%m%d")
+    weekday = calendar.day_name[datetime_format.weekday()].lower()
+
+    cond1 = all_services[weekday] == 1
+    cond2 = all_services["start_date"] <= int(yyyymmdd_format)
+    cond3 = all_services["end_date"] >= int(yyyymmdd_format)
+
+    matching_services = all_services[cond1][cond2][cond3]
+
+    return list(matching_services["service_id"].values)
+
+
+def get_trips_of_day(yyyymmdd_format):
+    all_trips = pd.read_csv(os.path.join(data_path, "trips.txt"))
+    services_on_day = get_services_of_day(
+        yyyymmdd_format)
+    trips_condition = all_trips["service_id"].isin(services_on_day)
+    trips_on_day = list(all_trips[trips_condition]["trip_id"].unique())
+    return trips_on_day
+
+
+def get_stop_times_df_of_day(yyyymmdd_format, stop_filter=None):
+    """
+    stop_filter is a list of stops you want, it must be in GTFS format:
+
+    """
+    all_stop_times = pd.read_csv(os.path.join(data_path, "stop_times.txt"))
+    trips_on_day = get_trips_of_day(yyyymmdd_format)
+    cond1 = all_stop_times["trip_id"].isin(trips_on_day)
+    matching_stop_times = all_stop_times[cond1]
+
+    if stop_filter:
+        cond2 = all_stop_times["stop_id"].isin(stop_filter)
+        matching_stop_times = matching_stop_times[cond2]
+
+    matching_stop_times["train_id"] = matching_stop_times[
+        "trip_id"].str.extract("^.{5}(\d{6})")
+    matching_stop_times["station_id"] = matching_stop_times[
+        "stop_id"].str.extract("DUA(\d{7})")
+    matching_stop_times["day"] = yyyymmdd_format
+    return matching_stop_times
+
+
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     from src.utils_mongo import mongo_get_collection
@@ -157,8 +202,9 @@ if __name__ == '__main__':
         df_merged = pd.read_csv(os.path.join(data_path, "flat.csv"))
     except:
         print("Not found")
-        df_merged = write_flat_df()
+        df_merged = write_flat_stop_times_df()
 
+    print("##### FIRST PART #####")
     for departure in departures:
         departure_date = departure["date"]["#text"]
         station = departure["station"]
@@ -172,3 +218,7 @@ if __name__ == '__main__':
         delay = api_passage_information_to_delay(
             num, departure_date, station, df_merged=df_merged)
         print("Delay: %s seconds" % delay)
+
+    print("##### 2ND PART ######")
+    yyyymmdd_format = "20161201"
+    stop_times = get_stop_times_df_of_day(yyyymmdd_format)
