@@ -26,10 +26,10 @@ def write_flat_df():
         "trip_id", "departure_time", "station_id",
         "monday", "tuesday", "wednesday",
         "thursday", "friday", "saturday", "sunday",
-        "start_date", "stop_date", "train_id"
+        "start_date", "end_date", "train_id"
     ]
     df_merged[useful].to_csv(os.path.join(data_path, "flat.csv"))
-    return df_merged
+    return df_merged[useful]
 
 # trip_id is unique for ONE DAY
 # to know exactly the schedule of a train, you need to tell: trip_id AND day
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     # num = "118622"
 
     collection = mongo_get_collection("departures")
-    departures = list(collection.find({}).limit(100))
+    departures = list(collection.find({}).limit(10))
     # ipdb.set_trace()
 
     try:
