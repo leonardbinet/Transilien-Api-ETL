@@ -1,4 +1,8 @@
+from gevent import monkey
+monkey.patch_all()
+
 import os
+from os import path, sys
 import time
 from datetime import datetime, timedelta
 import ipdb
@@ -6,19 +10,19 @@ import requests
 import json
 import xmltodict
 import pandas as pd
-from multiprocessing import Pool
+from gevent.pool import Pool
 
-# import mysql.connector
-# import defusedxml.ElementTree as ET
+if __name__ == '__main__':
+    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+
 from src.utils_api_client import get_api_client
 from src.utils_mongo import mongo_get_collection
 
-
 data_path = "../data/"
 
-# Bug d'import sur pythonanywhere
 df_gares = pd.read_csv(os.path.join(
     data_path, "gares_transilien.csv"), sep=";")
+
 station_ids = df_gares["Code UIC"].values
 
 
@@ -51,28 +55,29 @@ def extract_save_station(station):
 
 
 def operate_timer(station_list=station_ids, cycle_time_sec=1200, stop_time_sec=3600, max_per_minute=250):
-    # Define blocks
-    # Set stop time
+
+    def chunks(l, n):
+        for i in range(0, len(l), n):
+            yield l[i:i + n]
+
+    station_chunks = chunks(station_list, max_per_minute)
     begin_time = datetime.now()
+
     while (datetime.now() - begin_time).seconds < stop_time_sec:
         # Set cycle loop
         loop_begin_time = datetime.now()
 
-        pool = Pool(processes=10)
-        pool.map(extract_save_station, station_list[:max_per_minute])
-        pool.close()
-        pool.join()
+        for station_chunk in station_chunks:
+            chunk_begin_time = datetime.now()
 
-        time_passed = (datetime.now() - loop_begin_time).seconds
-        print(time_passed)
-        # Max per minute
-        if time_passed < 60:
-            time.sleep(60 - time_passed)
-
-        pool = Pool(processes=10)
-        pool.map(extract_save_station, station_list[max_per_minute:])
-        pool.close()
-        pool.join()
+            pool = Pool(20)
+            pool.map(extract_save_station, station_chunk)
+            pool.join()
+            time_passed = (datetime.now() - chunk_begin_time).seconds
+            print(time_passed)
+            # Max per minute
+            if time_passed < 60:
+                time.sleep(60 - time_passed)
 
         # Wait until beginning of next cycle
         time_passed = (datetime.now() - loop_begin_time).seconds
@@ -82,40 +87,4 @@ def operate_timer(station_list=station_ids, cycle_time_sec=1200, stop_time_sec=3
 
 
 if __name__ == '__main__':
-    begin_time = datetime.now()
-    # Programm run for an hour before new instance
-    while (datetime.now() - begin_time).seconds < 3600:
-
-        loop_begin_time = datetime.now()
-        # Every minute, computes half of stations, then other half
-        for station in station_ids[:250]:
-            try:
-                extract_save_station(station)
-            except Exception as e:
-                # Horrible coding, but work for now, so that a failing request does
-                # not stop the whole process if no result
-                print(e)
-                with open("log.txt", "a") as myfile:
-                    myfile.write(str(station) + "\n")
-                continue
-
-        time_passed = (datetime.now() - loop_begin_time).seconds
-        print(time_passed)
-        if time_passed < 60:
-            time.sleep(60 - time_passed)
-
-        for station in station_ids[250:]:
-            try:
-                extract_save_station(station)
-            except Exception as e:
-                # Horrible coding, but work for now, so that a failing request does
-                # not stop the whole process if no result
-                with open("log.txt", "a") as myfile:
-                    myfile.write(str(station) + "\n")
-                continue
-
-        # Cycles of 120 seconds for whole process
-        time_passed = (datetime.now() - loop_begin_time).seconds
-        print(time_passed)
-        if time_passed < 120:
-            time.sleep(120 - time_passed)
+    operate_timer()
