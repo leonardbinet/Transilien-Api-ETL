@@ -5,7 +5,9 @@ from datetime import datetime
 import calendar
 import ipdb
 
-data_path = "../data/"
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
+data_path = os.path.join(BASE_DIR, "data")
 gtfs_path = os.path.join(data_path, "gtfs-lines-last")
 
 

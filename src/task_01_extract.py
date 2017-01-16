@@ -18,8 +18,10 @@ if __name__ == '__main__':
 from src.utils_api_client import get_api_client
 from src.utils_mongo import mongo_get_collection
 
-data_path = "../data/"
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
 
+data_path = os.path.join(BASE_DIR, "data")
 df_gares = pd.read_csv(os.path.join(
     data_path, "gares_transilien.csv"), sep=";")
 
