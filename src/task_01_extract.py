@@ -1,6 +1,4 @@
-from gevent import monkey
-monkey.patch_all()
-
+import asyncio
 import os
 from os import path, sys
 import time
@@ -10,7 +8,9 @@ import requests
 import json
 import xmltodict
 import pandas as pd
-from gevent.pool import Pool
+import requests
+import zipfile
+import io
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
@@ -28,6 +28,19 @@ df_gares = pd.read_csv(os.path.join(
 station_ids = df_gares["Code UIC"].values
 
 
+def download_gtfs_files():
+    data_url = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien-gtfs/download/?format=csv&timezone=Europe/Berlin&use_labels_for_header=true'
+
+    df_links_gtfs = pd.read_csv(data_url)
+
+    for link in df_links_gtfs["file"].values:
+        r = requests.get(link)
+        z = zipfile.ZipFile(io.BytesIO(r.content))
+
+        dir_path = path.join(BASE_DIR, "data", "sncf-transilien-gtfs")
+        z.extractall(path=dir_path)
+
+
 def xml_to_json_with_params(xml_string, station):
     mydict = xmltodict.parse(xml_string)
     trains = mydict["passages"]["train"]
@@ -39,14 +52,10 @@ def xml_to_json_with_params(xml_string, station):
     return data_json
 
 
-def extract_save_station(station):
+def parse_and_save_station_response(response_text, station):
+    print("Saving results for station %s" % station)
     try:
-        client = get_api_client()
-        response = client.request_station(station=station, verbose=True)
-    except:
-        print("Cannot query station %s" % station)
-    try:
-        data_json = xml_to_json_with_params(response.text, station)
+        data_json = xml_to_json_with_params(response_text, station)
     except:
         print("Cannot parse")
     try:
@@ -72,9 +81,11 @@ def operate_timer(station_list=station_ids, cycle_time_sec=1200, stop_time_sec=3
         for station_chunk in station_chunks:
             chunk_begin_time = datetime.now()
 
-            pool = Pool(20)
-            pool.map(extract_save_station, station_chunk)
-            pool.join()
+            client = get_api_client()
+            responses = client.request_stations(station_chunk)
+            for response in responses:
+                parse_and_save_station_response(response[0], response[1])
+
             time_passed = (datetime.now() - chunk_begin_time).seconds
             print(time_passed)
             # Max per minute
