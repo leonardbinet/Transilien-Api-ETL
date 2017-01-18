@@ -16,7 +16,7 @@ if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
 from src.utils_api_client import get_api_client
-from src.utils_mongo import mongo_get_collection
+from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
@@ -52,52 +52,68 @@ def xml_to_json_with_params(xml_string, station):
     return data_json
 
 
-def parse_and_save_station_response(response_text, station):
-    print("Saving results for station %s" % station)
-    try:
-        data_json = xml_to_json_with_params(response_text, station)
-    except:
-        print("Cannot parse")
-    try:
-        collection = mongo_get_collection("departures")
-        collection.insert_many(data_json)
-    except:
-        print("Cannot save in Mongo")
+def extract_save_stations(stations_list):
+    # Extract from API
+    print("Extraction of %d stations" % len(stations_list))
+    client = get_api_client()
+    responses = client.request_stations(stations_list)
+    # Parse responses in JSON format
+    print("Parsing")
+    json_chunks = []
+    for response in responses:
+        try:
+            json_chunks.append(xml_to_json_with_params(
+                response[0], response[1]))
+        except:
+            continue
+    # Save chunks in Mongo
+    print("Saving of %d chunks of json data in Mongo" % len(json_chunks))
+    mongo_async_save_chunks("departures", json_chunks)
 
 
 def operate_timer(station_list=station_ids, cycle_time_sec=1200, stop_time_sec=3600, max_per_minute=250):
+    print("BEGINNING OPERATION WITH LIMIT OF %d SECONDS" % stop_time_sec)
 
     def chunks(l, n):
         for i in range(0, len(l), n):
             yield l[i:i + n]
 
-    station_chunks = chunks(station_list, max_per_minute)
     begin_time = datetime.now()
 
     while (datetime.now() - begin_time).seconds < stop_time_sec:
         # Set cycle loop
         loop_begin_time = datetime.now()
+        print("BEGINNING CYCLE OF %d SECONDS" % cycle_time_sec)
+
+        station_chunks = chunks(station_list, max_per_minute)
 
         for station_chunk in station_chunks:
             chunk_begin_time = datetime.now()
-
-            client = get_api_client()
-            responses = client.request_stations(station_chunk)
-            for response in responses:
-                parse_and_save_station_response(response[0], response[1])
+            extract_save_stations(station_chunk)
 
             time_passed = (datetime.now() - chunk_begin_time).seconds
-            print(time_passed)
-            # Max per minute
+            print("Time spent: %d seconds" % int(time_passed))
+
+            # Max per minute: so have to wait
             if time_passed < 60:
                 time.sleep(60 - time_passed)
 
         # Wait until beginning of next cycle
         time_passed = (datetime.now() - loop_begin_time).seconds
-        print(time_passed)
+        print("Time spent on cycle: %d seconds" % int(time_passed))
         if time_passed < cycle_time_sec:
-            time.sleep(cycle_time_sec - time_passed)
+            time_to_wait = cycle_time_sec - time_passed
+            print("Waiting %d seconds till next cycle." % time_to_wait)
+            time.sleep(time_to_wait)
+
+        # Information about general timing
+        time_from_begin = (datetime.now() - begin_time).seconds
+        print("Time spent from beginning: %d seconds. (stop at %d seconds)" %
+              (time_from_begin, stop_time_sec))
 
 
 if __name__ == '__main__':
-    operate_timer()
+    # By default, run for one hour (minus 100 sec), every 2 minutes
+    # max 300 queries per sec
+    operate_timer(station_list=station_ids, cycle_time_sec=120,
+                  stop_time_sec=3500, max_per_minute=300)

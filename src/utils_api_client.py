@@ -93,9 +93,13 @@ class ApiClient():
 
         async def fetch(url, session):
             async with session.get(url) as response:
-                resp = await response.read()
-                station = url_to_station(url)
-                return [resp, station]
+                try:
+                    resp = await response.read()
+                    station = url_to_station(url)
+                    return [resp, station]
+                except:
+                    print("Error getting station %s information" % station)
+                    return [False, station]
 
         async def run(url_list):
             tasks = []

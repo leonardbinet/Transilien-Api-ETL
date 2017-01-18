@@ -1,8 +1,8 @@
 xmltodict
 defusedxml
-mysql-connector
 pandas
 requests
 xmltodict
 pymongo
 ipdb
+motor

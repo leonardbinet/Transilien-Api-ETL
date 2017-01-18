@@ -1,5 +1,10 @@
+from os import sys, path
 from pymongo import MongoClient
+import asyncio
+from motor.motor_asyncio import AsyncIOMotorClient
 
+if __name__ == '__main__':
+    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 from src.utils_secrets import get_secret
 
 
@@ -16,8 +21,7 @@ except ImportError:
     from urllib import quote_plus
 
 
-def connect_mongoclient(host, user=None, password=None, port=None, database=None, max_delay=15000):
-    # Build URI
+def build_mongo_uri(host=MONGO_HOST, user=MONGO_USER, password=MONGO_PASSWORD, port=None, database=None):
     uri = "mongodb://"
     if user and password:
         uri += "%s:%s@" % (quote_plus(user), quote_plus(password))
@@ -26,13 +30,62 @@ def connect_mongoclient(host, user=None, password=None, port=None, database=None
         uri += ":" + str(port)
     if database:
         uri += "/%s" % quote_plus(database)
+    return uri
+
+
+def get_mongoclient(max_delay=15000):
+    uri = build_mongo_uri()
     client = MongoClient(uri, serverSelectionTimeoutMS=max_delay)
     return client
 
 
-def mongo_get_collection(collection):
-    c = connect_mongoclient(
-        host=MONGO_HOST, user=MONGO_USER, password=MONGO_PASSWORD)
+def get_async_mongoclient():
+    uri = build_mongo_uri()
+    client = AsyncIOMotorClient(uri)
+    return client
+
+
+def mongo_get_async_collection(collection):
+    c = get_async_mongoclient()
     db = c[MONGO_DB_NAME]
     collection = db[collection]
     return collection
+
+
+def mongo_get_collection(collection):
+    c = get_mongoclient()
+    db = c[MONGO_DB_NAME]
+    collection = db[collection]
+    return collection
+
+
+def mongo_async_save_chunks(collection, chunks_list):
+    asy_collection = mongo_get_async_collection(collection)
+
+    async def do_insert_many(chunk):
+        try:
+            result = await asy_collection.insert_many(chunk)
+        except:
+            print("Could not save chunk")
+
+    async def run(chunks_list):
+        tasks = []
+        # Fetch all responses within one Client session,
+        # keep connection alive for all requests.
+
+        for chunk in chunks_list:
+            task = asyncio.ensure_future(
+                do_insert_many(chunk))
+            tasks.append(task)
+
+            responses = await asyncio.gather(*tasks)
+            # you now have all response bodies in this variable
+            # print(responses)
+            return responses
+
+    # def print_responses(result):
+    #    print(result)
+    loop = asyncio.get_event_loop()
+    future = asyncio.ensure_future(run(chunks_list))
+    loop.run_until_complete(future)
+    return future.result()
