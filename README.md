@@ -2,16 +2,15 @@
 
 ## Setup
 
-### Create virtual environment
-
+### EC2 Instance
+You should set up an EC2 instance with ssh keys that you can access this way:
 ```
-conda create -n api_transilien python=3
-# to activate it
-source activate api_transilien
-pip install -r requirements.txt
+ssh -i "~/.ssh/aws-eb2" ubuntu@ec2-54-229-162-229.eu-west-1.compute.amazonaws.com
 ```
 
-### Create secret.json file
+### Configuration
+Create secret.json file: blablabla
+
 It is needed to create a JSON file in the root directory (same level as main.py):
 ```
 {
@@ -24,6 +23,31 @@ It is needed to create a JSON file in the root directory (same level as main.py)
     "MONGO_PASSWORD":"***"
 }
 ```
+
+Set configuration variables in fabfile or in conf file.
+
+### Environment
+
+All setup with fabfile:
+Note: Fabric only works with python2, so you might have to launch it from a virtual environment.
+```
+# If your default python is 3
+conda create --name fabric_env python=2
+source activate fabric_env
+pip install fabric
+
+# If your default python is 2
+pip install fabric
+
+# Launch fabfile:
+# For first time:
+fab full_deploy:host=ubuntu@ec2-54-229-162-229.eu-west-1.compute.amazonaws.com
+# Then later, to update if needed (shorter operation):
+fab deploy:host=ubuntu@ec2-54-229-162-229.eu-west-1.compute.amazonaws.com
+
+```
+
+
 
 ## Extract data from Transilien API
 To launch script: (default, cycle of 1200 seconds: 20 minutes)

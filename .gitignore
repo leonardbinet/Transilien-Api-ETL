@@ -1,15 +1,18 @@
+# Misc
 *.pyc
-secret.json
 deploy.md
 log.txt
 hidden/*
 
-# data
-data/gtfs-lines-last/flat.csv
+# Secrets
+secret.json
+taskrunner_credentials.json
 
+# Data
+data/gtfs-lines-last/flat.csv
 
 # Zip files
 *.zip
 
-# ipynb
+# Ipython notebooks
 *.ipynb
