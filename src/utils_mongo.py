@@ -2,6 +2,7 @@ from os import sys, path
 from pymongo import MongoClient
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
+import ipdb
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
@@ -65,6 +66,7 @@ def mongo_async_save_chunks(collection, chunks_list):
     async def do_insert_many(chunk):
         try:
             result = await asy_collection.insert_many(chunk)
+            # print(result.inserted_ids)
         except:
             print("Could not save chunk")
 
@@ -73,15 +75,15 @@ def mongo_async_save_chunks(collection, chunks_list):
         # Fetch all responses within one Client session,
         # keep connection alive for all requests.
 
-        for chunk in chunks_list:
+        for i, chunk in enumerate(chunks_list):
             task = asyncio.ensure_future(
                 do_insert_many(chunk))
             tasks.append(task)
+            # print("Chunk %d" % i)
 
-            responses = await asyncio.gather(*tasks)
-            # you now have all response bodies in this variable
-            # print(responses)
-            return responses
+        # all response in this variable
+        responses = await asyncio.gather(*tasks)
+        return responses
 
     # def print_responses(result):
     #    print(result)
