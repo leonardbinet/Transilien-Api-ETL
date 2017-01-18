@@ -1,6 +1,7 @@
 from fabric.contrib.files import append, exists, sed
 from fabric.api import env, local, run, put, sudo
 import random
+import os
 from os import path
 import glob
 from fabric.api import *
@@ -25,8 +26,8 @@ S3_LOG_URI = "s3://pipelinetrain/taskrunner"
 # do not change
 site_folder = '~/tasks/%s' % (PROJECT_NAME)
 source_folder = site_folder + '/source'
-remote_tr_cred_path = path.join(source_folder, TASKRUNNER_CRED_PATH)
-remote_tr_path = path.join(site_folder, "taskrunner", "TaskRunner-1.0.jar")
+remote_tr_cred_path = os.path.join(source_folder, TASKRUNNER_CRED_PATH)
+remote_tr_path = os.path.join(site_folder, "taskrunner", "TaskRunner-1.0.jar")
 
 
 def deploy():
@@ -48,8 +49,8 @@ def deploy_taskrunner():
 
 
 def _send_secret_jsons():
-    put(TASKRUNNER_CRED_PATH, path.join(source_folder, TASKRUNNER_CRED_PATH))
-    put(SECRET_PATH, path.join(source_folder, SECRET_PATH))
+    put(TASKRUNNER_CRED_PATH, os.path.join(source_folder, TASKRUNNER_CRED_PATH))
+    put(SECRET_PATH, os.path.join(source_folder, SECRET_PATH))
 
 
 def _create_directory_structure_if_necessary(site_folder):
@@ -98,10 +99,11 @@ def _download_taskrunner():
 def _send_cron_tasks():
     loc_cron_files = glob.glob("cron/")
     for loc_cron_file in loc_cron_files:
-        rem_cron_fil = path.join(
-            "/etc/cron.d", path.basename(loc_cron_file))
+        rem_cron_fil = os.path.join(
+            "/etc/cron.d", os.path.basename(loc_cron_file))
         put(loc_cron_file, rem_cron_fil, use_sudo=True)
-        run("chmod +rx %s" % rem_cron_fil)
+        sudo("chmod +rx %s" % rem_cron_fil)
+        sudo("chown root:root %s" % rem_cron_fil)
 
 
 def start_taskrunner():
