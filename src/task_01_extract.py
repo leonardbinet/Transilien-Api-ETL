@@ -46,10 +46,12 @@ def xml_to_json_with_params(xml_string, station):
     mydict = xmltodict.parse(xml_string)
     trains = mydict["passages"]["train"]
     df_trains = pd.DataFrame(trains)
-    # Warning: save with Paris timezone (if server is abroad)
+    df_trains["date"] = df_trains.date.apply(lambda x: x["#text"])
+    # Save with Paris timezone (if server is abroad)
     paris_tz = pytz.timezone('Europe/Paris')
     datetime_paris = paris_tz.localize(datetime.now())
-    df_trains["request_date"] = datetime_paris.strftime('%Y%m%dT%H%M%S')
+    df_trains["request_day"] = datetime_paris.strftime('%Y%m%d')
+    df_trains["request_time"] = datetime_paris.strftime('%H:%M:%S')
     df_trains["station"] = station
     data_json = json.loads(df_trains.to_json(orient='records'))
     return data_json
@@ -72,6 +74,8 @@ def extract_save_stations(stations_list):
     # Save chunks in Mongo
     print("Saving of %d chunks of json data in Mongo" % len(json_chunks))
     mongo_async_save_chunks("departures", json_chunks)
+    # Save chunks in other collection
+    mongo_async_save_chunks("real_departures", json_chunks)
 
 
 def operate_timer(station_list=station_ids, cycle_time_sec=1200, stop_time_sec=3600, max_per_minute=250):

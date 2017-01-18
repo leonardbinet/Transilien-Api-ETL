@@ -3,6 +3,7 @@ from fabric.api import env, local, run, put, sudo
 import random
 from os import path
 import glob
+from fabric.api import *
 
 # NEEDS TO BE CONFIGURED
 env.key_filename = "~/.ssh/aws-eb2"
@@ -95,10 +96,10 @@ def _download_taskrunner():
 
 
 def _send_cron_tasks():
-    loc_cron_files = glob.glob("cron/*.sh")
+    loc_cron_files = glob.glob("cron/")
     for loc_cron_file in loc_cron_files:
         rem_cron_fil = path.join(
-            "/etc/cron.hourly", path.basename(loc_cron_file))
+            "/etc/cron.d", path.basename(loc_cron_file))
         put(loc_cron_file, rem_cron_fil, use_sudo=True)
         run("chmod +rx %s" % rem_cron_fil)
 
@@ -107,3 +108,45 @@ def start_taskrunner():
 
     run("java -jar %s --config %s --workerGroup=%s --region=%s --logUri=%s" %
         (remote_tr_path, remote_tr_cred_path, AWS_WORKERGROUP, AWS_REGION, S3_LOG_URI))
+
+
+##### CRON #####
+
+def _marker(marker):
+    return ' # MARKER:%s' % marker if marker else ''
+
+
+def _get_current():
+    with settings(hide('warnings', 'stdout'), warn_only=True):
+        output = run('crontab -l')
+        return output if output.succeeded else ''
+
+
+def crontab_set(content):
+    """ Sets crontab content """
+    run("echo '%s'|crontab -" % content)
+
+
+def crontab_show():
+    """ Shows current crontab """
+    puts(_get_current())
+
+
+def crontab_add(content, marker=None):
+    """ Adds line to crontab. Line can be appended with special marker
+    comment so it'll be possible to reliably remove or update it later. """
+    old_crontab = _get_current()
+    crontab_set(old_crontab + '\n' + content + _marker(marker))
+
+
+def crontab_remove(marker):
+    """ Removes a line added and marked using crontab_add. """
+    lines = [line for line in _get_current().splitlines()
+             if line and not line.endswith(_marker(marker))]
+    crontab_set("\n".join(lines))
+
+
+def crontab_update(content, marker):
+    """ Adds or updates a line in crontab. """
+    crontab_remove(marker)
+    crontab_add(content, marker)

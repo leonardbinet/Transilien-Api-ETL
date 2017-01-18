@@ -70,3 +70,15 @@ Or better:
 ```
 grep CRON /var/log/syslog
 ```
+Check what will be run:
+```
+run-parts --test /etc/cron.hourly
+```
+
+## MongoDB
+
+real_departures Unique Compound Index: day/station/num:
+(beware after midnight)
+```
+real_departures.create_index( [("request_day", pymongo.DESCENDING), ("station", pymongo.ASCENDING), ("num",pymongo.DESCENDING)], unique=True)
+```

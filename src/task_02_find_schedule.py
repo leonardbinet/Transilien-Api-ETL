@@ -5,19 +5,27 @@ from datetime import datetime
 import calendar
 import ipdb
 
+if __name__ == '__main__':
+    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+    from src.utils_mongo import mongo_get_collection
+
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
 data_path = os.path.join(BASE_DIR, "data")
-gtfs_path = os.path.join(data_path, "gtfs-lines-last")
+gtfs_path = os.path.join(data_path, "sncf-transilien-gtfs")
+
+df_gares = pd.read_csv(path.join(data_path, "gares_transilien.csv"), sep=";")
+station_ids = df_gares["Code UIC"].values
+station_gtif_ids = list(map(lambda x: str(x)[:-1], station_ids))
 
 
 def write_flat_stop_times_df():
-    trips = pd.read_csv(os.path.join(gtfs_path, "trips.txt"))
+    trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
     trips["train_id"] = trips["trip_id"].str.extract("^.{5}(\d{6})")
 
-    calendar = pd.read_csv(os.path.join(gtfs_path, "calendar.txt"))
-    stop_times = pd.read_csv(os.path.join(gtfs_path, "stop_times.txt"))
-    stops = pd.read_csv(os.path.join(gtfs_path, "stops.txt"))
+    calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
+    stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
+    stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
 
     df_merged = stop_times.merge(trips, on="trip_id", how="left")
     df_merged = df_merged.merge(calendar, on="service_id", how="left")
@@ -164,7 +172,7 @@ def get_trips_of_day(yyyymmdd_format):
     return trips_on_day
 
 
-def get_stop_times_df_of_day(yyyymmdd_format, stop_filter=None, station_filter=None):
+def get_departure_times_df_of_day(yyyymmdd_format, stop_filter=None, station_filter=None):
     """
     stop_filter is a list of stops you want, it must be in GTFS format:
     station_filter is a list of stations you want, it must be api format
@@ -186,39 +194,31 @@ def get_stop_times_df_of_day(yyyymmdd_format, stop_filter=None, station_filter=N
         matching_stop_times = matching_stop_times[cond2]
 
     if station_filter:
-        ipdb.set_trace()
         cond3 = matching_stop_times["station_id"].isin(station_filter)
         matching_stop_times = matching_stop_times[cond3]
 
     return matching_stop_times
 
 
-if __name__ == '__main__':
-    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from src.utils_mongo import mongo_get_collection
+def get_real_departure_times_of_scheduled_departures_times(scheduled_df):
+    # First, look only for time passed (we cannot know for future)
+    #
+    pass
 
-    df_gares = pd.read_csv(os.path.join(
-        data_path, "gares_transilien.csv"), sep=";")
-    station_ids = df_gares["Code UIC"].values
-    station_gtif_ids = list(map(lambda x: str(x)[:-1], station_ids))
-    # Example
-    # miss = "HAVA"
-    # term = "87281899"
-    # departure_date = "01/02/2017 22:12"
-    # station = "87113803"
-    # num = "118622"
 
+def check_random_trips_delay():
+    """
+    Mostly testing function
+    """
     collection = mongo_get_collection("departures")
     departures = list(collection.find({}).limit(10))
-    # ipdb.set_trace()
 
     try:
-        df_merged = pd.read_csv(os.path.join(gtfs_path, "flat.csv"))
+        df_merged = pd.read_csv(path.join(gtfs_path, "flat.csv"))
     except:
         print("Not found")
         df_merged = write_flat_stop_times_df()
 
-    print("##### FIRST PART #####")
     for departure in departures:
         departure_date = departure["date"]["#text"]
         station = departure["station"]
@@ -233,9 +233,17 @@ if __name__ == '__main__':
             num, departure_date, station, df_merged=df_merged)
         print("Delay: %s seconds" % delay)
 
-    print("##### 2ND PART ######")
-    yyyymmdd_format = "20161201"
-    stop_times = get_stop_times_df_of_day(yyyymmdd_format)
 
-    filtered_stop_times = get_stop_times_df_of_day(
-        yyyymmdd_format, station_filter=list(station_gtif_ids[:10]))
+if __name__ == '__main__':
+
+    do_tests = False
+
+    if do_tests:
+        print("##### 1ST PART ######")
+        check_random_trips_delay()
+
+        print("##### 2ND PART ######")
+        yyyymmdd_format = "20161201"
+        stop_times = get_departure_times_df_of_day(yyyymmdd_format)
+        filtered_stop_times = get_departure_times_df_of_day(
+            yyyymmdd_format, station_filter=list(station_gtif_ids[:10]))
