@@ -8,3 +8,4 @@ ipdb
 motor
 asyncio
 pytz
+aiohttp
