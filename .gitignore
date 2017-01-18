@@ -6,3 +6,10 @@ hidden/*
 
 # data
 data/gtfs-lines-last/flat.csv
+
+
+# Zip files
+*.zip
+
+# ipynb
+*.ipynb
