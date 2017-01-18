@@ -41,7 +41,7 @@ pip install fabric
 
 # Launch fabfile:
 # For first time:
-fab full_deploy:host=ubuntu@ec2-54-229-162-229.eu-west-1.compute.amazonaws.com
+fab initial_deploy:host=ubuntu@ec2-54-229-162-229.eu-west-1.compute.amazonaws.com
 # Then later, to update if needed (shorter operation):
 fab deploy:host=ubuntu@ec2-54-229-162-229.eu-west-1.compute.amazonaws.com
 
@@ -50,11 +50,23 @@ fab deploy:host=ubuntu@ec2-54-229-162-229.eu-west-1.compute.amazonaws.com
 
 
 ## Extract data from Transilien API
-To launch script: (default, cycle of 1200 seconds: 20 minutes)
+After deploying this repository with the fabfile, the extraction will be automated (default: cycle of 120 seconds, for 3500 seconds).
+
+To launch script manually: (default: cycle of 120 seconds, for 3500 seconds)
 ```
 python main.py extract
 ```
-Or you can choose your cycle: for instance 2 minutes (120 seconds).
+Or you can choose your cycle: for instance 10 minutes (600 seconds).
 ```
-python main.py extract 120
+python main.py extract 600
+```
+
+## Cron logs:
+
+```
+cat /var/log/syslog
+```
+Or better:
+```
+grep CRON /var/log/syslog
 ```

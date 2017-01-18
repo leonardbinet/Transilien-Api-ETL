@@ -2,7 +2,7 @@ from fabric.contrib.files import append, exists, sed
 from fabric.api import env, local, run, put, sudo
 import random
 from os import path
-
+import glob
 
 # NEEDS TO BE CONFIGURED
 env.key_filename = "~/.ssh/aws-eb2"
@@ -10,6 +10,9 @@ env.key_filename = "~/.ssh/aws-eb2"
 REPO_URL = 'https://github.com/leonardbinet/Transilien-Api-Scraper.git'
 PROJECT_NAME = "api_transilien"
 SECRET_PATH = "secret.json"
+
+
+# ONLY NECESSARY IF YOU WANT TO USE AWS TASKRUNNER
 TASKRUNNER_CRED_PATH = "taskrunner_credentials.json"
 S3_TASKRUNNER_URL = "https://s3.amazonaws.com/datapipeline-us-east-1/us-east-1/software/latest/TaskRunner/TaskRunner-1.0.jar"
 S3_MYSQL_CONNECTOR_URL = "http://s3.amazonaws.com/datapipeline-prod-us-east-1/software/latest/TaskRunner/mysql-connector-java-bin.jar"
@@ -17,22 +20,12 @@ AWS_WORKERGROUP = "SNCF_TASKS"
 AWS_REGION = "eu-west-1"
 S3_LOG_URI = "s3://pipelinetrain/taskrunner"
 
-# AUTOMATIC
+
+# do not change
 site_folder = '~/tasks/%s' % (PROJECT_NAME)
 source_folder = site_folder + '/source'
 remote_tr_cred_path = path.join(source_folder, TASKRUNNER_CRED_PATH)
 remote_tr_path = path.join(site_folder, "taskrunner", "TaskRunner-1.0.jar")
-
-
-def full_deploy():
-    _create_directory_structure_if_necessary(site_folder)
-    _get_latest_source(source_folder)
-    _send_secret_jsons()
-    _set_environment()
-    _install_java()
-    _update_virtualenv(source_folder)
-    _download_taskrunner()
-    _start_taskrunner()
 
 
 def deploy():
@@ -40,7 +33,17 @@ def deploy():
     _get_latest_source(source_folder)
     _send_secret_jsons()
     _update_virtualenv(source_folder)
-    _start_taskrunner()
+    _send_cron_tasks()
+
+
+def initial_deploy():
+    _set_environment()
+    deploy()
+
+
+def deploy_taskrunner():
+    _install_java()
+    _download_taskrunner()
 
 
 def _send_secret_jsons():
@@ -91,7 +94,16 @@ def _download_taskrunner():
     run("wget -P " + taskrunner_folder + " " + S3_MYSQL_CONNECTOR_URL)
 
 
-def _start_taskrunner():
+def _send_cron_tasks():
+    loc_cron_files = glob.glob("cron/*.sh")
+    for loc_cron_file in loc_cron_files:
+        rem_cron_fil = path.join(
+            "/etc/cron.hourly", path.basename(loc_cron_file))
+        put(loc_cron_file, rem_cron_fil, use_sudo=True)
+        run("chmod +rx %s" % rem_cron_fil)
+
+
+def start_taskrunner():
 
     run("java -jar %s --config %s --workerGroup=%s --region=%s --logUri=%s" %
         (remote_tr_path, remote_tr_cred_path, AWS_WORKERGROUP, AWS_REGION, S3_LOG_URI))
