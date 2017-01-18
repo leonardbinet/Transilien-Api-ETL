@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 import zipfile
 import io
+import pytz
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
@@ -45,8 +46,10 @@ def xml_to_json_with_params(xml_string, station):
     mydict = xmltodict.parse(xml_string)
     trains = mydict["passages"]["train"]
     df_trains = pd.DataFrame(trains)
-    df_trains["request_date"] = datetime.now(
-    ).strftime('%Y%m%dT%H%M%S')
+    # Warning: save with Paris timezone (if server is abroad)
+    paris_tz = pytz.timezone('Europe/Paris')
+    datetime_paris = paris_tz.localize(datetime.now())
+    df_trains["request_date"] = datetime_paris.strftime('%Y%m%dT%H%M%S')
     df_trains["station"] = station
     data_json = json.loads(df_trains.to_json(orient='records'))
     return data_json
