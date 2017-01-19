@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 import ipdb
 import calendar
+import logging
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
@@ -130,23 +131,23 @@ def check_random_trips_delay(yyyymmdd_date):
     Mostly testing function
     """
 
-    collection = mongo_get_collection("departures")
+    collection = mongo_get_collection("real_departures")
     departures = list(collection.find({}).limit(10))
 
-    df_merged = get_departure_times_df_of_day(yyyymmdd_date)
+    df_dep_times = get_departure_times_df_of_day(yyyymmdd_date)
 
     for departure in departures:
         departure_date = departure["date"]
-        station = departure["station"]
-        num = departure["num"]
+        station = departure["station_id"]
+        num = departure["train_num"]
         print("SEARCH: num %s" % num)
         trip_id = api_passage_information_to_trip_id(
-            num, departure_date, df_merged=df_merged)
+            num, departure_date, df_merged=df_dep_times)
         if not trip_id:
             continue
         print("Trip id: %s" % trip_id)
         delay = api_passage_information_to_delay(
-            num, departure_date, station, df_merged=df_merged)
+            num, departure_date, station, df_merged=df_dep_times)
         print("Delay: %s seconds" % delay)
 
 
