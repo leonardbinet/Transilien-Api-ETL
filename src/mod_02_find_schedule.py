@@ -148,16 +148,3 @@ def save_scheduled_departures_of_day_mongo(yyyymmdd_format):
 
     mongo_async_upsert_chunks(
         "scheduled_departures", data_json, index_fields)
-
-if __name__ == '__main__':
-
-    # Save for this day, and for next day
-    paris_tz = pytz.timezone('Europe/Paris')
-
-    today_paris = paris_tz.localize(datetime.date.today())
-    today_paris_str = today_paris.strftime("%Y%m%d")
-    tomorrow_paris = today_paris + datetime.timedelta(days=1)
-    tomorrow_paris_str = tomorrow_paris.strftime("%Y%m%d")
-
-    save_scheduled_departures_of_day_mongo(today_paris_str)
-    save_scheduled_departures_of_day_mongo(tomorrow_paris_str)

@@ -9,7 +9,7 @@ if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
 from src.utils_mongo import mongo_get_collection
-from src.task_02_find_schedule import get_departure_times_df_of_day
+from src.mod_02_find_schedule import get_departure_times_df_of_day
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))

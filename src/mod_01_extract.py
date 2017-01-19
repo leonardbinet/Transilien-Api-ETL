@@ -144,10 +144,3 @@ def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600,
         time_from_begin = (datetime.now() - begin_time).seconds
         logging.info("Time spent from beginning: %d seconds. (stop at %d seconds)" %
                      (time_from_begin, stop_time_sec))
-
-
-if __name__ == '__main__':
-    # By default, run for one hour (minus 100 sec), every 2 minutes
-    # max 300 queries per sec
-    operate_timer(station_filter=False, cycle_time_sec=120,
-                  stop_time_sec=3500, max_per_minute=300)
