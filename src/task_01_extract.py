@@ -47,7 +47,6 @@ def xml_to_json_with_params(xml_string, station):
     df_trains["request_time"] = datetime_paris.strftime('%H:%M:%S')
     df_trains["station"] = station
     data_json = json.loads(df_trains.to_json(orient='records'))
-    ipdb.set_trace()
     return data_json
 
 
@@ -122,5 +121,5 @@ def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600,
 if __name__ == '__main__':
     # By default, run for one hour (minus 100 sec), every 2 minutes
     # max 300 queries per sec
-    operate_timer(station_list=station_ids, cycle_time_sec=120,
+    operate_timer(station_filter=False, cycle_time_sec=120,
                   stop_time_sec=3500, max_per_minute=300)
