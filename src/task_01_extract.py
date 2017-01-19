@@ -123,6 +123,9 @@ def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600,
             # Max per minute: so have to wait
             if time_passed < 60:
                 time.sleep(60 - time_passed)
+            else:
+                logging.warning(
+                    "Chunk time took more than one minute: %d seconds" % time_passed)
 
         # Wait until beginning of next cycle
         time_passed = (datetime.now() - loop_begin_time).seconds
@@ -131,6 +134,9 @@ def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600,
             time_to_wait = cycle_time_sec - time_passed
             logging.info("Waiting %d seconds till next cycle." % time_to_wait)
             time.sleep(time_to_wait)
+        else:
+            logging.warning(
+                "Cycle time took more than expected: %d seconds" % time_passed)
 
         # Information about general timing
         time_from_begin = (datetime.now() - begin_time).seconds
