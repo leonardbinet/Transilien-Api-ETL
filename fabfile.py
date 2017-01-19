@@ -35,7 +35,7 @@ def deploy():
     _get_latest_source(source_folder)
     _send_secret_jsons()
     _update_virtualenv(source_folder)
-    _send_cron_tasks()
+    # _send_cron_tasks()
 
 
 def initial_deploy():

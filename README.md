@@ -61,8 +61,10 @@ Or you can choose your cycle: for instance 10 minutes (600 seconds).
 python main.py extract 600
 ```
 
-## Cron logs:
+## Cron:
 
+
+### Logs
 ```
 cat /var/log/syslog
 ```
@@ -75,6 +77,15 @@ Check what will be run:
 run-parts --test /etc/cron.hourly
 ```
 
+### Check what is running (all processes):
+https://doc.ubuntu-fr.org/faq_process
+```
+ps -e
+```
+To kill: brutal(replace number by id from last command)
+```
+sudo pkill -9 4289
+```
 ## MongoDB
 
 real_departures Unique Compound Index: day/station/num:

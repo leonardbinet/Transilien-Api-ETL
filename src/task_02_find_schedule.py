@@ -224,12 +224,6 @@ def get_departure_times_df_of_day(yyyymmdd_format, stop_filter=None, station_fil
     return matching_stop_times
 
 
-def get_real_departure_times_of_scheduled_departures_times(scheduled_df):
-    # First, look only for time passed (we cannot know for future)
-    #
-    pass
-
-
 def check_random_trips_delay():
     """
     Mostly testing function
