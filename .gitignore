@@ -8,8 +8,8 @@ hidden/*
 secret.json
 taskrunner_credentials.json
 
-# Data
-data/gtfs-lines-last/flat.csv
+# All Data
+data/*
 
 # Zip files
 *.zip
