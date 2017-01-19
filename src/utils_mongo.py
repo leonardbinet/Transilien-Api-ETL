@@ -3,6 +3,7 @@ from pymongo import MongoClient
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 import ipdb
+import logging
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
@@ -68,7 +69,7 @@ def mongo_async_save_chunks(collection, chunks_list):
             result = await asy_collection.insert_many(chunk)
             # print(result.inserted_ids)
         except:
-            print("Could not save chunk")
+            logging.error("Could not save chunk")
 
     async def run(chunks_list):
         tasks = []
@@ -106,11 +107,11 @@ def mongo_async_upsert_chunks(collection, item_list, index_fields):
         try:
             result = await asy_collection.replace_one(m_filter, item_to_upsert, upsert=True)
             if not result.acknowledged:
-                print("Item %s not inserted" % item_to_upsert)
+                logging.error("Item %s not inserted" % item_to_upsert)
             # print("Result: %s" % result)
 
         except Exception as e:
-            print("Could not save item, error %s" % e)
+            logging.error("Could not save item, error %s" % e)
 
     async def run(item_list):
         tasks = []

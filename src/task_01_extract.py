@@ -9,6 +9,7 @@ import xmltodict
 import pandas as pd
 import pytz
 import copy
+import logging
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
@@ -19,6 +20,11 @@ from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
 data_path = os.path.join(BASE_DIR, "data")
+
+# Logging configuration
+logging_file_path = os.path.join(BASE_DIR, "..", "logs", "task01.log")
+logging.basicConfig(format='%(levelname)s:%(message)s',
+                    filename=logging_file_path, level=logging.DEBUG)
 
 
 def get_station_ids(id_format="UIC"):
@@ -52,11 +58,11 @@ def xml_to_json_with_params(xml_string, station):
 
 def extract_save_stations(stations_list):
     # Extract from API
-    print("Extraction of %d stations" % len(stations_list))
+    logging.info("Extraction of %d stations" % len(stations_list))
     client = get_api_client()
     responses = client.request_stations(stations_list)
     # Parse responses in JSON format
-    print("Parsing")
+    logging.info("Parsing")
     json_chunks = []
     for response in responses:
         try:
@@ -71,15 +77,15 @@ def extract_save_stations(stations_list):
     json_chunks_2 = copy.deepcopy(json_chunks)
     item_list = [item for sublist in json_chunks_2 for item in sublist]
 
-    print("Saving of %d chunks of json data (total of %d items) in Mongo departures collection" %
-          (len(json_chunks), len(item_list)))
+    logging.info("Saving of %d chunks of json data (total of %d items) in Mongo departures collection" %
+                 (len(json_chunks), len(item_list)))
     mongo_async_save_chunks("departures", json_chunks)
     # Save items in other collection
     # flatten chunks: -> list of elements to upsert
 
     index_fields = ["request_day", "station", "num"]
-    print("Upsert of %d items of json data in Mongo real_departures collection" %
-          len(item_list))
+    logging.info("Upsert of %d items of json data in Mongo real_departures collection" %
+                 len(item_list))
     mongo_async_upsert_chunks("real_departures", item_list, index_fields)
 
 
@@ -90,8 +96,9 @@ def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600,
     else:
         station_list = station_filter
 
-    print("BEGINNING OPERATION WITH LIMIT OF %d SECONDS" % stop_time_sec)
-    print("MAX NUMBER OF QUERY PER MINUTE TO API: %d" % max_per_minute)
+    logging.info("BEGINNING OPERATION WITH LIMIT OF %d SECONDS" %
+                 stop_time_sec)
+    logging.info("MAX NUMBER OF QUERY PER MINUTE TO API: %d" % max_per_minute)
 
     def chunks(l, n):
         for i in range(0, len(l), n):
@@ -102,7 +109,7 @@ def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600,
     while (datetime.now() - begin_time).seconds < stop_time_sec:
         # Set cycle loop
         loop_begin_time = datetime.now()
-        print("BEGINNING CYCLE OF %d SECONDS" % cycle_time_sec)
+        logging.info("BEGINNING CYCLE OF %d SECONDS" % cycle_time_sec)
 
         station_chunks = chunks(station_list, max_per_minute)
 
@@ -111,7 +118,7 @@ def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600,
             extract_save_stations(station_chunk)
 
             time_passed = (datetime.now() - chunk_begin_time).seconds
-            print("Time spent: %d seconds" % int(time_passed))
+            logging.info("Time spent: %d seconds" % int(time_passed))
 
             # Max per minute: so have to wait
             if time_passed < 60:
@@ -119,16 +126,16 @@ def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600,
 
         # Wait until beginning of next cycle
         time_passed = (datetime.now() - loop_begin_time).seconds
-        print("Time spent on cycle: %d seconds" % int(time_passed))
+        logging.info("Time spent on cycle: %d seconds" % int(time_passed))
         if time_passed < cycle_time_sec:
             time_to_wait = cycle_time_sec - time_passed
-            print("Waiting %d seconds till next cycle." % time_to_wait)
+            logging.info("Waiting %d seconds till next cycle." % time_to_wait)
             time.sleep(time_to_wait)
 
         # Information about general timing
         time_from_begin = (datetime.now() - begin_time).seconds
-        print("Time spent from beginning: %d seconds. (stop at %d seconds)" %
-              (time_from_begin, stop_time_sec))
+        logging.info("Time spent from beginning: %d seconds. (stop at %d seconds)" %
+                     (time_from_begin, stop_time_sec))
 
 
 if __name__ == '__main__':

@@ -35,7 +35,7 @@ class ApiClient():
 
     def _get(self, url, extra_params=None, verbose=False, first_request_time=None, retry_counter=0):
         if verbose and not first_request_time:
-            print("Import on url %s " % url)
+            logging.info("Import on url %s " % url)
 
         if not first_request_time:
             first_request_time = datetime.now()
@@ -59,11 +59,12 @@ class ApiClient():
 
         # Warn if not 200
         if response.status_code != 200:
-            print("WARNING: response status_code is %s" % response.status_code)
+            logging.warning("WARNING: response status_code is %s" %
+                            response.status_code)
 
         if response.status_code in _RETRIABLE_STATUSES:
             # Retry request.
-            print("WARNING: retry number %d" % retry_counter)
+            logging.warning("WARNING: retry number %d" % retry_counter)
             return self._get(url=url, extra_params=extra_params, first_request_time=first_request_time, retry_counter=retry_counter + 1, verbose=verbose)
 
         return response
@@ -98,7 +99,8 @@ class ApiClient():
                     station = url_to_station(url)
                     return [resp, station]
                 except:
-                    print("Error getting station %s information" % station)
+                    logging.warn(
+                        "Error getting station %s information" % station)
                     return [False, station]
 
         async def run(url_list):
