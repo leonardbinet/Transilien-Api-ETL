@@ -23,7 +23,7 @@ data_path = os.path.join(BASE_DIR, "data")
 
 # Logging configuration
 logging_file_path = os.path.join(BASE_DIR, "..", "logs", "task01.log")
-logging.basicConfig(format='%(levelname)s:%(message)s',
+logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
                     filename=logging_file_path, level=logging.INFO)
 
 
