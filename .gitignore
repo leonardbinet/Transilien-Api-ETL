@@ -10,6 +10,9 @@ taskrunner_credentials.json
 
 # All Data
 data/*
+data/*/*
+data/*/*/*
+
 
 # Zip files
 *.zip
