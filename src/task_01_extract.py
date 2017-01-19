@@ -11,20 +11,21 @@ import pytz
 import copy
 import logging
 
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
+
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+    # Logging configuration
+    logging_file_path = os.path.join(BASE_DIR, "..", "logs", "task01.log")
+    logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
+                        filename=logging_file_path, level=logging.INFO)
 
 from src.utils_api_client import get_api_client
 from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_chunks
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))
-data_path = os.path.join(BASE_DIR, "data")
 
-# Logging configuration
-logging_file_path = os.path.join(BASE_DIR, "..", "logs", "task01.log")
-logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
-                    filename=logging_file_path, level=logging.INFO)
+data_path = os.path.join(BASE_DIR, "data")
 
 
 def get_station_ids(id_format="UIC"):
@@ -65,12 +66,13 @@ def extract_save_stations(stations_list):
     logging.info("Parsing")
     json_chunks = []
     for response in responses:
+        xml_string = response[0]
+        station = response[1]
         try:
-            xml_string = response[0]
-            station = response[1]
             json_chunks.append(xml_to_json_with_params(
                 xml_string, station))
-        except:
+        except Exception as e:
+            logging.debug("Cannot parse station %s" % station)
             continue
     # Save chunks in Mongo
     # Make a deep copy, because mongo will add _ids to json_chunks

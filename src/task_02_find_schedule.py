@@ -1,22 +1,29 @@
-import pandas as pd
 import os
 from os import sys, path
-from datetime import datetime
+import pandas as pd
+import datetime
 import calendar
 import ipdb
 import zipfile
 from urllib.request import urlretrieve
-
-if __name__ == '__main__':
-    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from src.utils_mongo import mongo_get_collection
+import logging
+import json
+import pytz
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
-data_path = os.path.join(BASE_DIR, "data")
 
+if __name__ == '__main__':
+    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+    # Logging configuration
+    logging_file_path = os.path.join(BASE_DIR, "..", "logs", "task02.log")
+    logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
+                        filename=logging_file_path, level=logging.INFO)
+
+from src.utils_mongo import mongo_async_upsert_chunks
 
 # CONFIG
+data_path = os.path.join(BASE_DIR, "data")
 gtfs_path = os.path.join(data_path, "gtfs-lines-last")
 gtfs_csv_url = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien-gtfs/download/?format=csv&timezone=Europe/Berlin&use_labels_for_header=true'
 
@@ -33,7 +40,7 @@ def download_gtfs_files():
             zip_ref.extractall(path=full_path)
 
 
-def write_flat_stop_times_df():
+def write_flat_departures_times_df():
     try:
         trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
         calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
@@ -41,7 +48,7 @@ def write_flat_stop_times_df():
         stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
 
     except OSError:
-        print("Could not load files: download files from the internet.")
+        logging.info("Could not load files: download files from the internet.")
         download_gtfs_files()
 
         trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
@@ -64,118 +71,21 @@ def write_flat_stop_times_df():
         "start_date", "end_date", "train_id"
     ]
     df_merged[useful].to_csv(os.path.join(gtfs_path, "flat.csv"))
-    return df_merged[useful]
-
-# trip_id is unique for ONE DAY
-# to know exactly the schedule of a train, you need to tell: trip_id AND day
-# next, station to get time
 
 
-def api_passage_information_to_trip_id(num, departure_date, station=None, miss=None, term=None, df_merged=None, ignore_multiple=False):
-    if not isinstance(df_merged, pd.core.frame.DataFrame):
-        df_merged = pd.read_csv(os.path.join(gtfs_path, "flat.csv"))
-
-    weekday = departure_date_to_week_day(departure_date)
-    yyyymmdd_format = departure_date_to_yyyymmdd_date(departure_date)
-    # Find possible trip_ids
-    cond1 = df_merged["train_id"] == int(num)
-    cond2 = df_merged[weekday] == 1
-    cond3 = df_merged["start_date"] <= int(yyyymmdd_format)
-    cond4 = df_merged["end_date"] >= int(yyyymmdd_format)
-
-    df_poss = df_merged[cond1][cond2][cond3][cond4]
-
-    potential_trip_ids = list(df_poss.trip_id.unique())
-    # ipdb.set_trace()
-    n = len(potential_trip_ids)
-    if n == 0:
-        print("No matching trip id")
-        return False
-    elif n == 1:
-        return potential_trip_ids[0]
-    else:
-        print("Multiple trip ids found: %d matches" % n)
-        if ignore_multiple:
-            return potential_trip_ids[0]
-        else:
-            return False
-
-
-def departure_date_to_week_day(departure_date):
-    # format: "01/02/2017 22:12"
-    departure_date = datetime.strptime(departure_date, "%d/%m/%Y %H:%M")
-    weekday = calendar.day_name[departure_date.weekday()]
-    return weekday.lower()
-
-
-def departure_date_to_yyyymmdd_date(departure_date):
-    # format: "01/02/2017 22:12" to "2017"
-    departure_date = datetime.strptime(departure_date, "%d/%m/%Y %H:%M")
-    new_format = departure_date.strftime("%Y%m%d")
-    return new_format
-
-
-def get_scheduled_departure_time_from_trip_id_and_station(trip_id, station, df_merged=None, ignore_multiple=False):
-    if not isinstance(df_merged, pd.core.frame.DataFrame):
-        df_merged = pd.read_csv(os.path.join(gtfs_path, "flat.csv"))
-    # Station ids are not exactly the same: don't use last digit
-    station = str(station)[:-1]
-    condition_trip = df_merged["trip_id"] == str(trip_id)
-    condition_station = df_merged["station_id"] == int(station)
-
-    pot_scheduled_departure_time = df_merged[condition_trip][
-        condition_station]["departure_time"].unique()
-    pot_scheduled_departure_time = list(pot_scheduled_departure_time)
-    n = len(pot_scheduled_departure_time)
-    if n == 0:
-        print("No matching scheduled_departure_time")
-        return False
-    elif n == 1:
-        return pot_scheduled_departure_time[0]
-    else:
-        print("Multiple scheduled time found: %d matches" % n)
-        if ignore_multiple:
-            return pot_scheduled_departure_time[0]
-        else:
-            return False
-
-
-def compute_delay(scheduled_departure_time, real_departure_date):
-    # real_departure_date = "01/02/2017 22:12"
-    # scheduled_departure_time = '22:12:00'
-    # Lets suppose it is always the same day (don't take into account
-    # overlapping at midnight)
-    real_departure_date = datetime.strptime(
-        real_departure_date, "%d/%m/%Y %H:%M")
-
-    scheduled_departure_date = datetime.strptime(
-        scheduled_departure_time, "%H:%M:%S")
-
-    scheduled_departure_date.replace(year=real_departure_date.year)
-    scheduled_departure_date.replace(month=real_departure_date.month)
-    scheduled_departure_date.replace(day=real_departure_date.day)
-
-    # If late: delay is positive, if in advance, it is negative
-    delay = real_departure_date - scheduled_departure_date
-    return delay.seconds
-
-
-def api_passage_information_to_delay(num, departure_date, station, miss=None, term=None, df_merged=None, ignore_multiple=False):
-    trip_id = api_passage_information_to_trip_id(
-        num, departure_date, df_merged=df_merged)
-    if not trip_id:
-        return False
-    scheduled_departure_time = get_scheduled_departure_time_from_trip_id_and_station(
-        trip_id, station, df_merged=df_merged)
-    if not scheduled_departure_time:
-        return False
-    delay = compute_delay(scheduled_departure_time, departure_date)
-    return delay
+def get_flat_departures_times_df():
+    try:
+        df_merged = pd.read_csv(path.join(gtfs_path, "flat.csv"))
+    except:
+        logging.info("Flat csv not found, let's create it")
+        write_flat_departures_times_df()
+        df_merged = pd.read_csv(path.join(gtfs_path, "flat.csv"))
+    return df_merged
 
 
 def get_services_of_day(yyyymmdd_format):
     all_services = pd.read_csv(os.path.join(gtfs_path, "calendar.txt"))
-    datetime_format = datetime.strptime(yyyymmdd_format, "%Y%m%d")
+    datetime_format = datetime.datetime.strptime(yyyymmdd_format, "%Y%m%d")
     weekday = calendar.day_name[datetime_format.weekday()].lower()
 
     cond1 = all_services[weekday] == 1
@@ -207,11 +117,14 @@ def get_departure_times_df_of_day(yyyymmdd_format, stop_filter=None, station_fil
     cond1 = all_stop_times["trip_id"].isin(trips_on_day)
     matching_stop_times = all_stop_times[cond1]
 
-    matching_stop_times["train_id"] = matching_stop_times[
+    matching_stop_times["train_num"] = matching_stop_times[
         "trip_id"].str.extract("^.{5}(\d{6})")
     matching_stop_times["station_id"] = matching_stop_times[
         "stop_id"].str.extract("DUA(\d{7})")
-    matching_stop_times["day"] = yyyymmdd_format
+    matching_stop_times["scheduled_departure_day"] = yyyymmdd_format
+
+    matching_stop_times.rename(
+        columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
 
     if stop_filter:
         cond2 = matching_stop_times["stop_id"].isin(stop_filter)
@@ -224,47 +137,27 @@ def get_departure_times_df_of_day(yyyymmdd_format, stop_filter=None, station_fil
     return matching_stop_times
 
 
-def check_random_trips_delay():
-    """
-    Mostly testing function
-    """
-    collection = mongo_get_collection("departures")
-    departures = list(collection.find({}).limit(10))
+def save_scheduled_departures_of_day_mongo(yyyymmdd_format):
+    df_departure_times = get_departure_times_df_of_day(yyyymmdd_format)
+    data_json = json.loads(df_departure_times.to_json(orient='records'))
 
-    try:
-        df_merged = pd.read_csv(path.join(gtfs_path, "flat.csv"))
-    except:
-        print("Not found")
-        write_flat_stop_times_df()
-        df_merged = pd.read_csv(path.join(gtfs_path, "flat.csv"))
+    index_fields = ["scheduled_departure_day", "station_id", "train_num"]
 
-    for departure in departures:
-        departure_date = departure["date"]["#text"]
-        station = departure["station"]
-        num = departure["num"]
-        print("SEARCH: num %s" % num)
-        trip_id = api_passage_information_to_trip_id(
-            num, departure_date, df_merged=df_merged)
-        if not trip_id:
-            continue
-        print("Trip id: %s" % trip_id)
-        delay = api_passage_information_to_delay(
-            num, departure_date, station, df_merged=df_merged)
-        print("Delay: %s seconds" % delay)
+    logging.info("Upsert of %d items of json data in Mongo scheduled_departures collection" %
+                 len(data_json))
 
+    mongo_async_upsert_chunks(
+        "scheduled_departures", data_json, index_fields)
 
 if __name__ == '__main__':
-    from src.task_01_extract import get_station_ids
 
-    do_tests = True
+    # Save for this day, and for next day
+    paris_tz = pytz.timezone('Europe/Paris')
 
-    if do_tests:
-        print("##### 1ST PART ######")
-        check_random_trips_delay()
+    today_paris = paris_tz.localize(datetime.date.today())
+    today_paris_str = today_paris.strftime("%Y%m%d")
+    tomorrow_paris = today_paris + datetime.timedelta(days=1)
+    tomorrow_paris_str = tomorrow_paris.strftime("%Y%m%d")
 
-        print("##### 2ND PART ######")
-        yyyymmdd_format = "20170119"
-        station_ids_uic7 = get_station_ids(id_format="UIC7")
-        stop_times = get_departure_times_df_of_day(yyyymmdd_format)
-        filtered_stop_times = get_departure_times_df_of_day(
-            yyyymmdd_format, station_filter=station_ids_uic7[:10])
+    save_scheduled_departures_of_day_mongo(today_paris_str)
+    save_scheduled_departures_of_day_mongo(tomorrow_paris_str)

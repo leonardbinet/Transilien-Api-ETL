@@ -3,17 +3,19 @@ from os import path, sys
 import logging
 import asyncio
 from aiohttp import ClientSession
+from datetime import datetime, timedelta
+import requests
+import time
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
+from src.utils_secrets import get_secret
+
+
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
 
-from datetime import datetime, timedelta
-import requests
-import time
-from src.utils_secrets import get_secret
 
 API_USER = get_secret("API_USER")
 API_PASSWORD = get_secret("API_PASSWORD")
