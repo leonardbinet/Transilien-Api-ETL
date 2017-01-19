@@ -4,6 +4,8 @@ from os import sys, path
 from datetime import datetime
 import calendar
 import ipdb
+import zipfile
+from urllib.request import urlretrieve
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
@@ -12,20 +14,42 @@ if __name__ == '__main__':
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
 data_path = os.path.join(BASE_DIR, "data")
-gtfs_path = os.path.join(data_path, "sncf-transilien-gtfs")
 
-df_gares = pd.read_csv(path.join(data_path, "gares_transilien.csv"), sep=";")
-station_ids = df_gares["Code UIC"].values
-station_gtif_ids = list(map(lambda x: str(x)[:-1], station_ids))
+
+# CONFIG
+gtfs_path = os.path.join(data_path, "gtfs-lines-last")
+gtfs_csv_url = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien-gtfs/download/?format=csv&timezone=Europe/Berlin&use_labels_for_header=true'
+
+
+def download_gtfs_files():
+    df_links_gtfs = pd.read_csv(gtfs_csv_url)
+
+    for link in df_links_gtfs["file"].values:
+        local_filename, headers = urlretrieve(link)
+        # Get name in header and remove the ".zip"
+        extracted_data_folder_name = headers.get_filename().split(".")[0]
+        with zipfile.ZipFile(local_filename, "r") as zip_ref:
+            full_path = os.path.join(data_path, extracted_data_folder_name)
+            zip_ref.extractall(path=full_path)
 
 
 def write_flat_stop_times_df():
-    trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
-    trips["train_id"] = trips["trip_id"].str.extract("^.{5}(\d{6})")
+    try:
+        trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
+        calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
+        stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
+        stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
 
-    calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
-    stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
-    stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
+    except OSError:
+        print("Could not load files: download files from the internet.")
+        download_gtfs_files()
+
+        trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
+        calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
+        stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
+        stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
+
+    trips["train_id"] = trips["trip_id"].str.extract("^.{5}(\d{6})")
 
     df_merged = stop_times.merge(trips, on="trip_id", how="left")
     df_merged = df_merged.merge(calendar, on="service_id", how="left")
@@ -217,7 +241,8 @@ def check_random_trips_delay():
         df_merged = pd.read_csv(path.join(gtfs_path, "flat.csv"))
     except:
         print("Not found")
-        df_merged = write_flat_stop_times_df()
+        write_flat_stop_times_df()
+        df_merged = pd.read_csv(path.join(gtfs_path, "flat.csv"))
 
     for departure in departures:
         departure_date = departure["date"]["#text"]
@@ -235,15 +260,17 @@ def check_random_trips_delay():
 
 
 if __name__ == '__main__':
+    from src.task_01_extract import get_station_ids
 
-    do_tests = False
+    do_tests = True
 
     if do_tests:
         print("##### 1ST PART ######")
         check_random_trips_delay()
 
         print("##### 2ND PART ######")
-        yyyymmdd_format = "20161201"
+        yyyymmdd_format = "20170119"
+        station_ids_uic7 = get_station_ids(id_format="UIC7")
         stop_times = get_departure_times_df_of_day(yyyymmdd_format)
         filtered_stop_times = get_departure_times_df_of_day(
-            yyyymmdd_format, station_filter=list(station_gtif_ids[:10]))
+            yyyymmdd_format, station_filter=station_ids_uic7[:10])

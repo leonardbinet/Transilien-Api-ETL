@@ -4,14 +4,11 @@ from os import path, sys
 import time
 from datetime import datetime, timedelta
 import ipdb
-import requests
 import json
 import xmltodict
 import pandas as pd
-import requests
-import zipfile
-import io
 import pytz
+
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
@@ -21,25 +18,21 @@ from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
-
 data_path = os.path.join(BASE_DIR, "data")
-df_gares = pd.read_csv(os.path.join(
-    data_path, "gares_transilien.csv"), sep=";")
-
-station_ids = df_gares["Code UIC"].values
 
 
-def download_gtfs_files():
-    data_url = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien-gtfs/download/?format=csv&timezone=Europe/Berlin&use_labels_for_header=true'
+def get_station_ids(id_format="UIC"):
+    df_gares = pd.read_csv(os.path.join(
+        data_path, "gares_transilien.csv"), sep=";")
+    station_ids = df_gares["Code UIC"].values
 
-    df_links_gtfs = pd.read_csv(data_url)
-
-    for link in df_links_gtfs["file"].values:
-        r = requests.get(link)
-        z = zipfile.ZipFile(io.BytesIO(r.content))
-
-        dir_path = path.join(BASE_DIR, "data", "sncf-transilien-gtfs")
-        z.extractall(path=dir_path)
+    if id_format == "UIC":
+        return station_ids
+    elif id_format == "UIC7":
+        station_ids_uic7 = list(map(lambda x: str(x)[:-1], station_ids))
+        return station_ids_uic7
+    else:
+        return False
 
 
 def xml_to_json_with_params(xml_string, station):
@@ -54,6 +47,7 @@ def xml_to_json_with_params(xml_string, station):
     df_trains["request_time"] = datetime_paris.strftime('%H:%M:%S')
     df_trains["station"] = station
     data_json = json.loads(df_trains.to_json(orient='records'))
+    ipdb.set_trace()
     return data_json
 
 
@@ -78,7 +72,13 @@ def extract_save_stations(stations_list):
     mongo_async_save_chunks("real_departures", json_chunks)
 
 
-def operate_timer(station_list=station_ids, cycle_time_sec=1200, stop_time_sec=3600, max_per_minute=250):
+def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600, max_per_minute=250):
+
+    if not station_filter:
+        station_list = get_station_ids()
+    else:
+        station_list = station_filter
+
     print("BEGINNING OPERATION WITH LIMIT OF %d SECONDS" % stop_time_sec)
 
     def chunks(l, n):
