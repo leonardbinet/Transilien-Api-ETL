@@ -91,3 +91,41 @@ def mongo_async_save_chunks(collection, chunks_list):
     future = asyncio.ensure_future(run(chunks_list))
     loop.run_until_complete(future)
     return future.result()
+
+
+def mongo_async_upsert_chunks(collection, item_list, index_fields):
+    asy_collection = mongo_get_async_collection(collection)
+
+    def mongo_get_replace_filter(item_to_upsert, index_fields):
+        m_filter = {}
+        for index_field in index_fields:
+            m_filter[index_field] = item_to_upsert[index_field]
+        return m_filter
+
+    async def do_upsert(item_to_upsert, m_filter):
+        try:
+            result = await asy_collection.replace_one(m_filter, item_to_upsert, upsert=True)
+            if not result.acknowledged:
+                print("Item %s not inserted" % item_to_upsert)
+            # print("Result: %s" % result)
+
+        except Exception as e:
+            print("Could not save item, error %s" % e)
+
+    async def run(item_list):
+        tasks = []
+        for item_to_upsert in item_list:
+            m_filter = mongo_get_replace_filter(item_to_upsert, index_fields)
+            task = asyncio.ensure_future(
+                do_upsert(item_to_upsert, m_filter))
+            tasks.append(task)
+
+        responses = await asyncio.gather(*tasks)
+        return responses
+
+    # def print_responses(result):
+    #    print(result)
+    loop = asyncio.get_event_loop()
+    future = asyncio.ensure_future(run(item_list=item_list))
+    loop.run_until_complete(future)
+    return future.result()

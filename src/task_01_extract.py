@@ -8,13 +8,13 @@ import json
 import xmltodict
 import pandas as pd
 import pytz
-
+import copy
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
 from src.utils_api_client import get_api_client
-from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks
+from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_chunks
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
@@ -60,15 +60,27 @@ def extract_save_stations(stations_list):
     json_chunks = []
     for response in responses:
         try:
+            xml_string = response[0]
+            station = response[1]
             json_chunks.append(xml_to_json_with_params(
-                response[0], response[1]))
+                xml_string, station))
         except:
             continue
     # Save chunks in Mongo
-    print("Saving of %d chunks of json data in Mongo" % len(json_chunks))
+    # Make a deep copy, because mongo will add _ids to json_chunks
+    json_chunks_2 = copy.deepcopy(json_chunks)
+    item_list = [item for sublist in json_chunks_2 for item in sublist]
+
+    print("Saving of %d chunks of json data (total of %d items) in Mongo departures collection" %
+          (len(json_chunks), len(item_list)))
     mongo_async_save_chunks("departures", json_chunks)
-    # Save chunks in other collection
-    mongo_async_save_chunks("real_departures", json_chunks)
+    # Save items in other collection
+    # flatten chunks: -> list of elements to upsert
+
+    index_fields = ["request_day", "station", "num"]
+    print("Upsert of %d items of json data in Mongo real_departures collection" %
+          len(item_list))
+    mongo_async_upsert_chunks("real_departures", item_list, index_fields)
 
 
 def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600, max_per_minute=250):
@@ -79,6 +91,7 @@ def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600,
         station_list = station_filter
 
     print("BEGINNING OPERATION WITH LIMIT OF %d SECONDS" % stop_time_sec)
+    print("MAX NUMBER OF QUERY PER MINUTE TO API: %d" % max_per_minute)
 
     def chunks(l, n):
         for i in range(0, len(l), n):
