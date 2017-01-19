@@ -29,12 +29,18 @@ gtfs_csv_url = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien
 
 
 def download_gtfs_files():
+    logging.info(
+        "Download of csv containing links of zip files, at url %s" % gtfs_csv_url)
     df_links_gtfs = pd.read_csv(gtfs_csv_url)
 
     for link in df_links_gtfs["file"].values:
+        logging.info("Download of %s" % link)
         local_filename, headers = urlretrieve(link)
+
+        logging.info("File name is %s" % headers.get_filename())
         # Get name in header and remove the ".zip"
         extracted_data_folder_name = headers.get_filename().split(".")[0]
+
         with zipfile.ZipFile(local_filename, "r") as zip_ref:
             full_path = os.path.join(data_path, extracted_data_folder_name)
             zip_ref.extractall(path=full_path)

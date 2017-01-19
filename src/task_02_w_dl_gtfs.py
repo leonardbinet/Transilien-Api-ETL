@@ -13,8 +13,13 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
                         filename=logging_file_path, level=logging.INFO)
 
-from src.mod_02_find_schedule import download_gtfs_files
+from src.mod_02_find_schedule import download_gtfs_files, write_flat_departures_times_df
 
 # This operation is done every week
+logging.info("Task: weekly update of gtfs files")
 
+logging.info("Download files.")
 download_gtfs_files()
+
+logging.info("Create flat csv.")
+write_flat_departures_times_df()
