@@ -62,7 +62,7 @@ def mongo_async_save_chunks(collection, chunks_list):
     async def do_insert_many(chunk):
         try:
             result = await asy_collection.insert_many(chunk)
-            # print(result.inserted_ids)
+            logger.debug("Chunk inserted")
         except:
             logger.error("Could not save chunk")
 
@@ -101,6 +101,7 @@ def mongo_async_upsert_chunks(collection, item_list, index_fields):
     async def do_upsert(item_to_upsert, m_filter):
         try:
             result = await asy_collection.replace_one(m_filter, item_to_upsert, upsert=True)
+            logger.debug("Item inserted")
             if not result.acknowledged:
                 logger.error("Item %s not inserted" % item_to_upsert)
             # print("Result: %s" % result)
