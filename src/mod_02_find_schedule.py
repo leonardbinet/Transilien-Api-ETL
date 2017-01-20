@@ -66,10 +66,10 @@ def write_flat_departures_times_df():
         columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
 
     useful = [
-        "trip_num", "scheduled_departure_time", "station_id",
+        "trip_id", "scheduled_departure_time", "station_id",
         "monday", "tuesday", "wednesday",
         "thursday", "friday", "saturday", "sunday",
-        "start_date", "end_date", "train_id"
+        "start_date", "end_date", "train_num"
     ]
     df_merged[useful].to_csv(os.path.join(gtfs_path, "flat.csv"))
 
@@ -115,6 +115,7 @@ def get_departure_times_df_of_day(yyyymmdd_format, stop_filter=None, station_fil
 
     all_stop_times = pd.read_csv(os.path.join(gtfs_path, "stop_times.txt"))
     trips_on_day = get_trips_of_day(yyyymmdd_format)
+
     cond1 = all_stop_times["trip_id"].isin(trips_on_day)
     matching_stop_times = all_stop_times[cond1]
 
@@ -122,6 +123,12 @@ def get_departure_times_df_of_day(yyyymmdd_format, stop_filter=None, station_fil
 
     matching_stop_times.rename(
         columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
+
+    matching_stop_times["station_id"] = matching_stop_times[
+        "stop_id"].str.extract("DUA(\d{7})")
+
+    matching_stop_times["train_num"] = matching_stop_times[
+        "trip_id"].str.extract("^.{5}(\d{6})")
 
     if stop_filter:
         cond2 = matching_stop_times["stop_id"].isin(stop_filter)

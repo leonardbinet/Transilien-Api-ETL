@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 logger.info("Task: daily update of scheduled departures: today and tomorrow")
 paris_tz = pytz.timezone('Europe/Paris')
 
-today_paris = paris_tz.localize(datetime.date.today())
+today_paris = paris_tz.localize(datetime.datetime.now())
 today_paris_str = today_paris.strftime("%Y%m%d")
 tomorrow_paris = today_paris + datetime.timedelta(days=1)
 tomorrow_paris_str = tomorrow_paris.strftime("%Y%m%d")

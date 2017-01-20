@@ -22,7 +22,7 @@ def set_logging_conf(log_name):
 
     # création d'un handler qui va rediriger une écriture du log vers
     # un fichier en mode 'append', avec 1 backup et une taille max de 1Mo
-    file_handler = RotatingFileHandler(log_name, 'a', 1000000, 1)
+    file_handler = RotatingFileHandler(logging_file_path, 'a', 1000000, 1)
 
     # création d'un second handler qui va rediriger chaque écriture de log
     # sur la console
