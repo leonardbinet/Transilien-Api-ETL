@@ -4,13 +4,9 @@ from os import sys, path
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    # Get settings
-    from src.settings import BASE_DIR
     # Logging configuration
     from src.utils_misc import set_logging_conf
-    logging_file_path = os.path.join(
-        BASE_DIR, "..", "logs", "task_01_single_cycle.log")
-    set_logging_conf(log_name=logging_file_path)
+    set_logging_conf(log_name="task_01_single_cycle.log")
 
 from src.mod_01_extract import operate_one_cycle
 

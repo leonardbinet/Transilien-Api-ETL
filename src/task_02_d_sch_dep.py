@@ -6,13 +6,9 @@ import pytz
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    # Get settings
-    from src.settings import BASE_DIR
     # Logging configuration
     from src.utils_misc import set_logging_conf
-    logging_file_path = os.path.join(
-        BASE_DIR, "..", "logs", "task02_d_sch_dep.log")
-    set_logging_conf(log_name=logging_file_path)
+    set_logging_conf(log_name="task02_d_sch_dep.log")
 
 from src.utils_mongo import mongo_async_upsert_chunks
 from src.mod_02_find_schedule import save_scheduled_departures_of_day_mongo
