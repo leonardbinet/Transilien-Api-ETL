@@ -12,7 +12,7 @@ if __name__ == '__main__':
 
 from src.utils_secrets import get_secret
 
-logger = loggin.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
