@@ -6,6 +6,8 @@ import os
 import json
 import logging
 
+logger = logging.getLogger(__name__)
+
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -20,7 +22,7 @@ def get_secret(setting, my_secrets=secrets):
         os.environ[setting] = value
         return my_secrets[setting]
     except KeyError:
-        logging.warn("Impossible to get " + setting)
+        logger.warn("Impossible to get " + setting)
 
 # Keep this information secret
 API_USER = get_secret('API_USER')

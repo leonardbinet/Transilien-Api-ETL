@@ -12,6 +12,7 @@ if __name__ == '__main__':
 
 from src.utils_secrets import get_secret
 
+logger = loggin.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
@@ -38,7 +39,7 @@ class ApiClient():
 
     def _get(self, url, extra_params=None, verbose=False, first_request_time=None, retry_counter=0):
         if verbose and not first_request_time:
-            logging.debug("Import on url %s " % url)
+            logger.debug("Import on url %s " % url)
 
         if not first_request_time:
             first_request_time = datetime.now()
@@ -62,12 +63,12 @@ class ApiClient():
 
         # Warn if not 200
         if response.status_code != 200:
-            logging.debug("WARNING: response status_code is %s" %
-                          response.status_code)
+            logger.debug("WARNING: response status_code is %s" %
+                         response.status_code)
 
         if response.status_code in _RETRIABLE_STATUSES:
             # Retry request.
-            logging.debug("WARNING: retry number %d" % retry_counter)
+            logger.debug("WARNING: retry number %d" % retry_counter)
             return self._get(url=url, extra_params=extra_params, first_request_time=first_request_time, retry_counter=retry_counter + 1, verbose=verbose)
 
         return response
@@ -102,7 +103,7 @@ class ApiClient():
                     station = url_to_station(url)
                     return [resp, station]
                 except:
-                    logging.debug(
+                    logger.debug(
                         "Error getting station %s information" % station)
                     return [False, station]
 
