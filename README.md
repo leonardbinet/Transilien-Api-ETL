@@ -81,10 +81,11 @@ run-parts --test /etc/cron.hourly
 https://doc.ubuntu-fr.org/faq_process
 ```
 ps -e
+ps -p "5513" -o etime=
 ```
 To kill: brutal(replace number by id from last command)
 ```
-sudo pkill -9 4289
+sudo pkill -9 5513
 ```
 ## MongoDB
 

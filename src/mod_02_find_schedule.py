@@ -62,7 +62,7 @@ def write_flat_departures_times_df():
         stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
         stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
 
-    trips["train_id"] = trips["trip_id"].str.extract("^.{5}(\d{6})")
+    trips["train_num"] = trips["trip_id"].str.extract("^.{5}(\d{6})")
 
     df_merged = stop_times.merge(trips, on="trip_id", how="left")
     df_merged = df_merged.merge(calendar, on="service_id", how="left")
@@ -70,8 +70,11 @@ def write_flat_departures_times_df():
 
     df_merged["station_id"] = df_merged.stop_id.str.extract("DUA(\d{7})")
 
+    df_merged.rename(
+        columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
+
     useful = [
-        "trip_id", "departure_time", "station_id",
+        "trip_num", "scheduled_departure_time", "station_id",
         "monday", "tuesday", "wednesday",
         "thursday", "friday", "saturday", "sunday",
         "start_date", "end_date", "train_id"
@@ -123,10 +126,6 @@ def get_departure_times_df_of_day(yyyymmdd_format, stop_filter=None, station_fil
     cond1 = all_stop_times["trip_id"].isin(trips_on_day)
     matching_stop_times = all_stop_times[cond1]
 
-    matching_stop_times["train_num"] = matching_stop_times[
-        "trip_id"].str.extract("^.{5}(\d{6})")
-    matching_stop_times["station_id"] = matching_stop_times[
-        "stop_id"].str.extract("DUA(\d{7})")
     matching_stop_times["scheduled_departure_day"] = yyyymmdd_format
 
     matching_stop_times.rename(

@@ -91,21 +91,38 @@ def extract_save_stations(stations_list):
     mongo_async_upsert_chunks("real_departures", item_list, index_fields)
 
 
-def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600, max_per_minute=250):
+def operate_one_cycle(station_filter=False, max_per_minute=300):
 
     if not station_filter:
         station_list = get_station_ids()
     else:
         station_list = station_filter
 
-    logging.info("BEGINNING OPERATION WITH LIMIT OF %d SECONDS" %
-                 stop_time_sec)
-    logging.info("MAX NUMBER OF QUERY PER MINUTE TO API: %d" % max_per_minute)
-
     def chunks(l, n):
         for i in range(0, len(l), n):
             yield l[i:i + n]
+    station_chunks = chunks(station_list, max_per_minute)
 
+    for station_chunk in station_chunks:
+        chunk_begin_time = datetime.now()
+        extract_save_stations(station_chunk)
+
+        time_passed = (datetime.now() - chunk_begin_time).seconds
+        logging.info("Time spent: %d seconds" % int(time_passed))
+
+        # Max per minute: so have to wait
+        if time_passed < 60:
+            time.sleep(60 - time_passed)
+        else:
+            logging.warning(
+                "Chunk time took more than one minute: %d seconds" % time_passed)
+
+
+def operate_multiple_cycles(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600, max_per_minute=300):
+
+    logging.info("BEGINNING OPERATION WITH LIMIT OF %d SECONDS" %
+                 stop_time_sec)
+    logging.info("MAX NUMBER OF QUERY PER MINUTE TO API: %d" % max_per_minute)
     begin_time = datetime.now()
 
     while (datetime.now() - begin_time).seconds < stop_time_sec:
@@ -113,21 +130,8 @@ def operate_timer(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600,
         loop_begin_time = datetime.now()
         logging.info("BEGINNING CYCLE OF %d SECONDS" % cycle_time_sec)
 
-        station_chunks = chunks(station_list, max_per_minute)
-
-        for station_chunk in station_chunks:
-            chunk_begin_time = datetime.now()
-            extract_save_stations(station_chunk)
-
-            time_passed = (datetime.now() - chunk_begin_time).seconds
-            logging.info("Time spent: %d seconds" % int(time_passed))
-
-            # Max per minute: so have to wait
-            if time_passed < 60:
-                time.sleep(60 - time_passed)
-            else:
-                logging.warning(
-                    "Chunk time took more than one minute: %d seconds" % time_passed)
+        operate_one_cycle(station_filter=station_filter,
+                          max_per_minute=max_per_minute)
 
         # Wait until beginning of next cycle
         time_passed = (datetime.now() - loop_begin_time).seconds

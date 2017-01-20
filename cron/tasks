@@ -7,9 +7,11 @@
 #
 # all x min = */x
 
+# Every 15 min
+*/15 * * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/src/task_01_single_cycle_api.py
 
-# Every hour at :30
-30 * * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/src/task_01_h_extract_api.py
+# Every hour at :30: DEACTIVATED
+# 30 * * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/src/task_01_h_extract_api.py
 
 # Every day at 4:00AM
 0 4 * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/src/task_02_d_sch_dep.py
