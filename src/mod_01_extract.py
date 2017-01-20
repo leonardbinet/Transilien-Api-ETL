@@ -3,7 +3,6 @@ import os
 from os import path, sys
 import time
 from datetime import datetime, timedelta
-import ipdb
 import json
 import xmltodict
 import pandas as pd
@@ -11,18 +10,9 @@ import pytz
 import copy
 import logging
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))
-
-if __name__ == '__main__':
-    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    # Logging configuration
-    logging_file_path = os.path.join(BASE_DIR, "..", "logs", "task01.log")
-    logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
-                        filename=logging_file_path, level=logging.INFO)
-
 from src.utils_api_client import get_api_client
 from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_chunks
+from src.settings import BASE_DIR
 
 
 data_path = os.path.join(BASE_DIR, "data")

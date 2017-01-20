@@ -3,24 +3,16 @@ from os import sys, path
 import pandas as pd
 import datetime
 import calendar
-import ipdb
 import zipfile
 from urllib.request import urlretrieve
 import logging
 import json
 import pytz
-
-BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))
-
-if __name__ == '__main__':
-    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    # Logging configuration
-    logging_file_path = os.path.join(BASE_DIR, "..", "logs", "task02.log")
-    logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
-                        filename=logging_file_path, level=logging.INFO)
-
+from src.settings import BASE_DIR
 from src.utils_mongo import mongo_async_upsert_chunks
+
+
+logger = logging.getLogger(__name__)
 
 # CONFIG
 data_path = os.path.join(BASE_DIR, "data")
@@ -29,15 +21,15 @@ gtfs_csv_url = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien
 
 
 def download_gtfs_files():
-    logging.info(
+    logger.info(
         "Download of csv containing links of zip files, at url %s" % gtfs_csv_url)
     df_links_gtfs = pd.read_csv(gtfs_csv_url)
 
     for link in df_links_gtfs["file"].values:
-        logging.info("Download of %s" % link)
+        logger.info("Download of %s" % link)
         local_filename, headers = urlretrieve(link)
 
-        logging.info("File name is %s" % headers.get_filename())
+        logger.info("File name is %s" % headers.get_filename())
         # Get name in header and remove the ".zip"
         extracted_data_folder_name = headers.get_filename().split(".")[0]
 
@@ -54,7 +46,7 @@ def write_flat_departures_times_df():
         stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
 
     except OSError:
-        logging.info("Could not load files: download files from the internet.")
+        logger.info("Could not load files: download files from the internet.")
         download_gtfs_files()
 
         trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
@@ -86,7 +78,7 @@ def get_flat_departures_times_df():
     try:
         df_merged = pd.read_csv(path.join(gtfs_path, "flat.csv"))
     except:
-        logging.info("Flat csv not found, let's create it")
+        logger.info("Flat csv not found, let's create it")
         write_flat_departures_times_df()
         df_merged = pd.read_csv(path.join(gtfs_path, "flat.csv"))
     return df_merged
@@ -148,8 +140,8 @@ def save_scheduled_departures_of_day_mongo(yyyymmdd_format):
 
     index_fields = ["scheduled_departure_day", "station_id", "train_num"]
 
-    logging.info("Upsert of %d items of json data in Mongo scheduled_departures collection" %
-                 len(data_json))
+    logger.info("Upsert of %d items of json data in Mongo scheduled_departures collection" %
+                len(data_json))
 
     mongo_async_upsert_chunks(
         "scheduled_departures", data_json, index_fields)

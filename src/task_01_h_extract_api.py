@@ -2,8 +2,7 @@ import os
 import logging
 from os import sys, path
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))
+from settings import BASE_DIR
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
