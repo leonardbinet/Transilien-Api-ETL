@@ -25,6 +25,9 @@ def download_gtfs_files():
         "Download of csv containing links of zip files, at url %s" % gtfs_csv_url)
     df_links_gtfs = pd.read_csv(gtfs_csv_url)
 
+    # Download and unzip all files
+    # Check if one is "gtfs-lines-last" (necessary)
+    gtfs_lines_last_present = False
     for link in df_links_gtfs["file"].values:
         logger.info("Download of %s" % link)
         local_filename, headers = urlretrieve(link)
@@ -32,10 +35,17 @@ def download_gtfs_files():
         logger.info("File name is %s" % headers.get_filename())
         # Get name in header and remove the ".zip"
         extracted_data_folder_name = headers.get_filename().split(".")[0]
+        if extracted_data_folder_name == "gtfs-lines-last":
+            gtfs_lines_last_present = True
+            logger.info("The 'gtfs-lines-last' folder has been found.")
 
         with zipfile.ZipFile(local_filename, "r") as zip_ref:
             full_path = os.path.join(data_path, extracted_data_folder_name)
             zip_ref.extractall(path=full_path)
+
+        if not gtfs_lines_last_present:
+            logger.error(
+                "The 'gtfs-lines-last' folder has been found! Schedules will not be updated.")
 
 
 def write_flat_departures_times_df():
@@ -107,7 +117,7 @@ def get_trips_of_day(yyyymmdd_format):
     return trips_on_day
 
 
-def get_departure_times_df_of_day(yyyymmdd_format, stop_filter=None, station_filter=None):
+def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None):
     """
     stop_filter is a list of stops you want, it must be in GTFS format:
     station_filter is a list of stations you want, it must be api format
@@ -120,13 +130,10 @@ def get_departure_times_df_of_day(yyyymmdd_format, stop_filter=None, station_fil
     matching_stop_times = all_stop_times[cond1]
 
     matching_stop_times["scheduled_departure_day"] = yyyymmdd_format
-
     matching_stop_times.rename(
         columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
-
     matching_stop_times["station_id"] = matching_stop_times[
         "stop_id"].str.extract("DUA(\d{7})")
-
     matching_stop_times["train_num"] = matching_stop_times[
         "trip_id"].str.extract("^.{5}(\d{6})")
 
@@ -138,17 +145,16 @@ def get_departure_times_df_of_day(yyyymmdd_format, stop_filter=None, station_fil
         cond3 = matching_stop_times["station_id"].isin(station_filter)
         matching_stop_times = matching_stop_times[cond3]
 
-    return matching_stop_times
+    json_list = json.loads(matching_stop_times.to_json(orient='records'))
+    return json_list
 
 
 def save_scheduled_departures_of_day_mongo(yyyymmdd_format):
-    df_departure_times = get_departure_times_df_of_day(yyyymmdd_format)
-    data_json = json.loads(df_departure_times.to_json(orient='records'))
+    json_list = get_departure_times_of_day_json_list(yyyymmdd_format)
 
     index_fields = ["scheduled_departure_day", "station_id", "train_num"]
 
-    logger.info("Upsert of %d items of json data in Mongo scheduled_departures collection" %
-                len(data_json))
+    logger.info(
+        "Upsert of %d items of json data in Mongo scheduled_departures collection" % len(json_list))
 
-    mongo_async_upsert_chunks(
-        "scheduled_departures", data_json, index_fields)
+    mongo_async_upsert_items("scheduled_departures", json_list, index_fields)
