@@ -22,28 +22,32 @@ data_path = os.path.join(BASE_DIR, "data")
 def get_station_ids(id_format="UIC"):
     df_gares = pd.read_csv(os.path.join(
         data_path, "gares_transilien.csv"), sep=";")
-    station_ids = df_gares["Code UIC"].values
-
+    station_ids = list(df_gares["Code UIC"].values)
+    station_ids = list(map(lambda x: str(x), station_ids))
     if id_format == "UIC":
         return station_ids
     elif id_format == "UIC7":
         station_ids_uic7 = list(map(lambda x: str(x)[:-1], station_ids))
         return station_ids_uic7
     else:
-        return False
+        logger.error("id_format must be either UIC or UIC7")
+        raise ValueError("Incorrect id_format provided.")
 
 
-def xml_to_json_with_params(xml_string, station):
-    mydict = xmltodict.parse(xml_string)
-    trains = mydict["passages"]["train"]
-    df_trains = pd.DataFrame(trains)
-    df_trains["date"] = df_trains.date.apply(lambda x: x["#text"])
+def xml_to_json_item_list(xml_string, station):
     # Save with Paris timezone (if server is abroad)
     paris_tz = pytz.timezone('Europe/Paris')
     datetime_paris = paris_tz.localize(datetime.now())
+
+    mydict = xmltodict.parse(xml_string)
+    trains = mydict["passages"]["train"]
+    df_trains = pd.DataFrame(trains)
+
+    df_trains["date"] = df_trains.date.apply(lambda x: x["#text"])
     df_trains["request_day"] = datetime_paris.strftime('%Y%m%d')
     df_trains["request_time"] = datetime_paris.strftime('%H:%M:%S')
     df_trains["station"] = station
+
     data_json = json.loads(df_trains.to_json(orient='records'))
     return data_json
 
@@ -53,6 +57,7 @@ def extract_save_stations(stations_list):
     logger.info("Extraction of %d stations" % len(stations_list))
     client = get_api_client()
     responses = client.request_stations(stations_list)
+
     # Parse responses in JSON format
     logger.info("Parsing")
     json_chunks = []
@@ -60,7 +65,7 @@ def extract_save_stations(stations_list):
         xml_string = response[0]
         station = response[1]
         try:
-            json_chunks.append(xml_to_json_with_params(
+            json_chunks.append(xml_to_json_item_list(
                 xml_string, station))
         except Exception as e:
             logger.debug("Cannot parse station %s" % station)
