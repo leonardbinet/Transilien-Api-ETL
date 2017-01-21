@@ -9,7 +9,7 @@ import logging
 import json
 import pytz
 from src.settings import BASE_DIR
-from src.utils_mongo import mongo_async_upsert_chunks
+from src.utils_mongo import mongo_async_upsert_items
 
 
 logger = logging.getLogger(__name__)

@@ -15,7 +15,7 @@ from src.mod_02_find_schedule import save_scheduled_departures_of_day_mongo
 
 logger = logging.getLogger(__name__)
 
-# Save for this day, and for next day
+# Save for next day
 logger.info("Task: daily update of scheduled departures: today and tomorrow")
 paris_tz = pytz.timezone('Europe/Paris')
 
@@ -26,8 +26,8 @@ tomorrow_paris_str = tomorrow_paris.strftime("%Y%m%d")
 
 logger.info("Paris today date is %s" % today_paris_str)
 
-logger.info("Updating scheduled departures for %s" % today_paris_str)
-save_scheduled_departures_of_day_mongo(today_paris_str)
+# logger.info("Updating scheduled departures for %s" % today_paris_str)
+# save_scheduled_departures_of_day_mongo(today_paris_str)
 
 logger.info("Updating scheduled departures for %s" % today_paris_str)
 save_scheduled_departures_of_day_mongo(tomorrow_paris_str)

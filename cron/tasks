@@ -16,5 +16,8 @@
 # Every day at 4:00AM
 0 4 * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/src/task_02_d_sch_dep.py
 
+# Every day at 5:00AM
+0 5 * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/src/task_01_d_move_col.py
+
 # Every week on Monday at 5:00 AM
 0 5 * * 1 /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/src/task_02_w_dl_gtfs.py

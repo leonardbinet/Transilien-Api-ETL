@@ -11,7 +11,7 @@ import copy
 import logging
 
 from src.utils_api_client import get_api_client
-from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_chunks
+from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
 from src.settings import BASE_DIR
 
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ def extract_save_stations(stations_list):
     index_fields = ["request_day", "station", "num"]
     logger.info("Upsert of %d items of json data in Mongo real_departures collection" %
                 len(item_list))
-    mongo_async_upsert_chunks("real_departures", item_list, index_fields)
+    mongo_async_upsert_items("real_departures", item_list, index_fields)
 
 
 def operate_one_cycle(station_filter=False, max_per_minute=300):

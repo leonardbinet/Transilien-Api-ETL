@@ -95,7 +95,7 @@ def mongo_async_save_chunks(collection, chunks_list):
     return future.result()
 
 
-def mongo_async_upsert_chunks(collection, item_list, index_fields):
+def mongo_async_upsert_items(collection, item_list, index_fields):
     asy_collection = mongo_get_async_collection(collection)
 
     def mongo_get_replace_filter(item_to_upsert, index_fields):
