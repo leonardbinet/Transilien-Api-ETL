@@ -41,9 +41,9 @@ pip install fabric
 
 # Launch fabfile:
 # For first time:
-fab initial_deploy:host=ubuntu@ec2-54-229-162-229.eu-west-1.compute.amazonaws.com
+fab initial_deploy:host=ubuntu@ec2-54-154-184-96.eu-west-1.compute.amazonaws.com
 # Then later, to update if needed (shorter operation):
-fab deploy:host=ubuntu@ec2-54-229-162-229.eu-west-1.compute.amazonaws.com
+fab deploy:host=ubuntu@ec2-54-154-184-96.eu-west-1.compute.amazonaws.com
 
 ```
 
@@ -92,9 +92,10 @@ sudo pkill -9 5513
 real_departures Unique Compound Index: day/station/num:
 (beware after midnight)
 ```
-real_departures.create_index( [("request_day", pymongo.ASCENDING), ("station", pymongo.ASCENDING), ("num",pymongo.DESCENDING)], unique=True)
 
 scheduled_departures.create_index( [("scheduled_departure_day", pymongo.ASCENDING), ("station_id", pymongo.ASCENDING), ("train_num",pymongo.ASCENDING)], unique=True)
+
+real_departures.create_index( [("request_day", pymongo.ASCENDING), ("station", pymongo.ASCENDING), ("num",pymongo.DESCENDING)], unique=True)
 
 real_departures.create_index("train_num")
 

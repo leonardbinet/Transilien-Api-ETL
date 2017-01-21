@@ -7,11 +7,13 @@ from settings import BASE_DIR
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     # Logging configuration
-    logging_file_path = os.path.join(BASE_DIR, "..", "logs", "task01.log")
-    logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
-                        filename=logging_file_path, level=logging.INFO)
+    from src.utils_misc import set_logging_conf
+    set_logging_conf(log_name="task_01_long_cycle.log")
+
 
 from src.mod_01_extract import operate_multiple_cycles
+
+logger = logging.getLogger(__name__)
 
 # By default, run for one hour (minus 100 sec), every 2 minutes
 # max 300 queries per sec

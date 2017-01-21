@@ -4,13 +4,19 @@ import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 import logging
 from urllib.parse import quote_plus
+import datetime
+import pytz
 
 logger = logging.getLogger(__name__)
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+    from src.utils_misc import set_logging_conf
+    set_logging_conf(log_name="mongo_direct.log")
+
 from src.utils_secrets import get_secret
 
+logger = logging.getLogger(__name__)
 
 MONGO_HOST = get_secret("MONGO_HOST")
 MONGO_USER = get_secret("MONGO_USER")
@@ -126,3 +132,57 @@ def mongo_async_upsert_chunks(collection, item_list, index_fields):
     future = asyncio.ensure_future(run(item_list=item_list))
     loop.run_until_complete(future)
     return future.result()
+
+
+def mongo_move_day_data_to_other_col(yyyymmdd_day, old_col, new_col, day_field, del_original=False):
+    logger.info("Moving data from %s to %s for day %s" %
+                (old_col, new_col, yyyymmdd_day))
+
+    # Lock for current day in Paris (can only move past days results)
+    paris_tz = pytz.timezone('Europe/Paris')
+
+    today_paris = paris_tz.localize(datetime.datetime.now())
+    today_paris_str = today_paris.strftime("%Y%m%d")
+    if yyyymmdd_day == today_paris_str:
+        logger.warn(
+            "Trying to move today's collected data: ABORT: it is forbidden to avoid data corruption (this data might be changed in realtime).")
+        return False
+
+    day_filter = {day_field: yyyymmdd_day}
+    old_collection = mongo_get_collection(old_col)
+    new_collection = mongo_get_collection(new_col)
+
+    # Count number of elements that should be moved:
+    old_col_initial_count = old_collection.find(day_filter).count()
+
+    logger.info("There are %s items on day %s on %s." %
+                (old_col_initial_count, yyyymmdd_day, old_col))
+
+    new_col_initial_count = new_collection.find(day_filter).count()
+
+    logger.info("There are %s items on day %s on %s." %
+                (new_col_initial_count, yyyymmdd_day, new_col))
+
+    if old_col_initial_count == 0:
+        logger.warn(
+            "There was no item matching this date query on %s colleciton: ABORT operation." % old_col)
+        return False
+    if new_col_initial_count > 0:
+        logger.warn(
+            "There are %s existing elements that might be deleted on %s colleciton: ABORT operation." % (new_col_initial_count, new_col))
+        return False
+
+    # Move data
+    old_collection.aggregate(
+        [{"$match": day_filter}, {"$out": new_col}])
+
+    # Check if it has been moved
+    new_col_final_count = new_collection.find(day_filter).count()
+    logger.info("There are %s items on day %s on %s after operation." %
+                (new_col_final_count, yyyymmdd_day, new_col))
+
+    # Delete data in old_col
+    if del_original:
+        del_result = old_collection.delete_many(day_filter)
+        logger.info("Deleted %s results from %s" %
+                    (del_result.deleted_count, old_col))
