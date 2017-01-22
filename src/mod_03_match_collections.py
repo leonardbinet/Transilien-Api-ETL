@@ -7,16 +7,14 @@ import logging
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+    from src.utils_misc import set_logger_conf
+    set_logger_conf(log_name="mod_03_match.log")
 
 from src.utils_mongo import mongo_get_collection
-from src.mod_02_find_schedule import get_departure_times_df_of_day, get_flat_departures_times_df
+from src.mod_02_find_schedule import get_departure_times_of_day_json_list, get_flat_departures_times_df, trip_scheduled_departure_time
+from src.settings import BASE_DIR, data_path, gtfs_path
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))
-data_path = os.path.join(BASE_DIR, "data")
-
-# CONFIG
-gtfs_path = os.path.join(data_path, "gtfs-lines-last")
+logger = logging.getLogger(__name__)
 
 
 # trip_id is unique for ONE DAY
@@ -43,13 +41,15 @@ def get_trip_ids_from_day_and_train_nums(train_num_list, departure_date):
         n = len(potential_trip_ids)
 
         if n == 0:
-            logging.warn("No matching trip id for num %s on %s" %
-                         (train_num, yyyymmdd_format))
+            logger.warn("No matching trip id for num %s on %s" %
+                        (train_num, yyyymmdd_format))
             num_trip_id_list.append((train_num, False))
         elif n == 1:
+            logger.info("Trip id found for num %s on %s" %
+                        (train_num, yyyymmdd_format))
             num_trip_id_list.append((train_num, potential_trip_ids[0]))
         else:
-            logging.warn("Multiple trip ids found: %d matches" % n)
+            logger.warn("Multiple trip ids found: %d matches" % n)
             num_trip_id_list.append((train_num, False))
     return num_trip_id_list
 
@@ -62,51 +62,29 @@ def departure_date_to_week_day(departure_date):
 
 
 def departure_date_to_yyyymmdd_date(departure_date):
-    # format: "01/02/2017 22:12" to "2017"
+    # format: "01/02/2017 22:12" to "20170201"
     departure_date = datetime.strptime(departure_date, "%d/%m/%Y %H:%M")
     new_format = departure_date.strftime("%Y%m%d")
     return new_format
 
 
-def get_scheduled_departure_time_from_trip_id_and_station(trip_id, station, ignore_multiple=False):
-    df_flat = get_flat_departures_times_df()
+def compute_delay(scheduled_departure_day, scheduled_departure_time, real_departure_date):
+    # real_departure_date = "01/02/2017 22:12" (api format)
+    # scheduled_departure_time = '22:12:00' (schedules format)
+    # scheduled_departure_day = '20170102' (schedules format)
+    # We don't need to take into account time zones
 
-    # Station ids are not exactly the same: don't use last digit
-    station = str(station)[:-1]
-    condition_trip = df_flat["trip_id"] == str(trip_id)
-    condition_station = df_flat["station_id"] == int(station)
-
-    pot_scheduled_departure_time = df_flat[condition_trip][
-        condition_station]["departure_time"].unique()
-    pot_scheduled_departure_time = list(pot_scheduled_departure_time)
-    n = len(pot_scheduled_departure_time)
-    if n == 0:
-        print("No matching scheduled_departure_time")
-        return False
-    elif n == 1:
-        return pot_scheduled_departure_time[0]
-    else:
-        print("Multiple scheduled time found: %d matches" % n)
-        if ignore_multiple:
-            return pot_scheduled_departure_time[0]
-        else:
-            return False
-
-
-def compute_delay(scheduled_departure_time, real_departure_date):
-    # real_departure_date = "01/02/2017 22:12"
-    # scheduled_departure_time = '22:12:00'
-    # Lets suppose it is always the same day (don't take into account
-    # overlapping at midnight)
     real_departure_date = datetime.strptime(
         real_departure_date, "%d/%m/%Y %H:%M")
 
     scheduled_departure_date = datetime.strptime(
         scheduled_departure_time, "%H:%M:%S")
-
+    # Year and month, same as real
     scheduled_departure_date.replace(year=real_departure_date.year)
     scheduled_departure_date.replace(month=real_departure_date.month)
-    scheduled_departure_date.replace(day=real_departure_date.day)
+    # For day, might be different (after midnight) => Last two digits
+    scheduled_day = scheduled_departure_day[-2:]
+    scheduled_departure_date.replace(day=scheduled_day)
 
     # If late: delay is positive, if in advance, it is negative
     delay = real_departure_date - scheduled_departure_date
@@ -118,7 +96,7 @@ def api_passage_information_to_delay(num, departure_date, station):
         num, departure_date)
     if not trip_id:
         return False
-    scheduled_departure_time = get_scheduled_departure_time_from_trip_id_and_station(
+    scheduled_departure_time = trip_scheduled_departure_time(
         trip_id, station)
     if not scheduled_departure_time:
         return False

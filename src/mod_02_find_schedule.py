@@ -8,16 +8,11 @@ from urllib.request import urlretrieve
 import logging
 import json
 import pytz
-from src.settings import BASE_DIR
+from src.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url
 from src.utils_mongo import mongo_async_upsert_items
 
 
 logger = logging.getLogger(__name__)
-
-# CONFIG
-data_path = os.path.join(BASE_DIR, "data")
-gtfs_path = os.path.join(data_path, "gtfs-lines-last")
-gtfs_csv_url = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien-gtfs/download/?format=csv&timezone=Europe/Berlin&use_labels_for_header=true'
 
 
 def download_gtfs_files():
@@ -76,7 +71,7 @@ def write_flat_departures_times_df():
         columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
 
     useful = [
-        "trip_id", "scheduled_departure_time", "station_id",
+        "trip_id", "scheduled_departure_time", "station_id", "service_id",
         "monday", "tuesday", "wednesday",
         "thursday", "friday", "saturday", "sunday",
         "start_date", "end_date", "train_num"
@@ -92,6 +87,50 @@ def get_flat_departures_times_df():
         write_flat_departures_times_df()
         df_merged = pd.read_csv(path.join(gtfs_path, "flat.csv"))
     return df_merged
+
+
+def trip_scheduled_departure_time(trip_id, station):
+    """
+    Get trip scheduled_departure_time from trip_id and station.
+    Station provided must be 7 digits format (8 accepted).
+    Trip scheduled departures times are day-agnostic.
+    """
+    if len(str(station)) == 8:
+        station = str(station)[:-1]
+    elif len(str(station)) == 7:
+        station = str(station)
+    else:
+        logger.warn("Station must be 7 digits (8 accepted)")
+        return False
+
+    logger.debug("Trying to find departure time for trip_id %s for station_id %s" % (
+        trip_id, station))
+
+    dep_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
+    cond_trip = dep_times["trip_id"] == str(trip_id)
+    dep_times = dep_times[cond_trip]
+    logger.debug("%d row(s) after trip_id filtering." % len(dep_times.index))
+
+    # Find station_id from stop_id
+    dep_times["station_id"] = dep_times["stop_id"].str.extract("DUA(\d{7})")
+    cond_station = dep_times["station_id"] == station
+    dep_times = dep_times[cond_station]
+    logger.debug("%d row(s) after station_id filtering." %
+                 len(dep_times.index))
+
+    dep_times = list(dep_times["departure_time"].unique())
+
+    n = len(dep_times)
+    if n == 0:
+        logger.warning("No matching scheduled_departure_time")
+        return False
+    elif n == 1:
+        dep_times = dep_times[0]
+        logger.debug("Found departure time: %s" % dep_times)
+        return dep_times
+    else:
+        logger.warning("Multiple scheduled time found: %d matches" % n)
+        return False
 
 
 def get_services_of_day(yyyymmdd_format):

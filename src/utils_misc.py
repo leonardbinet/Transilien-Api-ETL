@@ -7,10 +7,16 @@ BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
 
 
-def set_logging_conf(log_name):
+def set_logging_conf(log_name, level="INFO"):
     """
     This must be imported by all scripts running as "main"
     """
+    if level == "INFO":
+        level = logging.INFO
+    elif level == "DEBUG":
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
     # Delete all previous potential handlers
     logger = logging.getLogger()
     for handler in logger.handlers[:]:
@@ -31,7 +37,7 @@ def set_logging_conf(log_name):
     handlers = [file_handler, stream_handler]
 
     logging.basicConfig(
-        format='%(asctime)s-- %(name)s -- %(levelname)s -- %(message)s', level=logging.INFO, handlers=handlers)
+        format='%(asctime)s-- %(name)s -- %(levelname)s -- %(message)s', level=level, handlers=handlers)
 
     # Python crashes or captured as well (beware of ipdb imports)
     def handle_exception(exc_type, exc_value, exc_traceback):

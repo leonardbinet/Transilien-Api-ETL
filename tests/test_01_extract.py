@@ -1,11 +1,11 @@
 from os import sys, path
 import unittest
 from src.settings import BASE_DIR
-
-if __name__ == '__main__':
-    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+import logging
 
 from src.mod_01_extract import get_station_ids, xml_to_json_item_list
+
+logger = logging.getLogger(__name__)
 
 
 class TestExtractModuleFunctions(unittest.TestCase):
