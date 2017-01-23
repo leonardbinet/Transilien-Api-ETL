@@ -5,7 +5,7 @@ import datetime
 import logging
 
 from src.settings import BASE_DIR
-from src.mod_02_find_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time
+from src.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time
 
 logger = logging.getLogger(__name__)
 

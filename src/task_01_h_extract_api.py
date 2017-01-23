@@ -11,7 +11,7 @@ if __name__ == '__main__':
     set_logging_conf(log_name="task_01_long_cycle.log")
 
 
-from src.mod_01_extract import operate_multiple_cycles
+from src.mod_01_extract_api import operate_multiple_cycles
 
 logger = logging.getLogger(__name__)
 

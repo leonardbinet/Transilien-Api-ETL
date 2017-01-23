@@ -3,7 +3,7 @@ import unittest
 from src.settings import BASE_DIR
 import logging
 
-from src.mod_01_extract import get_station_ids, xml_to_json_item_list
+from src.mod_01_extract_api import get_station_ids, xml_to_json_item_list
 
 logger = logging.getLogger(__name__)
 

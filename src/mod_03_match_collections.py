@@ -11,7 +11,7 @@ if __name__ == '__main__':
     set_logger_conf(log_name="mod_03_match.log")
 
 from src.utils_mongo import mongo_get_collection
-from src.mod_02_find_schedule import get_departure_times_of_day_json_list, get_flat_departures_times_df, trip_scheduled_departure_time
+from src.mod_02_query_schedule import get_departure_times_of_day_json_list, get_flat_departures_times_df, trip_scheduled_departure_time
 from src.settings import BASE_DIR, data_path, gtfs_path
 
 logger = logging.getLogger(__name__)
@@ -54,6 +54,10 @@ def get_trip_ids_from_day_and_train_nums(train_num_list, departure_date):
     return num_trip_id_list
 
 
+def schedules_from_train_nums_day(train_num_list, yyyymmdd_day):
+    pass
+
+
 def departure_date_to_week_day(departure_date):
     # format: "01/02/2017 22:12"
     departure_date = datetime.strptime(departure_date, "%d/%m/%Y %H:%M")
@@ -68,7 +72,7 @@ def departure_date_to_yyyymmdd_date(departure_date):
     return new_format
 
 
-def compute_delay(scheduled_departure_day, scheduled_departure_time, real_departure_date):
+def compute_delay(scheduled_departure_time, real_departure_date):
     # real_departure_date = "01/02/2017 22:12" (api format)
     # scheduled_departure_time = '22:12:00' (schedules format)
     # scheduled_departure_day = '20170102' (schedules format)
@@ -82,9 +86,10 @@ def compute_delay(scheduled_departure_day, scheduled_departure_time, real_depart
     # Year and month, same as real
     scheduled_departure_date.replace(year=real_departure_date.year)
     scheduled_departure_date.replace(month=real_departure_date.month)
+    scheduled_departure_date.replace(day=real_departure_date.day)
     # For day, might be different (after midnight) => Last two digits
-    scheduled_day = scheduled_departure_day[-2:]
-    scheduled_departure_date.replace(day=scheduled_day)
+    # scheduled_day = scheduled_departure_day[-2:]
+    # scheduled_departure_date.replace(day=scheduled_day)
 
     # If late: delay is positive, if in advance, it is negative
     delay = real_departure_date - scheduled_departure_date
