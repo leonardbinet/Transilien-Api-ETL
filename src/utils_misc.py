@@ -2,9 +2,7 @@ import os
 from os import sys
 import logging
 from logging.handlers import RotatingFileHandler
-
-BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))
+from src.settings import BASE_DIR
 
 
 def set_logging_conf(log_name, level="INFO"):

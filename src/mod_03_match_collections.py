@@ -7,8 +7,8 @@ import logging
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from src.utils_misc import set_logger_conf
-    set_logger_conf(log_name="mod_03_match.log")
+    from src.utils_misc import set_logging_conf
+    set_logging_conf(log_name="mod_03_match.log")
 
 from src.utils_mongo import mongo_get_collection
 from src.mod_02_query_schedule import get_departure_times_of_day_json_list, get_flat_departures_times_df, trip_scheduled_departure_time

@@ -18,14 +18,14 @@ logger = logging.getLogger(__name__)
 
 
 def sqlite_get_connection():
-    return = sqlite3.connect(sqlite_path)
+    return sqlite3.connect(sqlite_path)
 
 
 def sqlite_get_cursor():
-    return = sqlite3.connect(sqlite_path).cursor()
+    return sqlite3.connect(sqlite_path).cursor()
 
 
-def sqlite_save_df_in_table(df, table_name, index_label, if_exists='append'):
+def sqlite_save_df_in_table(df, table_name, index=False, index_label=None, if_exists='append'):
     con = sqlite_get_connection()
-    df.to_sql(name_name, con, flavor=None, schema=None, if_exists=if_exists,
-              index=False, index_label=index_label, chunksize=None, dtype=None)
+    df.to_sql(table_name, con, flavor=None, schema=None, if_exists=if_exists,
+              index=index, index_label=index_label, chunksize=None, dtype=None)

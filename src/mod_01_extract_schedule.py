@@ -8,8 +8,15 @@ from urllib.request import urlretrieve
 import logging
 import json
 import pytz
+
+if __name__ == '__main__':
+    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+    from src.utils_misc import set_logging_conf
+    set_logging_conf(log_name="mod_01_extract_schedule.log")
+
 from src.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url
 from src.utils_mongo import mongo_async_upsert_items
+from src.utils_sqlite import sqlite_get_connection
 
 
 logger = logging.getLogger(__name__)
@@ -77,3 +84,67 @@ def write_flat_departures_times_df():
         "start_date", "end_date", "train_num"
     ]
     df_merged[useful].to_csv(os.path.join(gtfs_path, "flat.csv"))
+
+
+def save_all_schedule_tables_sqlite():
+    save_trips_extended_sqlite()
+    save_stop_times_extended_sqlite()
+
+
+def save_trips_extended_sqlite():
+    """
+    Save trips table, with some more columns:
+    - train_num
+    - calendar columns
+    """
+    trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
+    logger.debug("Found %d trips." % len(trips.index))
+    calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
+
+    trips["train_num"] = trips["trip_id"].str.extract("^.{5}(\d{6})")
+    extended = trips.merge(calendar, on="service_id", how="left")
+
+    # Clean missing fields
+    # Block id is always NaN, and drop where calendar is not present
+    del extended['block_id']
+    extended.dropna(axis=0, how='any', inplace=True)
+
+    logger.debug("%d trips with calendar dates." % len(extended.index))
+
+    connection = sqlite_get_connection()
+    stop_times_ext.to_sql("trips_ext", connection, if_exists='append',
+                          index=False, index_label="trip_id", chunksize=1000)
+
+
+def save_stop_times_extended_sqlite():
+    """
+    Save stop times table, with some more columns:
+    - train_num (out of trip_id)
+    - calendar columns
+    - station_id column (7 digits out of stop_id)
+    - stops columns, (stop name for instance)
+    """
+    trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
+    calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
+    stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
+    stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
+
+    stop_times_ext = stop_times.merge(trips, on="trip_id", how="left")
+    stop_times_ext = stop_times_ext.merge(
+        calendar, on="service_id", how="left")
+    stop_times_ext = stop_times_ext.merge(stops, on="stop_id", how="left")
+
+    stop_times_ext["train_num"] = stop_times_ext[
+        "trip_id"].str.extract("^.{5}(\d{6})")
+    stop_times_ext["station_id"] = stop_times_ext.stop_id.str.extract(
+        "DUA(\d{7})")
+
+    # useful = [
+    #    "trip_id", "departure_time", "station_id", "service_id",
+    #    "monday", "tuesday", "wednesday",
+    #    "thursday", "friday", "saturday", "sunday",
+    #    "start_date", "end_date", "train_num"
+    #]
+    connection = sqlite_get_connection()
+    stop_times_ext.to_sql("stop_times_ext", connection, if_exists='replace',
+                          index=True, index_label=None, chunksize=1000)

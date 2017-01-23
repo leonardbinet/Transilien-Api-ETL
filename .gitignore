@@ -18,3 +18,6 @@ data/*
 
 # Ipython notebooks
 *.ipynb
+
+# Databases
+*.db

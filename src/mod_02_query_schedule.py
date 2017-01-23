@@ -10,6 +10,7 @@ import json
 import pytz
 from src.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url
 from src.utils_mongo import mongo_async_upsert_items
+from src.utils_sqlite import sqlite_get_connection
 from src.mod_01_extract_schedule import write_flat_departures_times_df
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,19 @@ def get_flat_departures_times_df():
         write_flat_departures_times_df()
         df_merged = pd.read_csv(path.join(gtfs_path, "flat.csv"))
     return df_merged
+
+
+def trip_scheduled_departure_time_sqlite(trip_id, station):
+    connection = sqlite_get_connection()
+    cursor = connection.cursor()
+    query = "SELECT departure_time FROM stop_times_ext WHERE trip_id=? AND station_id=?;"
+    cursor.execute(query, (trip_id, station))
+
+    #query = "PRAGMA table_info(stop_times_ext);"
+    # cursor.execute(query)
+    departure_time = cursor.fetchone()[0]
+    connection.close()
+    return departure_time
 
 
 def trip_scheduled_departure_time(trip_id, station):
