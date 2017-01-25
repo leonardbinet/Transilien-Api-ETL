@@ -9,7 +9,7 @@ if __name__ == '__main__':
 
 import unittest
 
-from tests import test_01_extract_api, test_01_extract_schedule, test_02_query_schedule, test_03_match_collections
+from test import test_01_extract_api, test_01_extract_schedule, test_02_query_schedule, test_03_match_collections
 
 # initialize the test suite
 loader = unittest.TestLoader()

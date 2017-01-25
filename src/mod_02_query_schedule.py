@@ -10,7 +10,7 @@ import json
 import pytz
 from src.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url
 from src.utils_mongo import mongo_async_upsert_items
-from src.utils_rdb import sqlite_get_connection
+from src.utils_rdb import rdb_connection
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +26,11 @@ def trip_scheduled_departure_time(trip_id, station):
         return False
 
     # Make query
-    connection = sqlite_get_connection()
+    connection = rdb_connection()
     cursor = connection.cursor()
-    query = "SELECT departure_time FROM stop_times_ext WHERE trip_id=? AND station_id=?;"
-    cursor.execute(query, (trip_id, station))
+    query = "SELECT departure_time FROM stop_times_ext WHERE trip_id='%s' AND station_id='%s';" % (
+        trip_id, station)
+    cursor.execute(query)
     departure_time = cursor.fetchone()
     connection.close()
 
@@ -51,7 +52,7 @@ def trip_scheduled_departure_time(trip_id, station):
     return departure_time
 
 
-def sqlite_get_departure_times_of_day_json_list(yyyymmdd_format):
+def rdb_get_departure_times_of_day_json_list(yyyymmdd_format):
     # Check passed parameters
     try:
         int(yyyymmdd_format)
@@ -69,7 +70,7 @@ def sqlite_get_departure_times_of_day_json_list(yyyymmdd_format):
     weekday = calendar.day_name[datetime_format.weekday()].lower()
 
     # Make query
-    connection = sqlite_get_connection()
+    connection = rdb_connection()
     query = "SELECT * FROM stop_times_ext WHERE start_date<=%s AND end_date>=%s;" % (
         yyyymmdd_format, yyyymmdd_format)
     matching_stop_times = pd.read_sql(query, connection)

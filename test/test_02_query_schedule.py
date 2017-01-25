@@ -5,7 +5,7 @@ import datetime
 import logging
 
 from src.settings import BASE_DIR
-from src.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time, sqlite_get_departure_times_of_day_json_list
+from src.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time, rdb_get_departure_times_of_day_json_list
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class TestSchedulesModuleFunctions(unittest.TestCase):
                 key in json_item_keys for key in necessary_fields)
             self.assertTrue(keys_all_exist)
 
-    def test_sqlite_get_departure_times_of_day_json_list(self):
+    def test_rdb_get_departure_times_of_day_json_list(self):
         necessary_fields = ["scheduled_departure_day",
                             "scheduled_departure_time", "trip_id", "station_id", "train_num"]
 
@@ -51,7 +51,7 @@ class TestSchedulesModuleFunctions(unittest.TestCase):
         today_paris = paris_tz.localize(datetime.datetime.now())
         today_paris_str = today_paris.strftime("%Y%m%d")
 
-        json_list = sqlite_get_departure_times_of_day_json_list(
+        json_list = rdb_get_departure_times_of_day_json_list(
             today_paris_str)
         json_keys_list = list(map(lambda x: list(x.keys()), json_list))
         for json_item_keys in json_keys_list:

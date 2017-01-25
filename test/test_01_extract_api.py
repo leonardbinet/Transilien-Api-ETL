@@ -21,7 +21,7 @@ class TestExtractModuleFunctions(unittest.TestCase):
         self.assertRaises(ValueError, get_station_ids, id_format="notUIC")
 
     def test_xml_to_json_item_list(self):
-        file_path = path.join(BASE_DIR, "tests", "files", "api_response.xml")
+        file_path = path.join(BASE_DIR, "test", "files", "api_response.xml")
         with open(file_path, 'r') as xml_file:
             xml_string = xml_file.read()
         json_list = xml_to_json_item_list(xml_string, "87393009")
