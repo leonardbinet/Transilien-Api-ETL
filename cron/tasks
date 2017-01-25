@@ -23,4 +23,4 @@
 0 5 * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/src/task_03_d_match.py
 
 # Every week on Monday at 5:30 AM
-30 5 * * 1 /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/src/task_02_w_dl_gtfs.py
+30 5 * * 1 /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/src/task_01_w_extract_schedule.py

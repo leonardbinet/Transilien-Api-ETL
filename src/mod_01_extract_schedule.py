@@ -66,13 +66,15 @@ def write_flat_departures_times_df():
         stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
         stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
 
-    trips["train_num"] = trips["trip_id"].str.extract("^.{5}(\d{6})")
+    trips["train_num"] = trips["trip_id"].str.extract(
+        "^.{5}(\d{6})", expand=False)
 
     df_merged = stop_times.merge(trips, on="trip_id", how="left")
     df_merged = df_merged.merge(calendar, on="service_id", how="left")
     df_merged = df_merged.merge(stops, on="stop_id", how="left")
 
-    df_merged["station_id"] = df_merged.stop_id.str.extract("DUA(\d{7})")
+    df_merged["station_id"] = df_merged.stop_id.str.extract(
+        "DUA(\d{7})", expand=False)
 
     df_merged.rename(
         columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
@@ -101,7 +103,8 @@ def save_trips_extended_rdb():
     logger.debug("Found %d trips." % len(trips.index))
     calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
 
-    trips["train_num"] = trips["trip_id"].str.extract("^.{5}(\d{6})")
+    trips["train_num"] = trips["trip_id"].str.extract(
+        "^.{5}(\d{6})", expand=False)
     extended = trips.merge(calendar, on="service_id", how="left")
 
     # Clean missing fields
@@ -136,9 +139,9 @@ def save_stop_times_extended_rdb():
     stop_times_ext = stop_times_ext.merge(stops, on="stop_id", how="left")
 
     stop_times_ext["train_num"] = stop_times_ext[
-        "trip_id"].str.extract("^.{5}(\d{6})")
+        "trip_id"].str.extract("^.{5}(\d{6})", expand=False)
     stop_times_ext["station_id"] = stop_times_ext.stop_id.str.extract(
-        "DUA(\d{7})")
+        "DUA(\d{7})", expand=False)
 
     # useful = [
     #    "trip_id", "departure_time", "station_id", "service_id",

@@ -58,7 +58,7 @@ def update_real_departures_mongo(yyyymmdd_request_day, threads=5):
                 return item
         except Exception as e:
             real_dep_on_day.remove(item)
-            logger.warn("Cannot find trip_id for element")
+            logger.warn("Cannot find trip_id for element, exception %s" % e)
             item = None
 
     pool = ThreadPool(5)
@@ -87,7 +87,8 @@ def update_real_departures_mongo(yyyymmdd_request_day, threads=5):
                 logger.info("Found schedule and delay")
                 return item
         except Exception as e:
-            logger.warn("Cannot find schedule or delay for element")
+            logger.warn(
+                "Cannot find schedule or delay for element: exception %s" % e)
             item = None
 
     pool = ThreadPool(5)
