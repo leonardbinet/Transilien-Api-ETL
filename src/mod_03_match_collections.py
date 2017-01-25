@@ -36,7 +36,7 @@ def update_real_departures_mongo(yyyymmdd_request_day, threads=5):
     # PART 1 : GET ALL ELEMENTS TO UPDATE FROM MONGO
     real_departures_col = mongo_get_collection("real_departures")
     real_dep_on_day = list(real_departures_col.find(
-        {"request_day": yyyymmdd_request_day}).limit(1000))
+        {"request_day": yyyymmdd_request_day}))
 
     logger.info("Found %d elements in real_departures collection." %
                 len(real_dep_on_day))

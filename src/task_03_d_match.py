@@ -24,5 +24,6 @@ today_paris = paris_tz.localize(datetime.datetime.now())
 today_paris_str = today_paris.strftime("%Y%m%d")
 yesterday_paris = today_paris - datetime.timedelta(days=1)
 yesterday_paris_str = yesterday_paris.strftime("%Y%m%d")
+logger.info("Paris yesterday date is %s" % yesterday_paris_str)
 
-update_real_departures_mongo(yesterday_paris, threads=5)
+update_real_departures_mongo(str(yesterday_paris_str), threads=5)
