@@ -129,7 +129,7 @@ def _set_postgres_conf():
     sudo('psql -c "DROP DATABASE IF EXISTS %s;"' %
          POSTGRES_DB_NAME, user='postgres')
     sudo('psql -c "DROP USER IF EXISTS %s;"' % POSTGRES_USER, user='postgres')
-    sudo('psql -c "CREATE USER %s WITH NOCREATEDB NOCREATEUSER PASSWORD \'%s\'"' %
+    sudo('psql -c "CREATE USER %s WITH PASSWORD \'%s\' ;"' %
          (POSTGRES_USER, POSTGRES_PASSWORD), user='postgres')
-    sudo('psql -c "CREATE DATABASE %s WITH OWNER %s"' % (
+    sudo('psql -c "CREATE DATABASE %s WITH OWNER %s ;"' % (
         POSTGRES_DB_NAME, POSTGRES_USER), user='postgres')

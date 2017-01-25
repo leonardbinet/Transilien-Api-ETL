@@ -53,9 +53,10 @@ def postgres_get_connection_alch(user=POSTGRES_USER, password=POSTGRES_PASSWORD,
     return con, meta
 
 
-def postgres_get_connection():
-    conn = psycopg2.connect(dbname=POSTGRES_DB_NAME,
-                            user=POSTGRES_USER, password=POSTGRES_PASSWORD)
+def postgres_get_connection(user=POSTGRES_USER, password=POSTGRES_PASSWORD, db=POSTGRES_DB_NAME, host='localhost', port=5432):
+    url = 'postgresql://{}:{}@{}:{}/{}'
+    url = url.format(user, password, host, port, db)
+    conn = psycopg2.connect(url)
     conn.autocommit = True
     return conn
 
