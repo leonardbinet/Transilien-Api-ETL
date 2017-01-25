@@ -9,3 +9,5 @@ motor
 asyncio
 pytz
 aiohttp
+psycopg2
+sqlalchemy

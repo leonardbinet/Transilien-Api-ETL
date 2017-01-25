@@ -10,8 +10,9 @@ if __name__ == '__main__':
     from src.utils_misc import set_logging_conf
     set_logging_conf(log_name="mod_03_match.log")
 
-from src.utils_mongo import mongo_get_collection
-from src.mod_02_query_schedule import get_departure_times_of_day_json_list, get_flat_departures_times_df, trip_scheduled_departure_time
+from src.utils_rdb import sqlite_get_connection
+from src.utils_mongo import mongo_get_collection, mongo_async_update_items
+from src.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time
 from src.settings import BASE_DIR, data_path, gtfs_path
 
 logger = logging.getLogger(__name__)
@@ -20,9 +21,95 @@ logger = logging.getLogger(__name__)
 # trip_id is unique for ONE DAY
 # to know exactly the schedule of a train, you need to tell: trip_id AND day
 # next, station to get time
+def update_real_departures_mongo(yyyymmdd_request_day):
+    """
+    Update real_departures with scheduled departure times for a given request day:
+    - iterate over all elements in real_departures collection for that day
+    - find their real id
+    - update with information from schedule
+    """
+
+    real_departures_col = mongo_get_collection("real_departures")
+    real_dep_on_day = list(real_departures_col.find(
+        {"request_day": yyyymmdd_request_day}))
+
+    logger.info("Found %d elements in real_departures collection." %
+                len(real_dep_on_day))
+
+    items_to_update = []
+    for item in real_dep_on_day:
+        try:
+            item_id = item["_id"]
+            train_num = item["num"]
+            station = item["station"]
+            real_departure_date = item["date"]
+            logger.debug("Update train %s on station %s on day %s" %
+                         (train_num, station, real_departure_date))
+            item_trip_id = api_train_num_to_trip_id(
+                train_num, yyyymmdd_request_day)
+            if not item_trip_id:
+                continue
+            scheduled_departure_time = trip_scheduled_departure_time(
+                item_trip_id, station)
+            if not scheduled_departure_time:
+                continue
+            delay = compute_delay(
+                scheduled_departure_time, real_departure_date)
+            item_to_update = (
+                {"_id": item_id},
+                {"$set":
+                 {"scheduled_departure_time": scheduled_departure_time,
+                  "trip_id": item_trip_id,
+                  "delay": delay
+                  }
+                 })
+            items_to_update.append(item_to_update)
+            logger.info("Item prepared successfully")
+        except Exception as e:
+            logger.warn(
+                "Couldn't find trip_id or scheduled departure time for: %s, exception %s" % (item, e))
+            continue
+    logger.info("Real departures gathering finished. Beginning update.")
+
+    def chunks(l, n):
+        for i in range(0, len(l), n):
+            yield l[i:i + n]
+    update_chunks = chunks(items_to_update, 1000)
+    for i, update_chunk in enumerate(update_chunks):
+        logger.info(
+            "Processing chunk number %d of 1000 elements to update." % i)
+        mongo_async_update_items("real_departures", update_chunk)
+
+
+def api_train_num_to_trip_id(train_num, yyyymmdd_day, weekday=None):
+    # Check parameters train_num and departure_day
+
+    # Make query
+    connection = sqlite_get_connection()
+    cursor = connection.cursor()
+    query = "SELECT trip_id FROM trips_ext WHERE train_num=? AND start_date<=? AND end_date>=?;"
+    cursor.execute(query, (train_num, yyyymmdd_day, yyyymmdd_day))
+    trip_ids = cursor.fetchall()
+
+    # Check number of results
+    if not trip_ids:
+        logger.warning("No matching trip_id")
+        connection.close()
+        return False
+    elif len(trip_ids) == 1:
+        trip_id = trip_ids[0][0]
+        connection.close()
+        logger.debug("Found trip_id: %s" % trip_ids)
+        return trip_id
+    else:
+        logger.warning("Multiple trip_ids found: %d matches: %s" %
+                       (len(trip_ids), trip_ids))
+        connection.close()
+        return False
+
 
 def get_trip_ids_from_day_and_train_nums(train_num_list, departure_date):
-    df_flat = get_flat_departures_times_df()
+    df_flat = []
 
     weekday = departure_date_to_week_day(departure_date)
     yyyymmdd_format = departure_date_to_yyyymmdd_date(departure_date)
@@ -135,8 +222,8 @@ def check_random_trips_delay(yyyymmdd_date, limit=1000):
 
 
 if __name__ == '__main__':
-    from src.task_01_extract import get_station_ids
+    pass
 
     # Let's check for today
-    date_to_check = datetime.now().strftime("%Y%m%d")
-    check_random_trips_delay(date_to_check)
+    #date_to_check = datetime.now().strftime("%Y%m%d")
+    # check_random_trips_delay(date_to_check)

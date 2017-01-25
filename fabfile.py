@@ -5,6 +5,7 @@ import os
 from os import path
 import glob
 from fabric.api import *
+from src.utils_secrets import get_secret
 
 # NEEDS TO BE CONFIGURED
 env.key_filename = "~/.ssh/aws-eb2"
@@ -29,17 +30,23 @@ source_folder = site_folder + '/source'
 remote_tr_cred_path = os.path.join(source_folder, TASKRUNNER_CRED_PATH)
 remote_tr_path = os.path.join(site_folder, "taskrunner", "TaskRunner-1.0.jar")
 
+# postgres secrets
+POSTGRES_USER = get_secret("POSTGRES_USER")
+POSTGRES_DB_NAME = get_secret("POSTGRES_DB_NAME")
+POSTGRES_PASSWORD = get_secret("POSTGRES_PASSWORD")
+
 
 def deploy():
     _create_directory_structure_if_necessary(site_folder)
     _get_latest_source(source_folder)
     _send_secret_jsons()
     _update_virtualenv(source_folder)
-    # _send_cron_tasks()
+    _start_postgres_server()
 
 
 def initial_deploy():
     _set_environment()
+    _set_postgres_conf()
     deploy()
 
 
@@ -71,6 +78,8 @@ def _set_environment():
     sudo('apt-get update')
     sudo('apt-get install python3-pip python3-dev libpq-dev')
     sudo('pip3 install virtualenv')
+    sudo('apt-get install postgresql postgresql-contrib python-psycopg2')
+    sudo('service postgresql start')
 
 
 def _install_java():
@@ -112,43 +121,15 @@ def start_taskrunner():
         (remote_tr_path, remote_tr_cred_path, AWS_WORKERGROUP, AWS_REGION, S3_LOG_URI))
 
 
-##### CRON #####
-
-def _marker(marker):
-    return ' # MARKER:%s' % marker if marker else ''
+def _start_postgres_server():
+    sudo('service postgresql start')
 
 
-def _get_current():
-    with settings(hide('warnings', 'stdout'), warn_only=True):
-        output = run('crontab -l')
-        return output if output.succeeded else ''
-
-
-def crontab_set(content):
-    """ Sets crontab content """
-    run("echo '%s'|crontab -" % content)
-
-
-def crontab_show():
-    """ Shows current crontab """
-    puts(_get_current())
-
-
-def crontab_add(content, marker=None):
-    """ Adds line to crontab. Line can be appended with special marker
-    comment so it'll be possible to reliably remove or update it later. """
-    old_crontab = _get_current()
-    crontab_set(old_crontab + '\n' + content + _marker(marker))
-
-
-def crontab_remove(marker):
-    """ Removes a line added and marked using crontab_add. """
-    lines = [line for line in _get_current().splitlines()
-             if line and not line.endswith(_marker(marker))]
-    crontab_set("\n".join(lines))
-
-
-def crontab_update(content, marker):
-    """ Adds or updates a line in crontab. """
-    crontab_remove(marker)
-    crontab_add(content, marker)
+def _set_postgres_conf():
+    sudo('psql -c "DROP DATABASE IF EXISTS %s;"' %
+         POSTGRES_DB_NAME, user='postgres')
+    sudo('psql -c "DROP USER IF EXISTS %s;"' % POSTGRES_USER, user='postgres')
+    sudo('psql -c "CREATE USER %s WITH NOCREATEDB NOCREATEUSER PASSWORD \'%s\'"' %
+         (POSTGRES_USER, POSTGRES_PASSWORD), user='postgres')
+    sudo('psql -c "CREATE DATABASE %s WITH OWNER %s"' % (
+        POSTGRES_DB_NAME, POSTGRES_USER), user='postgres')

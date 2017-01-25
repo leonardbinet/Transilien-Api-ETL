@@ -6,6 +6,9 @@
 You should set up an EC2 instance with ssh keys that you can access this way:
 ```
 ssh -i "~/.ssh/aws-eb2" ubuntu@ec2-54-154-184-96.eu-west-1.compute.amazonaws.com
+
+# test ec2
+ssh -i "~/.ssh/aws-eb2" ubuntu@ec2-54-229-174-254.eu-west-1.compute.amazonaws.com
 ```
 
 ### Configuration
@@ -44,6 +47,11 @@ pip install fabric
 fab initial_deploy:host=ubuntu@ec2-54-154-184-96.eu-west-1.compute.amazonaws.com
 # Then later, to update if needed (shorter operation):
 fab deploy:host=ubuntu@ec2-54-154-184-96.eu-west-1.compute.amazonaws.com
+
+
+# For test env
+fab initial_deploy:host=ubuntu@ec2-54-229-174-254.eu-west-1.compute.amazonaws.com
+fab deploy:host=ubuntu@ec2-54-229-174-254.eu-west-1.compute.amazonaws.com
 
 ```
 
@@ -103,4 +111,18 @@ real_departures.create_index("station_id")
 
 real_departures.create_index("scheduled_departure_day")
 
+```
+
+## Postgres:
+```
+sudo -u postgres psql
+
+CREATE DATABASE api_transilien;
+CREATE USER api_transilien_user WITH PASSWORD 'password';
+
+ALTER ROLE api_transilien_user SET client_encoding TO 'utf8';
+ALTER ROLE api_transilien_user SET default_transaction_isolation TO 'read committed';
+ALTER ROLE api_transilien_user SET timezone TO 'UTC';
+
+GRANT ALL PRIVILEGES ON DATABASE api_transilien TO api_transilien_user;
 ```

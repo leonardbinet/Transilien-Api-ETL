@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
 from src.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url
 from src.utils_mongo import mongo_async_upsert_items
-from src.utils_sqlite import sqlite_get_connection
+from src.utils_rdb import rdb_connection
 
 
 logger = logging.getLogger(__name__)
@@ -86,12 +86,12 @@ def write_flat_departures_times_df():
     df_merged[useful].to_csv(os.path.join(gtfs_path, "flat.csv"))
 
 
-def save_all_schedule_tables_sqlite():
-    save_trips_extended_sqlite()
-    save_stop_times_extended_sqlite()
+def save_all_schedule_tables_rdb():
+    save_trips_extended_rdb()
+    save_stop_times_extended_rdb()
 
 
-def save_trips_extended_sqlite():
+def save_trips_extended_rdb():
     """
     Save trips table, with some more columns:
     - train_num
@@ -111,12 +111,13 @@ def save_trips_extended_sqlite():
 
     logger.debug("%d trips with calendar dates." % len(extended.index))
 
-    connection = sqlite_get_connection()
-    stop_times_ext.to_sql("trips_ext", connection, if_exists='append',
-                          index=False, index_label="trip_id", chunksize=1000)
+    connection = rdb_connection(db="postgres_alch")
+    extended.to_sql("trips_ext", connection, if_exists='replace',
+                    index=False, index_label="trip_id", chunksize=1000)
+    return extended
 
 
-def save_stop_times_extended_sqlite():
+def save_stop_times_extended_rdb():
     """
     Save stop times table, with some more columns:
     - train_num (out of trip_id)
@@ -145,6 +146,6 @@ def save_stop_times_extended_sqlite():
     #    "thursday", "friday", "saturday", "sunday",
     #    "start_date", "end_date", "train_num"
     #]
-    connection = sqlite_get_connection()
+    connection = rdb_connection(db="postgres_alch")
     stop_times_ext.to_sql("stop_times_ext", connection, if_exists='replace',
                           index=True, index_label=None, chunksize=1000)

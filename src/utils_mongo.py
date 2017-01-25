@@ -134,6 +134,39 @@ def mongo_async_upsert_items(collection, item_list, index_fields):
     return future.result()
 
 
+def mongo_async_update_items(collection, item_query_update_list):
+    asy_collection = mongo_get_async_collection(collection)
+
+    async def do_update(item_query_update):
+        try:
+            find_query = item_query_update[0]
+            update_query = item_query_update[1]
+            result = await asy_collection.update_one(find_query, update_query)
+            logger.debug("Item updated")
+            if not result.acknowledged:
+                logger.error("Item %s not updated" % item_query_update)
+            # print("Result: %s" % result)
+
+        except Exception as e:
+            logger.error("Could not update item, error %s" % e)
+
+    async def run(item_list):
+        tasks = []
+        for item_query_update in item_query_update_list:
+            task = asyncio.ensure_future(do_update(item_query_update))
+            tasks.append(task)
+
+        responses = await asyncio.gather(*tasks)
+        return responses
+
+    # def print_responses(result):
+    #    print(result)
+    loop = asyncio.get_event_loop()
+    future = asyncio.ensure_future(run(item_list=item_query_update_list))
+    loop.run_until_complete(future)
+    return future.result()
+
+
 def mongo_move_day_data_to_other_col(yyyymmdd_day, old_col, new_col, day_field, del_original=False):
     logger.info("Moving data from %s to %s for day %s" %
                 (old_col, new_col, yyyymmdd_day))

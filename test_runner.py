@@ -9,7 +9,7 @@ if __name__ == '__main__':
 
 import unittest
 
-from tests import test_01_extract_api, test_01_extract_schedule, test_02_query_schedule, test_03_match
+from tests import test_01_extract_api, test_01_extract_schedule, test_02_query_schedule, test_03_match_collections
 
 # initialize the test suite
 loader = unittest.TestLoader()
@@ -19,7 +19,7 @@ suite = unittest.TestSuite()
 suite.addTests(loader.loadTestsFromModule(test_01_extract_api))
 suite.addTests(loader.loadTestsFromModule(test_01_extract_schedule))
 suite.addTests(loader.loadTestsFromModule(test_02_query_schedule))
-suite.addTests(loader.loadTestsFromModule(test_03_match))
+suite.addTests(loader.loadTestsFromModule(test_03_match_collections))
 
 # initialize a runner, pass it your suite and run it
 runner = unittest.TextTestRunner(verbosity=3)
