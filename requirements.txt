@@ -11,3 +11,4 @@ pytz
 aiohttp
 psycopg2
 sqlalchemy
+aiopg
