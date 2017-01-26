@@ -50,13 +50,7 @@ def initial_deploy():
     deploy()
 
 
-def deploy_taskrunner():
-    _install_java()
-    _download_taskrunner()
-
-
 def _send_secret_jsons():
-    put(TASKRUNNER_CRED_PATH, os.path.join(source_folder, TASKRUNNER_CRED_PATH))
     put(SECRET_PATH, os.path.join(source_folder, SECRET_PATH))
 
 
@@ -82,14 +76,6 @@ def _set_environment():
     sudo('service postgresql start')
 
 
-def _install_java():
-    sudo('add-apt-repository -y ppa:webupd8team/java')
-    sudo('apt-get update')
-    sudo("sh -c 'echo debconf shared/accepted-oracle-license-v1-1 select true | debconf-set-selections'")
-    sudo("sh -c 'echo debconf shared/accepted-oracle-license-v1-1 seen true | debconf-set-selections'")
-    sudo('apt-get -y install oracle-java8-installer')
-
-
 def _update_virtualenv(source_folder):
     virtualenv_folder = source_folder + '/../virtualenv'
     if not exists(virtualenv_folder + '/bin/pip'):
@@ -97,28 +83,6 @@ def _update_virtualenv(source_folder):
     run('%s/bin/pip install -r %s/requirements.txt' % (
         virtualenv_folder, source_folder
     ))
-
-
-def _download_taskrunner():
-    taskrunner_folder = path.join(site_folder, "taskrunner")
-    run("wget -P " + taskrunner_folder + " " + S3_TASKRUNNER_URL)
-    run("wget -P " + taskrunner_folder + " " + S3_MYSQL_CONNECTOR_URL)
-
-
-def _send_cron_tasks():
-    loc_cron_files = glob.glob("cron/")
-    for loc_cron_file in loc_cron_files:
-        rem_cron_fil = os.path.join(
-            "/etc/cron.d", os.path.basename(loc_cron_file))
-        put(loc_cron_file, rem_cron_fil, use_sudo=True)
-        sudo("chmod +rx %s" % rem_cron_fil)
-        sudo("chown root:root %s" % rem_cron_fil)
-
-
-def start_taskrunner():
-
-    run("java -jar %s --config %s --workerGroup=%s --region=%s --logUri=%s" %
-        (remote_tr_path, remote_tr_cred_path, AWS_WORKERGROUP, AWS_REGION, S3_LOG_URI))
 
 
 def _start_postgres_server():
@@ -133,3 +97,39 @@ def _set_postgres_conf():
          (POSTGRES_USER, POSTGRES_PASSWORD), user='postgres')
     sudo('psql -c "CREATE DATABASE %s WITH OWNER %s ;"' % (
         POSTGRES_DB_NAME, POSTGRES_USER), user='postgres')
+
+
+# TaskRunner
+
+def deploy_taskrunner():
+    _install_java()
+    _download_taskrunner()
+    launch_taskrunner()
+
+
+def launch_taskrunner():
+    _send_taskrunner_secrets()
+    _start_taskrunner()
+
+
+def _install_java():
+    sudo('add-apt-repository -y ppa:webupd8team/java')
+    sudo('apt-get update')
+    sudo("sh -c 'echo debconf shared/accepted-oracle-license-v1-1 select true | debconf-set-selections'")
+    sudo("sh -c 'echo debconf shared/accepted-oracle-license-v1-1 seen true | debconf-set-selections'")
+    sudo('apt-get -y install oracle-java8-installer')
+
+
+def _download_taskrunner():
+    taskrunner_folder = path.join(site_folder, "taskrunner")
+    run("wget -P " + taskrunner_folder + " " + S3_TASKRUNNER_URL)
+    run("wget -P " + taskrunner_folder + " " + S3_MYSQL_CONNECTOR_URL)
+
+
+def _send_taskrunner_secrets():
+    put(TASKRUNNER_CRED_PATH, os.path.join(source_folder, TASKRUNNER_CRED_PATH))
+
+
+def _start_taskrunner():
+    run("java -jar %s --config %s --workerGroup=%s --region=%s --logUri=%s" %
+        (remote_tr_path, remote_tr_cred_path, AWS_WORKERGROUP, AWS_REGION, S3_LOG_URI))
