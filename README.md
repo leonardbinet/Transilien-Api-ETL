@@ -114,6 +114,8 @@ real_departures.create_index("scheduled_departure_day")
 ```
 
 ## Postgres:
+
+All is done automatically by the fabric script, when deploying, assuming that you created the secret.json file.
 ```
 sudo -u postgres psql
 

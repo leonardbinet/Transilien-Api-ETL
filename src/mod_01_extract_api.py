@@ -1,15 +1,14 @@
 import asyncio
 import os
-from os import path, sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import xmltodict
 import pandas as pd
-import pytz
 import copy
 import logging
 
+from src.utils_misc import get_paris_local_datetime_now
 from src.utils_api_client import get_api_client
 from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
 from src.settings import BASE_DIR
@@ -36,8 +35,7 @@ def get_station_ids(id_format="UIC"):
 
 def xml_to_json_item_list(xml_string, station):
     # Save with Paris timezone (if server is abroad)
-    paris_tz = pytz.timezone('Europe/Paris')
-    datetime_paris = paris_tz.localize(datetime.now())
+    datetime_paris = get_paris_local_datetime_now()
 
     mydict = xmltodict.parse(xml_string)
     trains = mydict["passages"]["train"]

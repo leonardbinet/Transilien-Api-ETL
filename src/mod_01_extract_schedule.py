@@ -1,13 +1,10 @@
 import os
 from os import sys, path
 import pandas as pd
-import datetime
-import calendar
 import zipfile
 from urllib.request import urlretrieve
 import logging
 import json
-import pytz
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))

@@ -2,9 +2,6 @@ import os
 import logging
 from os import sys, path
 import datetime
-import pytz
-
-from settings import BASE_DIR
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
@@ -12,14 +9,12 @@ if __name__ == '__main__':
     from src.utils_misc import set_logging_conf
     set_logging_conf(log_name="task_01_d_move_col.log")
 
-
 from src.utils_mongo import mongo_move_day_data_to_other_col
+from src.utils_misc import get_paris_local_datetime_now
 
 logger = logging.getLogger(__name__)
 
-paris_tz = pytz.timezone('Europe/Paris')
-
-today_paris = paris_tz.localize(datetime.datetime.now())
+today_paris = get_paris_local_datetime_now()
 yesterday_paris = today_paris - datetime.timedelta(days=1)
 yesterday_paris_str = yesterday_paris.strftime("%Y%m%d")
 

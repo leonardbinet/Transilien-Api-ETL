@@ -1,6 +1,5 @@
 import os
 from os import sys, path
-import pandas as pd
 from datetime import datetime
 import calendar
 import logging

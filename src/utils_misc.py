@@ -1,8 +1,18 @@
 import os
 from os import sys
+from urllib.parse import urljoin
 import logging
 from logging.handlers import RotatingFileHandler
-from src.settings import BASE_DIR
+from src.settings import BASE_DIR, logs_path
+from dateutil.tz import tzlocal
+import pytz
+import datetime
+
+
+def get_paris_local_datetime_now():
+    paris_tz = pytz.timezone('Europe/Paris')
+    datetime_paris = datetime.datetime.now(tzlocal()).astimezone(paris_tz)
+    return datetime_paris
 
 
 def set_logging_conf(log_name, level="INFO"):
@@ -21,8 +31,8 @@ def set_logging_conf(log_name, level="INFO"):
         logger.removeHandler(handler)
 
     # Set config
-    logging_file_path = os.path.join(
-        BASE_DIR, "..", "logs", log_name)
+    # logging_file_path = os.path.join(logs_path, log_name)
+    logging_file_path = urljoin(logs_path, log_name)
 
     # création d'un handler qui va rediriger une écriture du log vers
     # un fichier en mode 'append', avec 1 backup et une taille max de 1Mo

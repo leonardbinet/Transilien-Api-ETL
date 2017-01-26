@@ -10,3 +10,7 @@ gtfs_csv_url = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien
 
 
 sqlite_path = os.path.join(BASE_DIR, "schedules.db")
+
+# First doesn't work
+# logs_path = "http://api-transilien-logs.s3-eu-west-1.amazonaws.com/logs/"
+logs_path = os.path.join(BASE_DIR, "..", "logs")

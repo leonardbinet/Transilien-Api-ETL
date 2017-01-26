@@ -7,7 +7,7 @@ import zipfile
 from urllib.request import urlretrieve
 import logging
 import json
-import pytz
+
 from src.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url
 from src.utils_mongo import mongo_async_upsert_items
 from src.utils_rdb import rdb_connection
