@@ -3,7 +3,6 @@ import logging
 from os import sys, path
 import datetime
 
-
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     # Logging configuration
