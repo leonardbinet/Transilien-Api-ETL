@@ -1,6 +1,5 @@
 import os
-from os import sys
-from urllib.parse import urljoin
+from os import sys, path
 import logging
 from logging.handlers import RotatingFileHandler
 from src.settings import BASE_DIR, logs_path
@@ -32,7 +31,7 @@ def set_logging_conf(log_name, level="INFO"):
 
     # Set config
     # logging_file_path = os.path.join(logs_path, log_name)
-    logging_file_path = urljoin(logs_path, log_name)
+    logging_file_path = path.join(logs_path, log_name)
 
     # création d'un handler qui va rediriger une écriture du log vers
     # un fichier en mode 'append', avec 1 backup et une taille max de 1Mo
