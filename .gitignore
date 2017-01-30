@@ -21,3 +21,8 @@ data/*
 
 # Databases
 *.db
+
+
+# Python package
+*.egg-info/
+dist/*

@@ -6,7 +6,7 @@ except ImportError:
 
 setup(
     name='api_transilien_manager',
-    packages=['api_transilien_manager'],
+    packages=['src'],
     version='0.0.1',
     description='Task manager to exploit data from transilien\'s api',
     author='Leonard Binet',
