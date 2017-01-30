@@ -8,9 +8,9 @@ from urllib.request import urlretrieve
 import logging
 import json
 
-from src.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url
-from src.utils_mongo import mongo_async_upsert_items
-from src.utils_rdb import rdb_connection
+from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url
+from api_transilien_manager.utils_mongo import mongo_async_upsert_items
+from api_transilien_manager.utils_rdb import rdb_connection
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None

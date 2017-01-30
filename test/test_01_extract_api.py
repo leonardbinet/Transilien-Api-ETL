@@ -1,9 +1,9 @@
 from os import sys, path
 import unittest
-from src.settings import BASE_DIR
+from api_transilien_manager.settings import BASE_DIR
 import logging
 
-from src.mod_01_extract_api import get_station_ids, xml_to_json_item_list, api_date_to_day_time_corrected
+from api_transilien_manager.mod_01_extract_api import get_station_ids, xml_to_json_item_list, api_date_to_day_time_corrected
 
 logger = logging.getLogger(__name__)
 

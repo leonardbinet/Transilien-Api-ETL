@@ -4,8 +4,8 @@ import pytz
 import datetime
 import logging
 
-from src.settings import BASE_DIR
-from src.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time, rdb_get_departure_times_of_day_json_list
+from api_transilien_manager.settings import BASE_DIR
+from api_transilien_manager.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time, rdb_get_departure_times_of_day_json_list
 
 logger = logging.getLogger(__name__)
 

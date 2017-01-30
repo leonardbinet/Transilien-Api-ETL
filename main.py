@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from src.command_line import execute_from_command_line
+from api_transilien_manager.command_line import execute_from_command_line
 import sys
 
 if __name__ == "__main__":

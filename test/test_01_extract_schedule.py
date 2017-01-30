@@ -4,8 +4,8 @@ import pytz
 import datetime
 import logging
 
-from src.settings import BASE_DIR
-from src.mod_01_extract_schedule import write_flat_departures_times_df
+from api_transilien_manager.settings import BASE_DIR
+from api_transilien_manager.mod_01_extract_schedule import write_flat_departures_times_df
 
 logger = logging.getLogger(__name__)
 

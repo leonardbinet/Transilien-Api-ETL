@@ -8,10 +8,10 @@ import pandas as pd
 import copy
 import logging
 
-from src.utils_misc import get_paris_local_datetime_now, compute_delay
-from src.utils_api_client import get_api_client
-from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
-from src.settings import BASE_DIR, data_path, col_real_dep_unique
+from api_transilien_manager.utils_misc import get_paris_local_datetime_now, compute_delay
+from api_transilien_manager.utils_api_client import get_api_client
+from api_transilien_manager.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
+from api_transilien_manager.settings import BASE_DIR, data_path, col_real_dep_unique
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None

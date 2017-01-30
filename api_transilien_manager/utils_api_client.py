@@ -10,7 +10,7 @@ import time
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
-from src.utils_secrets import get_secret
+from api_transilien_manager.utils_secrets import get_secret
 
 logger = logging.getLogger(__name__)
 

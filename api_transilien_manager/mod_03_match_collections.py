@@ -7,14 +7,14 @@ from multiprocessing.dummy import Pool as ThreadPool
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from src.utils_misc import set_logging_conf
+    from api_transilien_manager.utils_misc import set_logging_conf
     set_logging_conf(log_name="mod_03_match.log")
 
-from src.utils_rdb import rdb_connection, postgres_async_query_get_trip_ids
-from src.utils_mongo import mongo_get_collection, mongo_async_update_items
-from src.utils_misc import compute_delay
-from src.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time
-from src.settings import BASE_DIR, data_path, gtfs_path, col_real_dep_unique
+from api_transilien_manager.utils_rdb import rdb_connection, postgres_async_query_get_trip_ids
+from api_transilien_manager.utils_mongo import mongo_get_collection, mongo_async_update_items
+from api_transilien_manager.utils_misc import compute_delay
+from api_transilien_manager.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time
+from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path, col_real_dep_unique
 
 logger = logging.getLogger(__name__)
 

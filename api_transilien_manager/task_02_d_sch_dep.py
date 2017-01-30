@@ -6,12 +6,12 @@ import datetime
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     # Logging configuration
-    from src.utils_misc import set_logging_conf
+    from api_transilien_manager.utils_misc import set_logging_conf
     set_logging_conf(log_name="task02_d_sch_dep.log")
 
-from src.utils_mongo import mongo_async_upsert_chunks
-from src.mod_02_find_schedule import save_scheduled_departures_of_day_mongo
-from src.utils_misc import get_paris_local_datetime_now
+from api_transilien_manager.utils_mongo import mongo_async_upsert_chunks
+from api_transilien_manager.mod_02_find_schedule import save_scheduled_departures_of_day_mongo
+from api_transilien_manager.utils_misc import get_paris_local_datetime_now
 
 logger = logging.getLogger(__name__)
 

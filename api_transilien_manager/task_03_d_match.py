@@ -6,11 +6,11 @@ import datetime
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     # Logging configuration
-    from src.utils_misc import set_logging_conf
+    from api_transilien_manager.utils_misc import set_logging_conf
     set_logging_conf(log_name="task_03_d_match.log")
 
-from src.mod_03_match_collections import update_real_departures_mongo
-from src.utils_misc import get_paris_local_datetime_now
+from api_transilien_manager.mod_03_match_collections import update_real_departures_mongo
+from api_transilien_manager.utils_misc import get_paris_local_datetime_now
 
 logger = logging.getLogger(__name__)
 

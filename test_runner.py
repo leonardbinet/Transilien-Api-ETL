@@ -4,7 +4,7 @@ from os import path, sys
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.abspath(__file__)))
     # Logging configuration
-    from src.utils_misc import set_logging_conf
+    from api_transilien_manager.utils_misc import set_logging_conf
     set_logging_conf(log_name="test_runner.log", level="DEBUG")
 
 import unittest

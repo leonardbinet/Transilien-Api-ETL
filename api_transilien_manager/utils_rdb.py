@@ -13,11 +13,11 @@ import aiopg
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from src.utils_misc import set_logging_conf
+    from api_transilien_manager.utils_misc import set_logging_conf
     set_logging_conf(log_name="sqlite_direct.log")
 
-from src.utils_secrets import get_secret
-from src.settings import sqlite_path
+from api_transilien_manager.utils_secrets import get_secret
+from api_transilien_manager.settings import sqlite_path
 
 logger = logging.getLogger(__name__)
 

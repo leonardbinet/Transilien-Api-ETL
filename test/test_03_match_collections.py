@@ -4,9 +4,9 @@ import pytz
 import datetime
 import logging
 
-from src.settings import BASE_DIR
-from src.mod_03_match_collections import api_train_num_to_trip_id, update_real_departures_mongo
-from src.utils_misc import get_paris_local_datetime_now
+from api_transilien_manager.settings import BASE_DIR
+from api_transilien_manager.mod_03_match_collections import api_train_num_to_trip_id, update_real_departures_mongo
+from api_transilien_manager.utils_misc import get_paris_local_datetime_now
 
 logger = logging.getLogger(__name__)
 

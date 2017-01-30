@@ -1,8 +1,8 @@
 import os
 import logging
 from os import sys, path
-from src.mod_01_extract import operate_timer
-from src.settings import BASE_DIR
+from api_transilien_manager.mod_01_extract import operate_timer
+from api_transilien_manager.settings import BASE_DIR
 
 logger = logging.getLogger(__name__)
 

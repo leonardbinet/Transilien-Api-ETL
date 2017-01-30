@@ -4,8 +4,8 @@ import pytz
 import datetime
 import logging
 
-from src.settings import BASE_DIR
-from src.utils_misc import compute_delay
+from api_transilien_manager.settings import BASE_DIR
+from api_transilien_manager.utils_misc import compute_delay
 
 logger = logging.getLogger(__name__)
 
