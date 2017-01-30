@@ -17,6 +17,7 @@ from src.utils_rdb import rdb_connection
 
 
 logger = logging.getLogger(__name__)
+pd.options.mode.chained_assignment = None
 
 
 def download_gtfs_files():

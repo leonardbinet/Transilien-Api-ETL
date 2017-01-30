@@ -1,7 +1,7 @@
 import asyncio
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import xmltodict
 import pandas as pd
@@ -11,11 +11,10 @@ import logging
 from src.utils_misc import get_paris_local_datetime_now
 from src.utils_api_client import get_api_client
 from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
-from src.settings import BASE_DIR
+from src.settings import BASE_DIR, data_path
 
 logger = logging.getLogger(__name__)
-
-data_path = os.path.join(BASE_DIR, "data")
+pd.options.mode.chained_assignment = None
 
 
 def get_station_ids(id_format="UIC"):
@@ -33,6 +32,31 @@ def get_station_ids(id_format="UIC"):
         raise ValueError("Incorrect id_format provided.")
 
 
+def api_date_to_day_time_corrected(api_date, time_or_day):
+    expected_passage_date = datetime.strptime(api_date, "%d/%m/%Y %H:%M")
+
+    day_string = expected_passage_date.strftime("%Y%m%d")
+    time_string = expected_passage_date.strftime("%H:%M:00")
+
+    # For hours between 00:00:00 and 02:59:59: we add 24h and say it
+    # is from the day before
+    if expected_passage_date.hour in (0, 1, 2):
+        # say this train is departed the time before
+        expected_passage_date = expected_passage_date - timedelta(days=1)
+        # overwrite day_string
+        day_string = expected_passage_date.strftime("%Y%m%d")
+        # overwrite time_string with +24: 01:44:00 -> 25:44:00
+        time_string = "%d:%d:00" % (
+            expected_passage_date.hour + 24, expected_passage_date.minute)
+
+    if time_or_day == "day":
+        return day_string
+    elif time_or_day == "time":
+        return time_string
+    else:
+        raise ValueError("time or day should be 'time' or 'day'")
+
+
 def xml_to_json_item_list(xml_string, station):
     # Save with Paris timezone (if server is abroad)
     datetime_paris = get_paris_local_datetime_now()
@@ -41,10 +65,18 @@ def xml_to_json_item_list(xml_string, station):
     trains = mydict["passages"]["train"]
     df_trains = pd.DataFrame(trains)
 
-    df_trains["date"] = df_trains.date.apply(lambda x: x["#text"])
-    df_trains["request_day"] = datetime_paris.strftime('%Y%m%d')
-    df_trains["request_time"] = datetime_paris.strftime('%H:%M:%S')
-    df_trains["station"] = station
+    # Add custom fields
+
+    df_trains.loc[:, "date"] = df_trains.date.apply(lambda x: x["#text"])
+
+    df_trains.loc[:, "expected_passage_day"] = df_trains[
+        "date"].apply(lambda x: api_date_to_day_time_corrected(x, "day"))
+    df_trains.loc[:, "expected_passage_time"] = df_trains[
+        "date"].apply(lambda x: api_date_to_day_time_corrected(x, "time"))
+
+    df_trains.loc[:, "request_day"] = datetime_paris.strftime('%Y%m%d')
+    df_trains.loc[:, "request_time"] = datetime_paris.strftime('%H:%M:%S')
+    df_trains.loc[:, "station"] = station
 
     data_json = json.loads(df_trains.to_json(orient='records'))
     return data_json

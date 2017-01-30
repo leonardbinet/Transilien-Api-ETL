@@ -13,6 +13,7 @@ from src.utils_mongo import mongo_async_upsert_items
 from src.utils_rdb import rdb_connection
 
 logger = logging.getLogger(__name__)
+pd.options.mode.chained_assignment = None
 
 
 def trip_scheduled_departure_time(trip_id, station):
@@ -76,7 +77,7 @@ def rdb_get_departure_times_of_day_json_list(yyyymmdd_format):
     matching_stop_times = pd.read_sql(query, connection)
 
     # Rename departure_time column, and add requested date
-    matching_stop_times["scheduled_departure_day"] = yyyymmdd_format
+    matching_stop_times.loc[:, "scheduled_departure_day"] = yyyymmdd_format
     matching_stop_times.rename(
         columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
 
@@ -95,9 +96,9 @@ def get_services_of_day(yyyymmdd_format):
     cond2 = all_services["start_date"] <= int(yyyymmdd_format)
     cond3 = all_services["end_date"] >= int(yyyymmdd_format)
 
-    matching_services = all_services[cond1][cond2][cond3]
-
-    return list(matching_services["service_id"].values)
+    # all_services = all_services[cond1][cond2][cond3]
+    all_services = all_services[cond1 & cond2 & cond3]
+    return list(all_services["service_id"].values)
 
 
 def get_trips_of_day(yyyymmdd_format):
@@ -121,13 +122,13 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
     cond1 = all_stop_times["trip_id"].isin(trips_on_day)
     matching_stop_times = all_stop_times[cond1]
 
-    matching_stop_times["scheduled_departure_day"] = yyyymmdd_format
+    matching_stop_times.loc[:, "scheduled_departure_day"] = yyyymmdd_format
     matching_stop_times.rename(
         columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
-    matching_stop_times["station_id"] = matching_stop_times[
-        "stop_id"].str.extract("DUA(\d{7})")
-    matching_stop_times["train_num"] = matching_stop_times[
-        "trip_id"].str.extract("^.{5}(\d{6})")
+    matching_stop_times.loc[:, "station_id"] = matching_stop_times[
+        "stop_id"].str.extract("DUA(\d{7})", expand=False)
+    matching_stop_times.loc[:, "train_num"] = matching_stop_times[
+        "trip_id"].str.extract("^.{5}(\d{6})", expand=False)
 
     if stop_filter:
         cond2 = matching_stop_times["stop_id"].isin(stop_filter)
