@@ -14,3 +14,7 @@ sqlite_path = os.path.join(BASE_DIR, "schedules.db")
 # First doesn't work
 # logs_path = "http://api-transilien-logs.s3-eu-west-1.amazonaws.com/logs/"
 logs_path = os.path.join(BASE_DIR, "..", "logs")
+
+
+# Mongo DB collections:
+col_real_dep_unique = "real_departures_2"

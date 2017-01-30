@@ -11,7 +11,7 @@ import logging
 from src.utils_misc import get_paris_local_datetime_now
 from src.utils_api_client import get_api_client
 from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
-from src.settings import BASE_DIR, data_path
+from src.settings import BASE_DIR, data_path, col_real_dep_unique
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
@@ -80,7 +80,11 @@ def xml_to_json_item_list(xml_string, station):
     return data_json
 
 
-def extract_save_stations(stations_list, collection_unique="real_departures_2"):
+def extract_save_stations(stations_list):
+    """
+    Use col_real_dep_unique defined in settings to know in which collection to
+    save data.
+    """
     # Extract from API
     logger.info("Extraction of %d stations" % len(stations_list))
     client = get_api_client()
@@ -111,8 +115,8 @@ def extract_save_stations(stations_list, collection_unique="real_departures_2"):
 
     index_fields = ["request_day", "station", "train_num"]
     logger.info("Upsert of %d items of json data in Mongo %s collection" %
-                (len(item_list), collection_unique))
-    mongo_async_upsert_items(collection_unique, item_list, index_fields)
+                (len(item_list), col_real_dep_unique))
+    mongo_async_upsert_items(col_real_dep_unique, item_list, index_fields)
 
 
 def operate_one_cycle(station_filter=False, max_per_minute=300):

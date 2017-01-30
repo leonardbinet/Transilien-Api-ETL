@@ -12,7 +12,7 @@ if __name__ == '__main__':
 from src.utils_rdb import rdb_connection, postgres_async_query_get_trip_ids
 from src.utils_mongo import mongo_get_collection, mongo_async_update_items
 from src.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time
-from src.settings import BASE_DIR, data_path, gtfs_path
+from src.settings import BASE_DIR, data_path, gtfs_path, col_real_dep_unique
 from multiprocessing.dummy import Pool as ThreadPool
 
 logger = logging.getLogger(__name__)
@@ -24,16 +24,18 @@ logger = logging.getLogger(__name__)
 def update_real_departures_mongo(yyyymmdd_request_day, threads=5):
     """
     Update real_departures with scheduled departure times for a given request day:
-    - iterate over all elements in real_departures collection for that day
+    - iterate over all elements in real departures collection for that day
+    (defined in settings 'col_real_dep_unique')
     - find their real trip_id
     - find their scheduled departure time
     - compute delay
     - build update objects
-    - compute mongo update queries
+    - compute mongo update queries for collection 'col_real_dep_unique'
+    (defined in settings, same as first step)
     """
 
     # PART 1 : GET ALL ELEMENTS TO UPDATE FROM MONGO
-    real_departures_col = mongo_get_collection("real_departures")
+    real_departures_col = mongo_get_collection(col_real_dep_unique)
     real_dep_on_day = list(real_departures_col.find(
         {"request_day": yyyymmdd_request_day}))
 
@@ -126,7 +128,7 @@ def update_real_departures_mongo(yyyymmdd_request_day, threads=5):
     for i, update_chunk in enumerate(update_chunks):
         logger.info(
             "Processing chunk number %d of 1000 elements to update." % i)
-        mongo_async_update_items("real_departures", update_chunk)
+        mongo_async_update_items(col_real_dep_unique, update_chunk)
 
 
 def api_train_num_to_trip_id(train_num, yyyymmdd_day, weekday=None):
