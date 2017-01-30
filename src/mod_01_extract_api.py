@@ -8,7 +8,7 @@ import pandas as pd
 import copy
 import logging
 
-from src.utils_misc import get_paris_local_datetime_now
+from src.utils_misc import get_paris_local_datetime_now, compute_delay
 from src.utils_api_client import get_api_client
 from src.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
 from src.settings import BASE_DIR, data_path, col_real_dep_unique
@@ -75,6 +75,10 @@ def xml_to_json_item_list(xml_string, station):
     df_trains.loc[:, "request_time"] = datetime_paris.strftime('%H:%M:%S')
     df_trains.loc[:, "station"] = station
     df_trains.rename(columns={'num': 'train_num'}, inplace=True)
+    # Data freshness is time in seconds between request time and
+    # expected_passage_time: lower is better
+    df_trains.loc[:, "data_freshness"] = df_trains.apply(lambda x: abs(
+        compute_delay(x["request_time"], x["expected_passage_time"])), axis=1)
 
     data_json = json.loads(df_trains.to_json(orient='records'))
     return data_json
