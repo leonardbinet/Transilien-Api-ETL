@@ -3,6 +3,7 @@ from os import sys, path
 from datetime import datetime
 import calendar
 import logging
+import numpy as np
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 # trip_id is unique for ONE DAY
 # to know exactly the schedule of a train, you need to tell: trip_id AND day
 # next, station to get time
-def update_real_departures_mongo(yyyymmdd, threads=5):
+def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000):
     """
     Update real_departures with scheduled departure times for a given request day:
     - iterate over all elements in real departures collection for that day
@@ -37,7 +38,7 @@ def update_real_departures_mongo(yyyymmdd, threads=5):
     # PART 1 : GET ALL ELEMENTS TO UPDATE FROM MONGO
     real_departures_col = mongo_get_collection(col_real_dep_unique)
     real_dep_on_day = list(real_departures_col.find(
-        {"expected_passage_day": yyyymmdd}))
+        {"expected_passage_day": yyyymmdd}).limit(limit))
 
     logger.info("Found %d elements in real_departures collection." %
                 len(real_dep_on_day))
@@ -49,7 +50,7 @@ def update_real_departures_mongo(yyyymmdd, threads=5):
             logger.debug("Update train %s on station %s on day %s" %
                          (item["train_num"], item["station"], item["expected_passage_day"]))
             item_trip_id = api_train_num_to_trip_id(
-                item["train_num"], yyyymmdd)
+                item["train_num"], item["expected_passage_day"])
             if not item_trip_id:
                 # If we can't find trip_id, we remove item from list
                 logger.warn("Cannot find trip_id for element")
@@ -80,9 +81,10 @@ def update_real_departures_mongo(yyyymmdd, threads=5):
                 real_dep_on_day.remove(item)
                 logger.warn("Cannot find schedule for element")
             else:
-                # Reminder: item["date"] is real departure date
+                # Reminder: item["expected_passage_time"] is real departure
+                # time
                 delay = compute_delay(
-                    scheduled_departure_time, item["date"])
+                    scheduled_departure_time, item["expected_passage_time"])
                 item["scheduled_departure_time"] = scheduled_departure_time
                 item["delay"] = delay
                 logger.info("Found schedule and delay")
@@ -210,28 +212,34 @@ def departure_date_to_yyyymmdd_date(departure_date):
     return new_format
 
 
-def compute_delay(scheduled_departure_time, real_departure_date):
+def compute_delay(scheduled_departure_time, real_departure_time):
+    """
+    Return in seconds the delay:
+    - positive if real_time > schedule time (delayed)
+    - negative if real_time < schedule time (advance)
+    """
     # real_departure_date = "01/02/2017 22:12" (api format)
     # scheduled_departure_time = '22:12:00' (schedules format)
-    # scheduled_departure_day = '20170102' (schedules format)
+    # real_departure_time = "22:12:00"
     # We don't need to take into account time zones
 
-    real_departure_date = datetime.strptime(
-        real_departure_date, "%d/%m/%Y %H:%M")
+    real_departure_time = datetime.strptime(
+        real_departure_time, "%H:%M:%S")
 
-    scheduled_departure_date = datetime.strptime(
+    scheduled_departure_time = datetime.strptime(
         scheduled_departure_time, "%H:%M:%S")
-    # Year and month, same as real
-    scheduled_departure_date.replace(year=real_departure_date.year)
-    scheduled_departure_date.replace(month=real_departure_date.month)
-    scheduled_departure_date.replace(day=real_departure_date.day)
-    # For day, might be different (after midnight) => Last two digits
-    # scheduled_day = scheduled_departure_day[-2:]
-    # scheduled_departure_date.replace(day=scheduled_day)
 
     # If late: delay is positive, if in advance, it is negative
-    delay = real_departure_date - scheduled_departure_date
-    return delay.seconds
+    delay = real_departure_time - scheduled_departure_time
+    # If schedule is 23:59:59 and the real is 00:00:01, bring back to 2 secs
+    # If real is 23:59:59 and the schedule is 00:00:01, bring back to -2 secs
+    secs_in_day = 60 * 60 * 24
+    if abs(delay.seconds) > secs_in_day / 2:
+        real_delay = np.sign(delay.seconds) * (-1) * \
+            abs(secs_in_day - delay.seconds)
+    else:
+        real_delay = delay.seconds
+    return real_delay
 
 
 def api_passage_information_to_delay(num, departure_date, station):
