@@ -3,7 +3,7 @@ from os import sys, path
 from datetime import datetime
 import calendar
 import logging
-import numpy as np
+from multiprocessing.dummy import Pool as ThreadPool
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
@@ -12,9 +12,9 @@ if __name__ == '__main__':
 
 from src.utils_rdb import rdb_connection, postgres_async_query_get_trip_ids
 from src.utils_mongo import mongo_get_collection, mongo_async_update_items
+from src.utils_misc import compute_delay
 from src.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time
 from src.settings import BASE_DIR, data_path, gtfs_path, col_real_dep_unique
-from multiprocessing.dummy import Pool as ThreadPool
 
 logger = logging.getLogger(__name__)
 
@@ -210,36 +210,6 @@ def departure_date_to_yyyymmdd_date(departure_date):
     departure_date = datetime.strptime(departure_date, "%d/%m/%Y %H:%M")
     new_format = departure_date.strftime("%Y%m%d")
     return new_format
-
-
-def compute_delay(scheduled_departure_time, real_departure_time):
-    """
-    Return in seconds the delay:
-    - positive if real_time > schedule time (delayed)
-    - negative if real_time < schedule time (advance)
-    """
-    # real_departure_date = "01/02/2017 22:12" (api format)
-    # scheduled_departure_time = '22:12:00' (schedules format)
-    # real_departure_time = "22:12:00"
-    # We don't need to take into account time zones
-
-    real_departure_time = datetime.strptime(
-        real_departure_time, "%H:%M:%S")
-
-    scheduled_departure_time = datetime.strptime(
-        scheduled_departure_time, "%H:%M:%S")
-
-    # If late: delay is positive, if in advance, it is negative
-    delay = real_departure_time - scheduled_departure_time
-    # If schedule is 23:59:59 and the real is 00:00:01, bring back to 2 secs
-    # If real is 23:59:59 and the schedule is 00:00:01, bring back to -2 secs
-    secs_in_day = 60 * 60 * 24
-    if abs(delay.seconds) > secs_in_day / 2:
-        real_delay = np.sign(delay.seconds) * (-1) * \
-            abs(secs_in_day - delay.seconds)
-    else:
-        real_delay = delay.seconds
-    return real_delay
 
 
 def api_passage_information_to_delay(num, departure_date, station):

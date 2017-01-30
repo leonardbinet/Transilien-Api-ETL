@@ -2,15 +2,46 @@ import os
 from os import sys, path
 import logging
 from logging.handlers import RotatingFileHandler
-from src.settings import BASE_DIR, logs_path
 from dateutil.tz import tzlocal
 import pytz
-import datetime
+from datetime import datetime
+import numpy as np
+from src.settings import BASE_DIR, logs_path
+
+
+def compute_delay(scheduled_departure_time, real_departure_time):
+    """
+    Return in seconds the delay:
+    - positive if real_time > schedule time (delayed)
+    - negative if real_time < schedule time (advance)
+    """
+    # real_departure_date = "01/02/2017 22:12" (api format)
+    # scheduled_departure_time = '22:12:00' (schedules format)
+    # real_departure_time = "22:12:00"
+    # We don't need to take into account time zones
+
+    real_departure_time = datetime.strptime(
+        real_departure_time, "%H:%M:%S")
+
+    scheduled_departure_time = datetime.strptime(
+        scheduled_departure_time, "%H:%M:%S")
+
+    # If late: delay is positive, if in advance, it is negative
+    delay = real_departure_time - scheduled_departure_time
+    # If schedule is 23:59:59 and the real is 00:00:01, bring back to 2 secs
+    # If real is 23:59:59 and the schedule is 00:00:01, bring back to -2 secs
+    secs_in_day = 60 * 60 * 24
+    if abs(delay.seconds) > secs_in_day / 2:
+        real_delay = np.sign(delay.seconds) * (-1) * \
+            abs(secs_in_day - delay.seconds)
+    else:
+        real_delay = delay.seconds
+    return real_delay
 
 
 def get_paris_local_datetime_now():
     paris_tz = pytz.timezone('Europe/Paris')
-    datetime_paris = datetime.datetime.now(tzlocal()).astimezone(paris_tz)
+    datetime_paris = datetime.now(tzlocal()).astimezone(paris_tz)
     return datetime_paris
 
 

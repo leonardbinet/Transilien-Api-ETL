@@ -5,34 +5,13 @@ import datetime
 import logging
 
 from src.settings import BASE_DIR
-from src.mod_03_match_collections import compute_delay, api_train_num_to_trip_id, update_real_departures_mongo
+from src.mod_03_match_collections import api_train_num_to_trip_id, update_real_departures_mongo
 from src.utils_misc import get_paris_local_datetime_now
 
 logger = logging.getLogger(__name__)
 
 
 class TestMatchingModuleFunctions(unittest.TestCase):
-
-    def test_compute_delay(self):
-        # real_departure_date = "01/02/2017 22:12" (api format)
-        # scheduled_departure_time = '22:12:00' (schedules format)
-        # scheduled_departure_day = '20170102' (schedules format)
-        # We don't need to take into account time zones
-        sch_dep_time = '22:12:00'
-        real_dep_time = "22:12:00"
-        self.assertEqual(compute_delay(sch_dep_time, real_dep_time), 0)
-        sch_dep_time = '22:12:00'
-        real_dep_time = "22:11:00"
-        self.assertEqual(compute_delay(sch_dep_time, real_dep_time), -60)
-        sch_dep_time = '22:12:00'
-        real_dep_time = "22:13:00"
-        self.assertEqual(compute_delay(sch_dep_time, real_dep_time), 60)
-        sch_dep_time = '23:59:00'
-        real_dep_time = "00:01:00"
-        self.assertEqual(compute_delay(sch_dep_time, real_dep_time), 120)
-        sch_dep_time = '00:01:00'
-        real_dep_time = "23:59:00"
-        self.assertEqual(compute_delay(sch_dep_time, real_dep_time), -120)
 
     def test_api_train_num_to_trip_id(self):
         train_num = "110313"
