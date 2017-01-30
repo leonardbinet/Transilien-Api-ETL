@@ -45,7 +45,7 @@ class TestExtractModuleFunctions(unittest.TestCase):
 
         # Test that we find all necessary fields
         necessary_fields = ["date", "request_day",
-                            "request_time", "num", "miss", "station", "expected_passage_day", "expected_passage_time"]
+                            "request_time", "train_num", "miss", "station", "expected_passage_day", "expected_passage_time"]
         json_keys_list = list(map(lambda x: list(x.keys()), json_list))
         for json_item_keys in json_keys_list:
             keys_all_exist = all(

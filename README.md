@@ -111,6 +111,15 @@ real_departures.create_index("station_id")
 
 real_departures.create_index("scheduled_departure_day")
 
+# New version with new index
+real_departures.create_index( [("expected_passage_day", pymongo.ASCENDING), ("station", pymongo.ASCENDING), ("train_num",pymongo.ASCENDING)], unique=True)
+
+real_departures.create_index("train_num")
+
+real_departures.create_index("station_id")
+
+real_departures.create_index("scheduled_departure_day")
+
 ```
 
 ## Postgres:

@@ -66,23 +66,21 @@ def xml_to_json_item_list(xml_string, station):
     df_trains = pd.DataFrame(trains)
 
     # Add custom fields
-
     df_trains.loc[:, "date"] = df_trains.date.apply(lambda x: x["#text"])
-
     df_trains.loc[:, "expected_passage_day"] = df_trains[
         "date"].apply(lambda x: api_date_to_day_time_corrected(x, "day"))
     df_trains.loc[:, "expected_passage_time"] = df_trains[
         "date"].apply(lambda x: api_date_to_day_time_corrected(x, "time"))
-
     df_trains.loc[:, "request_day"] = datetime_paris.strftime('%Y%m%d')
     df_trains.loc[:, "request_time"] = datetime_paris.strftime('%H:%M:%S')
     df_trains.loc[:, "station"] = station
+    df_trains.rename(columns={'num': 'train_num'}, inplace=True)
 
     data_json = json.loads(df_trains.to_json(orient='records'))
     return data_json
 
 
-def extract_save_stations(stations_list):
+def extract_save_stations(stations_list, collection_unique="real_departures_2"):
     # Extract from API
     logger.info("Extraction of %d stations" % len(stations_list))
     client = get_api_client()
@@ -111,10 +109,10 @@ def extract_save_stations(stations_list):
     # Save items in other collection
     # flatten chunks: -> list of elements to upsert
 
-    index_fields = ["request_day", "station", "num"]
-    logger.info("Upsert of %d items of json data in Mongo real_departures collection" %
-                len(item_list))
-    mongo_async_upsert_items("real_departures", item_list, index_fields)
+    index_fields = ["request_day", "station", "train_num"]
+    logger.info("Upsert of %d items of json data in Mongo %s collection" %
+                (len(item_list), collection_unique))
+    mongo_async_upsert_items(collection_unique, item_list, index_fields)
 
 
 def operate_one_cycle(station_filter=False, max_per_minute=300):

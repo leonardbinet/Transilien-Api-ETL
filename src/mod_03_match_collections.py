@@ -45,9 +45,9 @@ def update_real_departures_mongo(yyyymmdd_request_day, threads=5):
     def add_trip_id(item):
         try:
             logger.debug("Update train %s on station %s on day %s" %
-                         (item["num"], item["station"], item["date"]))
+                         (item["train_num"], item["station"], item["date"]))
             item_trip_id = api_train_num_to_trip_id(
-                item["num"], yyyymmdd_request_day)
+                item["train_num"], yyyymmdd_request_day)
             if not item_trip_id:
                 # If we can't find trip_id, we remove item from list
                 logger.warn("Cannot find trip_id for element")
