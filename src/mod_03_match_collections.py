@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # trip_id is unique for ONE DAY
 # to know exactly the schedule of a train, you need to tell: trip_id AND day
 # next, station to get time
-def update_real_departures_mongo(yyyymmdd_request_day, threads=5):
+def update_real_departures_mongo(yyyymmdd, threads=5):
     """
     Update real_departures with scheduled departure times for a given request day:
     - iterate over all elements in real departures collection for that day
@@ -37,7 +37,7 @@ def update_real_departures_mongo(yyyymmdd_request_day, threads=5):
     # PART 1 : GET ALL ELEMENTS TO UPDATE FROM MONGO
     real_departures_col = mongo_get_collection(col_real_dep_unique)
     real_dep_on_day = list(real_departures_col.find(
-        {"request_day": yyyymmdd_request_day}))
+        {"expected_passage_day": yyyymmdd}))
 
     logger.info("Found %d elements in real_departures collection." %
                 len(real_dep_on_day))
@@ -47,9 +47,9 @@ def update_real_departures_mongo(yyyymmdd_request_day, threads=5):
     def add_trip_id(item):
         try:
             logger.debug("Update train %s on station %s on day %s" %
-                         (item["train_num"], item["station"], item["date"]))
+                         (item["train_num"], item["station"], item["expected_passage_day"]))
             item_trip_id = api_train_num_to_trip_id(
-                item["train_num"], yyyymmdd_request_day)
+                item["train_num"], yyyymmdd)
             if not item_trip_id:
                 # If we can't find trip_id, we remove item from list
                 logger.warn("Cannot find trip_id for element")
