@@ -80,13 +80,15 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000):
             if not scheduled_departure_time:
                 real_dep_on_day.remove(item)
                 logger.warn("Cannot find schedule for element")
+                item = None
             else:
                 # Reminder: item["expected_passage_time"] is real departure
                 # time
                 delay = compute_delay(
                     scheduled_departure_time, item["expected_passage_time"])
                 item["scheduled_departure_time"] = scheduled_departure_time
-                item["delay"] = delay
+                # Set as a string to be json encoded
+                item["delay"] = str(delay)
                 logger.info("Found schedule and delay")
                 return item
         except Exception as e:
