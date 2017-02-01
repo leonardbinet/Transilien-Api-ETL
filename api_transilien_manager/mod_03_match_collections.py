@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # trip_id is unique for ONE DAY
 # to know exactly the schedule of a train, you need to tell: trip_id AND day
 # next, station to get time
-def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000):
+def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station=False):
     """
     Update real_departures with scheduled departure times for a given request day:
     - iterate over all elements in real departures collection for that day
@@ -37,11 +37,18 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000):
 
     # PART 1 : GET ALL ELEMENTS TO UPDATE FROM MONGO
     real_departures_col = mongo_get_collection(col_real_dep_unique)
-    real_dep_on_day = list(real_departures_col.find(
-        {"expected_passage_day": yyyymmdd}).limit(limit))
 
-    logger.info("Found %d elements in real_departures collection." %
-                len(real_dep_on_day))
+    if not one_station:
+        real_dep_on_day = list(real_departures_col.find(
+            {"expected_passage_day": yyyymmdd}).limit(limit))
+        logger.info("Found %d elements in real_departures collection." %
+                    len(real_dep_on_day))
+    else:
+        one_station = str(one_station)
+        real_dep_on_day = list(real_departures_col.find(
+            {"expected_passage_day": yyyymmdd, "station": one_station}).limit(limit))
+        logger.info("Found %d elements in real_departures collection for station %s." %
+                    (len(real_dep_on_day), one_station))
 
     # PART 2 : GET TRIP_ID, SCHEDULED_DEPARTURE_TIME AND DELAY
     # PART 2.A : GET TRIP_ID
@@ -53,14 +60,14 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000):
                 item["train_num"], item["expected_passage_day"])
             if not item_trip_id:
                 # If we can't find trip_id, we remove item from list
-                logger.warn("Cannot find trip_id for element")
+                logger.debug("Cannot find trip_id for element")
             else:
                 item["trip_id"] = item_trip_id
-                logger.info("Found trip_id")
+                logger.debug("Found trip_id")
                 return item
         except Exception as e:
             real_dep_on_day.remove(item)
-            logger.warn("Cannot find trip_id for element, exception %s" % e)
+            logger.debug("Cannot find trip_id for element, exception %s" % e)
             item = None
 
     pool = ThreadPool(5)
@@ -78,9 +85,7 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000):
             scheduled_departure_time = trip_scheduled_departure_time(
                 item["trip_id"], item["station"])
             if not scheduled_departure_time:
-                real_dep_on_day.remove(item)
-                logger.warn("Cannot find schedule for element")
-                item = None
+                logger.debug("Cannot find schedule for element")
             else:
                 # Reminder: item["expected_passage_time"] is real departure
                 # time
@@ -89,12 +94,11 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000):
                 item["scheduled_departure_time"] = scheduled_departure_time
                 # Set as a string to be json encoded
                 item["delay"] = str(delay)
-                logger.info("Found schedule and delay")
+                logger.debug("Found schedule and delay")
                 return item
         except Exception as e:
-            logger.warn(
+            logger.debug(
                 "Cannot find schedule or delay for element: exception %s" % e)
-            item = None
 
     pool = ThreadPool(5)
     real_dep_on_day = pool.map(add_schedule_and_delay, real_dep_on_day)
@@ -115,7 +119,7 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000):
                   }
                  })
             items_to_update.append(item_to_update)
-            logger.info("Item prepared successfully")
+            logger.debug("Item prepared successfully")
         except Exception as e:
             logger.warn(
                 "Couldn't prepare element: %s, exception %s" % (item, e))
@@ -128,10 +132,11 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000):
     def chunks(l, n):
         for i in range(0, len(l), n):
             yield l[i:i + n]
+
     update_chunks = chunks(items_to_update, 1000)
     for i, update_chunk in enumerate(update_chunks):
         logger.info(
-            "Processing chunk number %d of 1000 elements to update." % i)
+            "Processing chunk number %d (chunks of max 1000) containing %d elements to update." % (i, len(update_chunk)))
         mongo_async_update_items(col_real_dep_unique, update_chunk)
 
 
@@ -148,7 +153,7 @@ def api_train_num_to_trip_id(train_num, yyyymmdd_day, weekday=None):
 
     # Check number of results
     if not trip_ids:
-        logger.warning("No matching trip_id")
+        logger.debug("No matching trip_id")
         connection.close()
         return False
     elif len(trip_ids) == 1:
@@ -157,8 +162,8 @@ def api_train_num_to_trip_id(train_num, yyyymmdd_day, weekday=None):
         logger.debug("Found trip_id: %s" % trip_ids)
         return trip_id
     else:
-        logger.warning("Multiple trip_ids found: %d matches: %s" %
-                       (len(trip_ids), trip_ids))
+        logger.debug("Multiple trip_ids found: %d matches: %s" %
+                     (len(trip_ids), trip_ids))
         connection.close()
         return False
 
