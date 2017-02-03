@@ -88,7 +88,7 @@ run-parts --test /etc/cron.hourly
 ### Check what is running (all processes):
 https://doc.ubuntu-fr.org/faq_process
 ```
-ps -e
+ps -ef
 ps -p "5513" -o etime=
 ```
 To kill: brutal(replace number by id from last command)
