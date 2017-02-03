@@ -91,7 +91,7 @@ def save_all_schedule_tables_rdb():
     save_stop_times_extended_rdb()
 
 
-def save_trips_extended_rdb():
+def save_trips_extended_rdb(dryrun=False):
     """
     Save trips table, with some more columns:
     - train_num
@@ -103,22 +103,25 @@ def save_trips_extended_rdb():
 
     trips["train_num"] = trips["trip_id"].str.extract(
         "^.{5}(\d{6})", expand=False)
-    extended = trips.merge(calendar, on="service_id", how="left")
+    trips_ext = trips.merge(calendar, on="service_id", how="inner")
 
     # Clean missing fields
     # Block id is always NaN, and drop where calendar is not present
-    del extended['block_id']
-    extended.dropna(axis=0, how='any', inplace=True)
+    del trips_ext['block_id']
+    trips_ext.dropna(axis=0, how='any', inplace=True)
 
-    logger.debug("%d trips with calendar dates." % len(extended.index))
+    logger.debug("%d trips with calendar dates." % len(trips_ext.index))
 
-    connection = rdb_connection(db="postgres_alch")
-    extended.to_sql("trips_ext", connection, if_exists='replace',
-                    index=False, index_label="trip_id", chunksize=1000)
-    return extended
+    if not dryrun:
+        connection = rdb_connection(db="postgres_alch")
+        trips_ext.to_sql("trips_ext", connection, if_exists='replace',
+                         index=False, index_label="trip_id", chunksize=1000)
+    else:
+        logger.info("Dryrun is True, database has not changed.")
+    return trips_ext
 
 
-def save_stop_times_extended_rdb():
+def save_stop_times_extended_rdb(dryrun=False):
     """
     Save stop times table, with some more columns:
     - train_num (out of trip_id)
@@ -131,22 +134,30 @@ def save_stop_times_extended_rdb():
     stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
     stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
 
-    stop_times_ext = stop_times.merge(trips, on="trip_id", how="left")
+    stop_times_ext = stop_times.merge(trips, on="trip_id", how="inner")
     stop_times_ext = stop_times_ext.merge(
-        calendar, on="service_id", how="left")
-    stop_times_ext = stop_times_ext.merge(stops, on="stop_id", how="left")
+        calendar, on="service_id", how="inner")
+    stop_times_ext = stop_times_ext.merge(stops, on="stop_id", how="inner")
+
+    # Delete empty columns
+    del stop_times_ext['block_id']
+    del stop_times_ext['stop_headsign']
+    del stop_times_ext['stop_desc']
+    del stop_times_ext['zone_id']
+    del stop_times_ext['stop_url']
 
     stop_times_ext["train_num"] = stop_times_ext[
         "trip_id"].str.extract("^.{5}(\d{6})", expand=False)
     stop_times_ext["station_id"] = stop_times_ext.stop_id.str.extract(
         "DUA(\d{7})", expand=False)
 
-    # useful = [
-    #    "trip_id", "departure_time", "station_id", "service_id",
-    #    "monday", "tuesday", "wednesday",
-    #    "thursday", "friday", "saturday", "sunday",
-    #    "start_date", "end_date", "train_num"
-    #]
-    connection = rdb_connection(db="postgres_alch")
-    stop_times_ext.to_sql("stop_times_ext", connection, if_exists='replace',
-                          index=True, index_label=None, chunksize=1000)
+    # In some case we cannot extract station number
+    stop_times_ext.dropna(axis=0, inplace=True)
+
+    if not dryrun:
+        connection = rdb_connection(db="postgres_alch")
+        stop_times_ext.to_sql("stop_times_ext", connection, if_exists='replace',
+                              index=True, index_label=None, chunksize=1000)
+    else:
+        logger.info("Dry run is True: database has not been modified.")
+    return stop_times_ext
