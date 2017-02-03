@@ -230,11 +230,3 @@ def api_passage_information_to_delay(num, departure_date, station):
         return False
     delay = compute_delay(scheduled_departure_time, departure_date)
     return delay
-
-
-if __name__ == '__main__':
-    pass
-
-    # Let's check for today
-    # date_to_check = datetime.now().strftime("%Y%m%d")
-    # check_random_trips_delay(date_to_check)

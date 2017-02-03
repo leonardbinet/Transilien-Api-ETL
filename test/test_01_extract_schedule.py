@@ -18,7 +18,8 @@ class TestExtractScheduleModuleFunctions(unittest.TestCase):
         # check is necessary fields are present (all except block_id)
         necessary_fields = [
             'route_id', 'service_id', 'trip_id', 'trip_headsign',
-            'direction_id', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'start_date', 'end_date'
+            'direction_id', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'start_date', 'end_date',
+            'train_num'
         ]
         df_cols = trips_ext_df.columns.values
         keys_all_exist = all(key in df_cols for key in necessary_fields)

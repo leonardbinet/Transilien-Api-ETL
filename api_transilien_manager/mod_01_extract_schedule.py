@@ -67,9 +67,9 @@ def write_flat_departures_times_df():
     trips["train_num"] = trips["trip_id"].str.extract(
         "^.{5}(\d{6})", expand=False)
 
-    df_merged = stop_times.merge(trips, on="trip_id", how="left")
-    df_merged = df_merged.merge(calendar, on="service_id", how="left")
-    df_merged = df_merged.merge(stops, on="stop_id", how="left")
+    df_merged = stop_times.merge(trips, on="trip_id", how="inner")
+    df_merged = df_merged.merge(calendar, on="service_id", how="inner")
+    df_merged = df_merged.merge(stops, on="stop_id", how="inner")
 
     df_merged["station_id"] = df_merged.stop_id.str.extract(
         "DUA(\d{7})", expand=False)
