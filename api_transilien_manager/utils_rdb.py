@@ -1,14 +1,10 @@
 from os import sys, path
-import asyncio
 import logging
-from urllib.parse import quote_plus
-import datetime
-import pytz
 import sqlite3
 import psycopg2
 import sqlalchemy
-import asyncio
-import aiopg
+# import asyncio
+# import aiopg
 
 
 if __name__ == '__main__':
@@ -24,62 +20,39 @@ logger = logging.getLogger(__name__)
 POSTGRES_USER = get_secret("POSTGRES_USER")
 POSTGRES_DB_NAME = get_secret("POSTGRES_DB_NAME")
 POSTGRES_PASSWORD = get_secret("POSTGRES_PASSWORD")
-POSTGRES_HOST = get_secret("POSTGRES_HOST")
+POSTGRES_HOST = get_secret("POSTGRES_HOST") or "localhost"
+POSTGRES_PORT = get_secret("POSTGRES_PORT") or 5432
 
 
 def rdb_connection(db="postgres"):
-    if db == "postgres":
-        return postgres_get_connection()
-    elif db == "sqlite":
-        return sqlite_get_connection()
+    uri = build_uri()
+    if db == "sqlite":
+        return sqlite3.connect(sqlite_path)
+    elif db == "postgres":
+        conn = psycopg2.connect(uri)
+        conn.autocommit = True
+        return conn
     elif db == "postgres_alch":
-        con, meta = postgres_get_connection_alch()
-        return con
+        # The return value of create_engine() is our connection object
+        conn = sqlalchemy.create_engine(uri, client_encoding='utf8')
+        # We then bind the connection to MetaData()
+        # meta = sqlalchemy.MetaData(bind=con, reflect=True)
+        return conn
     else:
         raise ValueError(
             "db should be one of these: 'postgres', 'postgres_alch', 'sqlite'")
 
 
-def postgres_get_connection_alch(user=POSTGRES_USER, password=POSTGRES_PASSWORD, db=POSTGRES_DB_NAME, host='localhost', port=5432):
-    '''Returns a connection and a metadata object'''
+def build_uri(user=POSTGRES_USER, password=POSTGRES_PASSWORD, db=POSTGRES_DB_NAME, host=POSTGRES_HOST, port=POSTGRES_PORT):
     # We connect with the help of the PostgreSQL URL
     # postgresql://federer:grandestslam@localhost:5432/tennis
-    url = 'postgresql://{}:{}@{}:{}/{}'
-    url = url.format(user, password, host, port, db)
-    # The return value of create_engine() is our connection object
-    con = sqlalchemy.create_engine(url, client_encoding='utf8')
-    # We then bind the connection to MetaData()
-    meta = sqlalchemy.MetaData(bind=con, reflect=True)
-    return con, meta
+    uri = 'postgresql://{}:{}@{}:{}/{}'
+    uri = uri.format(user, password, host, port, db)
+    return uri
 
 
-def postgres_get_connection(user=POSTGRES_USER, password=POSTGRES_PASSWORD, db=POSTGRES_DB_NAME, host='localhost', port=5432):
-    url = 'postgresql://{}:{}@{}:{}/{}'
-    url = url.format(user, password, host, port, db)
-    conn = psycopg2.connect(url)
-    conn.autocommit = True
-    return conn
-
-
-def postgres_save_df_in_table(df, table_name, index=False, index_label=None, if_exists='append'):
-    con, meta = postgres_get_connection_alch()
-    df.to_sql(table_name, con, schema=None, if_exists=if_exists,
-              index=index, index_label=index_label, chunksize=None, dtype=None)
-
-
-def sqlite_get_connection():
-    return sqlite3.connect(sqlite_path)
-
-
-def sqlite_get_cursor():
-    return sqlite3.connect(sqlite_path).cursor()
-
-
-def sqlite_save_df_in_table(df, table_name, index=False, index_label=None, if_exists='append'):
-    con = sqlite_get_connection()
-    df.to_sql(table_name, con, schema=None, if_exists=if_exists,
-              index=index, index_label=index_label, chunksize=None, dtype=None)
-
+"""
+# Not working postgres async for now
 
 def postgres_async_query_get_trip_ids(items, yyyymmdd_day):
     dsn = 'dbname=%s user=%s password=%s' % (
@@ -130,3 +103,4 @@ def postgres_async_query_get_trip_ids(items, yyyymmdd_day):
     future = asyncio.ensure_future(run(items))
     loop.run_until_complete(future)
     return future.result()
+"""

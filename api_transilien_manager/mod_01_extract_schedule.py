@@ -135,11 +135,7 @@ def save_trips_extended_rdb(dryrun=False):
 
 def save_stop_times_extended_rdb(dryrun=False):
     """
-    Save stop times table, with some more columns:
-    - train_num (out of trip_id)
-    - calendar columns
-    - station_id column (7 digits out of stop_id)
-    - stops columns, (stop name for instance)
+    Save stop_times_ext table
     """
     stop_times_ext = build_stop_times_ext_df()
 
