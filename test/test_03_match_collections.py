@@ -31,7 +31,8 @@ class TestMatchingModuleFunctions(unittest.TestCase):
 
         file_path = path.join(BASE_DIR, "test", "files", "test_trips_ext.csv")
         test_trips_df = pd.read_csv(file_path)
-        test_trips_df = test_trips_df.iloc[:, :100]
+        test_trips_df = test_trips_df.iloc[:10, :]
+        # logger.info(test_trips_df)
 
         day = "20170202"
         test_trips_df["scheduled"] = test_trips_df.apply(

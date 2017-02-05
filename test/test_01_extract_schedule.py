@@ -5,7 +5,7 @@ import datetime
 import logging
 
 from api_transilien_manager.settings import BASE_DIR
-from api_transilien_manager.mod_01_extract_schedule import write_flat_departures_times_df, save_trips_extended_rdb, save_stop_times_extended_rdb
+from api_transilien_manager.mod_01_extract_schedule import save_trips_extended_rdb, save_stop_times_extended_rdb
 
 logger = logging.getLogger(__name__)
 

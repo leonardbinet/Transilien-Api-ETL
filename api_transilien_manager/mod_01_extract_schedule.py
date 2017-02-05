@@ -48,54 +48,15 @@ def download_gtfs_files():
                 "The 'gtfs-lines-last' folder has been found! Schedules will not be updated.")
 
 
-def write_flat_departures_times_df():
-    try:
-        trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
-        calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
-        stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
-        stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
-
-    except OSError:
-        logger.info("Could not load files: download files from the internet.")
-        download_gtfs_files()
-
-        trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
-        calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
-        stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
-        stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
-
-    trips["train_num"] = trips["trip_id"].str.extract(
-        "^.{5}(\d{6})", expand=False)
-
-    df_merged = stop_times.merge(trips, on="trip_id", how="inner")
-    df_merged = df_merged.merge(calendar, on="service_id", how="inner")
-    df_merged = df_merged.merge(stops, on="stop_id", how="inner")
-
-    df_merged["station_id"] = df_merged.stop_id.str.extract(
-        "DUA(\d{7})", expand=False)
-
-    df_merged.rename(
-        columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
-
-    useful = [
-        "trip_id", "scheduled_departure_time", "station_id", "service_id",
-        "monday", "tuesday", "wednesday",
-        "thursday", "friday", "saturday", "sunday",
-        "start_date", "end_date", "train_num"
-    ]
-    df_merged[useful].to_csv(os.path.join(gtfs_path, "flat.csv"))
-
-
-def save_all_schedule_tables_rdb():
-    save_trips_extended_rdb()
-    save_stop_times_extended_rdb()
-
-
-def save_trips_extended_rdb(dryrun=False):
+def build_trips_ext_df():
     """
-    Save trips table, with some more columns:
-    - train_num
-    - calendar columns
+    Build trips extended dataframe out of:
+    - trips
+    - calendar
+    Adds column:
+    - train_num out of trip_id
+    Clean:
+    - remove NaN values
     """
     trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
     logger.debug("Found %d trips." % len(trips.index))
@@ -109,25 +70,21 @@ def save_trips_extended_rdb(dryrun=False):
     # Block id is always NaN, and drop where calendar is not present
     del trips_ext['block_id']
     trips_ext.dropna(axis=0, how='any', inplace=True)
-
-    logger.debug("%d trips with calendar dates." % len(trips_ext.index))
-
-    if not dryrun:
-        connection = rdb_connection(db="postgres_alch")
-        trips_ext.to_sql("trips_ext", connection, if_exists='replace',
-                         index=False, index_label="trip_id", chunksize=1000)
-    else:
-        logger.info("Dryrun is True, database has not changed.")
     return trips_ext
 
 
-def save_stop_times_extended_rdb(dryrun=False):
+def build_stop_times_ext_df():
     """
-    Save stop times table, with some more columns:
-    - train_num (out of trip_id)
-    - calendar columns
-    - station_id column (7 digits out of stop_id)
-    - stops columns, (stop name for instance)
+    Build stop times extended dataframe out of:
+    - trips
+    - calendar
+    - stop_times
+    - stops
+    Adds column:
+    - train_num out of trip_id
+    - station_id out of stop_id
+    Clean:
+    - remove NaN values
     """
     trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
     calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
@@ -153,6 +110,35 @@ def save_stop_times_extended_rdb(dryrun=False):
 
     # In some case we cannot extract station number
     stop_times_ext.dropna(axis=0, inplace=True)
+    return stop_times_ext
+
+
+def save_trips_extended_rdb(dryrun=False):
+    """
+    Save trips_ext table
+    """
+    trips_ext = build_trips_ext_df()
+
+    logger.debug("%d trips with calendar dates." % len(trips_ext.index))
+
+    if not dryrun:
+        connection = rdb_connection(db="postgres_alch")
+        trips_ext.to_sql("trips_ext", connection, if_exists='replace',
+                         index=False, index_label="trip_id", chunksize=1000)
+    else:
+        logger.info("Dryrun is True, database has not changed.")
+    return trips_ext
+
+
+def save_stop_times_extended_rdb(dryrun=False):
+    """
+    Save stop times table, with some more columns:
+    - train_num (out of trip_id)
+    - calendar columns
+    - station_id column (7 digits out of stop_id)
+    - stops columns, (stop name for instance)
+    """
+    stop_times_ext = build_stop_times_ext_df()
 
     if not dryrun:
         connection = rdb_connection(db="postgres_alch")
@@ -161,3 +147,8 @@ def save_stop_times_extended_rdb(dryrun=False):
     else:
         logger.info("Dry run is True: database has not been modified.")
     return stop_times_ext
+
+
+def save_all_schedule_tables_rdb():
+    save_trips_extended_rdb()
+    save_stop_times_extended_rdb()
