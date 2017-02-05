@@ -1,4 +1,3 @@
-from os import sys, path
 import unittest
 import logging
 

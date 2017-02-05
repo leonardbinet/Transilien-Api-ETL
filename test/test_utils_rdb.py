@@ -1,8 +1,6 @@
-from os import sys, path
 import unittest
 import logging
 
-from api_transilien_manager.settings import BASE_DIR
 from api_transilien_manager.utils_rdb import rdb_connection
 
 logger = logging.getLogger(__name__)

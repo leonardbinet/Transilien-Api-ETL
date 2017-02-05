@@ -18,12 +18,12 @@ suite = unittest.TestSuite()
 # add tests to the test suite
 suite.addTests(loader.loadTestsFromModule(test_utils_rdb))
 suite.addTests(loader.loadTestsFromModule(test_utils_mongo))
+suite.addTests(loader.loadTestsFromModule(test_utils_misc))
 
 suite.addTests(loader.loadTestsFromModule(test_01_extract_api))
 suite.addTests(loader.loadTestsFromModule(test_01_extract_schedule))
 suite.addTests(loader.loadTestsFromModule(test_02_query_schedule))
 suite.addTests(loader.loadTestsFromModule(test_03_match_collections))
-suite.addTests(loader.loadTestsFromModule(test_utils_misc))
 
 # initialize a runner, pass it your suite and run it
 runner = unittest.TextTestRunner(verbosity=3)

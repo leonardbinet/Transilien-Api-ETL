@@ -1,10 +1,6 @@
-from os import sys, path
 import unittest
-import pytz
-import datetime
 import logging
 
-from api_transilien_manager.settings import BASE_DIR
 from api_transilien_manager.utils_misc import compute_delay
 
 logger = logging.getLogger(__name__)
