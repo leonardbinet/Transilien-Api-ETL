@@ -1,12 +1,7 @@
 import os
 import pandas as pd
-import datetime
-import calendar
 import logging
-import json
 
-from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path
-from api_transilien_manager.utils_mongo import mongo_async_upsert_items
 from api_transilien_manager.utils_rdb import rdb_connection
 from api_transilien_manager.mod_01_extract_schedule import build_stop_times_ext_df
 

@@ -6,7 +6,12 @@ from dateutil.tz import tzlocal
 import pytz
 from datetime import datetime
 import numpy as np
-from api_transilien_manager.settings import BASE_DIR, logs_path
+from api_transilien_manager.settings import logs_path
+
+
+def chunks(l, n):
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
 
 
 def compute_delay(scheduled_departure_time, real_departure_time):

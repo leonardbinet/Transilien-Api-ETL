@@ -1,7 +1,4 @@
-import os
 from os import sys, path
-from datetime import datetime
-import calendar
 import logging
 from multiprocessing.dummy import Pool as ThreadPool
 
@@ -12,16 +9,86 @@ if __name__ == '__main__':
 
 from api_transilien_manager.utils_rdb import rdb_connection
 from api_transilien_manager.utils_mongo import mongo_get_collection, mongo_async_update_items
-from api_transilien_manager.utils_misc import compute_delay
+from api_transilien_manager.utils_misc import compute_delay, chunks
 from api_transilien_manager.mod_02_query_schedule import trip_scheduled_departure_time
-from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path, col_real_dep_unique
+from api_transilien_manager.settings import col_real_dep_unique
 
 logger = logging.getLogger(__name__)
 
 
-# trip_id is unique for ONE DAY
-# to know exactly the schedule of a train, you need to tell: trip_id AND day
-# next, station to get time
+# Item update functions
+
+def add_trip_id(item):
+    """
+    Takes an item (dictionary) as parameter.
+    - either finds trip_id and add it in dictionary, and return dict updated.
+    - either return None
+    """
+    try:
+        logger.debug("Update train %s on station %s on day %s" %
+                     (item["train_num"], item["station"], item["expected_passage_day"]))
+        item_trip_id = api_train_num_to_trip_id(
+            item["train_num"], item["expected_passage_day"])
+        if not item_trip_id:
+            # If we can't find trip_id, we remove item from list
+            logger.debug("Cannot find trip_id for element")
+        else:
+            item["trip_id"] = item_trip_id
+            logger.debug("Found trip_id")
+            return item
+    except Exception as e:
+        logger.debug("Cannot find trip_id for element, exception %s" %
+                     e.with_traceback)
+
+
+def add_schedule_and_delay(item):
+    """
+    Takes an item (dictionary) as parameter.
+    - either finds scheduled_departure_time and delay and add it in dictionary, and return dict updated.
+    - either return None
+    """
+    try:
+        scheduled_departure_time = trip_scheduled_departure_time(
+            item["trip_id"], item["station"])
+        if not scheduled_departure_time:
+            logger.debug("Cannot find schedule for element")
+        else:
+            # Reminder: item["expected_passage_time"] is real departure
+            # time
+            delay = compute_delay(
+                scheduled_departure_time, item["expected_passage_time"])
+            item["scheduled_departure_time"] = scheduled_departure_time
+            # Set as a string to be json encoded
+            item["delay"] = str(delay)
+            logger.debug("Found schedule and delay")
+            return item
+    except Exception as e:
+        logger.debug(
+            "Cannot find schedule or delay for element: exception %s" % e)
+
+
+def build_mongo_update_object(item):
+    """
+    Takes an item (dictionary) as parameter.
+    - either create successfully update object for mongo
+    - either return None
+    """
+    try:
+        item_to_update = (
+            {"_id": item["_id"]},
+            {"$set":
+             {"scheduled_departure_time": item["scheduled_departure_time"],
+              "trip_id": item["trip_id"],
+              "delay": item["delay"]
+              }
+             })
+        logger.debug("Item prepared successfully")
+        return item_to_update
+    except Exception as e:
+        logger.error(
+            "Couldn't prepare element: %s, exception %s" % (item, e.with_traceback))
+
+
 def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station=False):
     """
     Update real_departures with scheduled departure times for a given request day:
@@ -52,24 +119,6 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station
 
     # PART 2 : GET TRIP_ID, SCHEDULED_DEPARTURE_TIME AND DELAY
     # PART 2.A : GET TRIP_ID
-    def add_trip_id(item):
-        try:
-            logger.debug("Update train %s on station %s on day %s" %
-                         (item["train_num"], item["station"], item["expected_passage_day"]))
-            item_trip_id = api_train_num_to_trip_id(
-                item["train_num"], item["expected_passage_day"])
-            if not item_trip_id:
-                # If we can't find trip_id, we remove item from list
-                logger.debug("Cannot find trip_id for element")
-            else:
-                item["trip_id"] = item_trip_id
-                logger.debug("Found trip_id")
-                return item
-        except Exception as e:
-            real_dep_on_day.remove(item)
-            logger.debug("Cannot find trip_id for element, exception %s" % e)
-            item = None
-
     pool = ThreadPool(5)
     real_dep_on_day = pool.map(add_trip_id, real_dep_on_day)
     pool.close()
@@ -80,25 +129,6 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station
     logger.info("Found trip_id for %s elements." % len(real_dep_on_day))
 
     # PART 2.B : GET TRIP SCHEDULED_DEPARTURE_TIME, DELAY
-    def add_schedule_and_delay(item):
-        try:
-            scheduled_departure_time = trip_scheduled_departure_time(
-                item["trip_id"], item["station"])
-            if not scheduled_departure_time:
-                logger.debug("Cannot find schedule for element")
-            else:
-                # Reminder: item["expected_passage_time"] is real departure
-                # time
-                delay = compute_delay(
-                    scheduled_departure_time, item["expected_passage_time"])
-                item["scheduled_departure_time"] = scheduled_departure_time
-                # Set as a string to be json encoded
-                item["delay"] = str(delay)
-                logger.debug("Found schedule and delay")
-                return item
-        except Exception as e:
-            logger.debug(
-                "Cannot find schedule or delay for element: exception %s" % e)
 
     pool = ThreadPool(5)
     real_dep_on_day = pool.map(add_schedule_and_delay, real_dep_on_day)
@@ -107,31 +137,13 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station
     real_dep_on_day = list(filter(None, real_dep_on_day))
 
     # PART 2.C : BUILD UPDATE OBJECTS FOR MONGO
-    items_to_update = []
-    for item in real_dep_on_day:
-        try:
-            item_to_update = (
-                {"_id": item["_id"]},
-                {"$set":
-                 {"scheduled_departure_time": item["scheduled_departure_time"],
-                  "trip_id": item["trip_id"],
-                  "delay": item["delay"]
-                  }
-                 })
-            items_to_update.append(item_to_update)
-            logger.debug("Item prepared successfully")
-        except Exception as e:
-            logger.warn(
-                "Couldn't prepare element: %s, exception %s" % (item, e))
-            continue
+    items_to_update = list(map(build_mongo_update_object, real_dep_on_day))
+    items_to_update = list(filter(None, items_to_update))
 
     logger.info("Real departures gathering finished. Beginning update.")
     logger.info("Gathered %d elements to update." % len(items_to_update))
 
     # PART 3: UPDATE ALL IN MONGO
-    def chunks(l, n):
-        for i in range(0, len(l), n):
-            yield l[i:i + n]
 
     update_chunks = chunks(items_to_update, 1000)
     for i, update_chunk in enumerate(update_chunks):
@@ -167,6 +179,8 @@ def api_train_num_to_trip_id(train_num, yyyymmdd_day, weekday=None):
         connection.close()
         return False
 
+"""
+# NOT USED FOR NOW
 
 def get_trip_ids_from_day_and_train_nums(train_num_list, departure_date):
     df_flat = []
@@ -230,3 +244,4 @@ def api_passage_information_to_delay(num, departure_date, station):
         return False
     delay = compute_delay(scheduled_departure_time, departure_date)
     return delay
+"""
