@@ -56,13 +56,11 @@ class TestMatchingModuleFunctions(unittest.TestCase):
         For now, only launch real update process and checks if no error occurs.
         """
         today_paris = get_paris_local_datetime_now()
-        today_paris_str = today_paris.strftime("%Y%m%d")
         yesterday_paris = today_paris - datetime.timedelta(days=1)
         yesterday_paris_str = yesterday_paris.strftime("%Y%m%d")
-        logger.info("Paris yesterday date is %s" % yesterday_paris_str)
-
+        logger.info("Test for yesterday: %s" % yesterday_paris_str)
         update_real_departures_mongo(
-            str(today_paris_str), threads=5, limit=10)
+            str(yesterday_paris_str), threads=5, limit=150, dryrun=True)
 
 
 if __name__ == '__main__':

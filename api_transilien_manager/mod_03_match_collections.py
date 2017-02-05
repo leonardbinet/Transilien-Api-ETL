@@ -89,7 +89,7 @@ def build_mongo_update_object(item):
             "Couldn't prepare element: %s, exception %s" % (item, e.with_traceback))
 
 
-def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station=False):
+def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station=False, dryrun=False):
     """
     Update real_departures with scheduled departure times for a given request day:
     - iterate over all elements in real departures collection for that day
@@ -123,13 +123,10 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station
     real_dep_on_day = pool.map(add_trip_id, real_dep_on_day)
     pool.close()
     pool.join()
-
     real_dep_on_day = list(filter(None, real_dep_on_day))
-
     logger.info("Found trip_id for %s elements." % len(real_dep_on_day))
 
     # PART 2.B : GET TRIP SCHEDULED_DEPARTURE_TIME, DELAY
-
     pool = ThreadPool(5)
     real_dep_on_day = pool.map(add_schedule_and_delay, real_dep_on_day)
     pool.close()
@@ -139,22 +136,22 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station
     # PART 2.C : BUILD UPDATE OBJECTS FOR MONGO
     items_to_update = list(map(build_mongo_update_object, real_dep_on_day))
     items_to_update = list(filter(None, items_to_update))
-
     logger.info("Real departures gathering finished. Beginning update.")
     logger.info("Gathered %d elements to update." % len(items_to_update))
 
     # PART 3: UPDATE ALL IN MONGO
-
-    update_chunks = chunks(items_to_update, 1000)
-    for i, update_chunk in enumerate(update_chunks):
-        logger.info(
-            "Processing chunk number %d (chunks of max 1000) containing %d elements to update." % (i, len(update_chunk)))
-        mongo_async_update_items(col_real_dep_unique, update_chunk)
+    if not dryrun:
+        update_chunks = chunks(items_to_update, 1000)
+        for i, update_chunk in enumerate(update_chunks):
+            logger.info(
+                "Processing chunk number %d (chunks of max 1000) containing %d elements to update." % (i, len(update_chunk)))
+            mongo_async_update_items(col_real_dep_unique, update_chunk)
+    else:
+        logger.info("Dryrun is on: nothing is updated on mongo")
 
 
 def api_train_num_to_trip_id(train_num, yyyymmdd_day, weekday=None):
     # Check parameters train_num and departure_day
-
     # Make query
     connection = rdb_connection()
     cursor = connection.cursor()
