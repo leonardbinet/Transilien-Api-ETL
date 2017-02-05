@@ -1,19 +1,23 @@
 from os import sys, path
 import unittest
-import pytz
-import datetime
 import logging
 
-from api_transilien_manager.settings import BASE_DIR
-from api_transilien_manager.mod_01_extract_schedule import save_trips_extended_rdb, save_stop_times_extended_rdb
+from api_transilien_manager.mod_01_extract_schedule import build_trips_ext_df, build_stop_times_ext_df, save_trips_extended_rdb, save_stop_times_extended_rdb
 
 logger = logging.getLogger(__name__)
 
 
 class TestExtractScheduleModuleFunctions(unittest.TestCase):
 
-    def test_save_trips_extended_rdb(self):
-        trips_ext_df = save_trips_extended_rdb(dryrun=True)
+    def test_build_trips_ext_df(self):
+        """
+        Test build_trips_ext function that should return a dataframe:
+        - that contains thousands of rows
+        - that should contain some necessary fields
+        - that should have no NaN value
+
+        """
+        trips_ext_df = build_trips_ext_df()
 
         # check is necessary fields are present (all except block_id)
         necessary_fields = [
@@ -32,8 +36,14 @@ class TestExtractScheduleModuleFunctions(unittest.TestCase):
         # check if not empty
         self.assertGreater(len(trips_ext_df), 1000)
 
-    def test_save_stop_times_extended_rdb(self):
-        stop_times_df = save_stop_times_extended_rdb(dryrun=True)
+    def build_stop_times_ext_df(self):
+        """
+        Test build_trips_ext function that should return a dataframe:
+        - that contains thousands of rows
+        - that should contain some necessary fields
+        - that should have no NaN value
+        """
+        stop_times_df = build_stop_times_ext_df()
 
         # check is necessary fields are present (all except block_id)
         necessary_fields = [

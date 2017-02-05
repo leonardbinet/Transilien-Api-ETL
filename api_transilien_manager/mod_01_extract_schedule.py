@@ -37,15 +37,18 @@ def download_gtfs_files():
         extracted_data_folder_name = headers.get_filename().split(".")[0]
         if extracted_data_folder_name == "gtfs-lines-last":
             gtfs_lines_last_present = True
-            logger.info("The 'gtfs-lines-last' folder has been found.")
 
         with zipfile.ZipFile(local_filename, "r") as zip_ref:
             full_path = os.path.join(data_path, extracted_data_folder_name)
             zip_ref.extractall(path=full_path)
 
-        if not gtfs_lines_last_present:
+        if gtfs_lines_last_present:
+            logger.info("The 'gtfs-lines-last' folder has been found.")
+            return True
+        else:
             logger.error(
-                "The 'gtfs-lines-last' folder has been found! Schedules will not be updated.")
+                "The 'gtfs-lines-last' folder has not been found! Schedules will not be updated.")
+            return False
 
 
 def build_trips_ext_df():

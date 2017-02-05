@@ -55,6 +55,9 @@ class TestMatchingModuleFunctions(unittest.TestCase):
         self.assertEqual(nb_false, 0)
 
     def test_update_real_departures_mongo(self):
+        """
+        For now, only launch real update process and checks if no error occurs.
+        """
         today_paris = get_paris_local_datetime_now()
         today_paris_str = today_paris.strftime("%Y%m%d")
         yesterday_paris = today_paris - datetime.timedelta(days=1)
