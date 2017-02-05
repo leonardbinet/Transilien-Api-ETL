@@ -13,7 +13,7 @@ if __name__ == '__main__':
 from api_transilien_manager.utils_rdb import rdb_connection
 from api_transilien_manager.utils_mongo import mongo_get_collection, mongo_async_update_items
 from api_transilien_manager.utils_misc import compute_delay
-from api_transilien_manager.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time
+from api_transilien_manager.mod_02_query_schedule import trip_scheduled_departure_time
 from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path, col_real_dep_unique
 
 logger = logging.getLogger(__name__)

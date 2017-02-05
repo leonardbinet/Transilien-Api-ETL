@@ -1,16 +1,14 @@
 import os
-from os import sys, path
 import pandas as pd
 import datetime
 import calendar
-import zipfile
-from urllib.request import urlretrieve
 import logging
 import json
 
-from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url
+from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path
 from api_transilien_manager.utils_mongo import mongo_async_upsert_items
 from api_transilien_manager.utils_rdb import rdb_connection
+from api_transilien_manager.mod_01_extract_schedule import build_stop_times_ext_df
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
@@ -23,7 +21,7 @@ def trip_scheduled_departure_time(trip_id, station):
     elif len(str(station)) == 7:
         station = str(station)
     else:
-        logger.warn("Station must be 7 digits (8 accepted)")
+        logger.error("Station must be 7 digits (8 accepted)")
         return False
 
     # Make query
@@ -53,40 +51,7 @@ def trip_scheduled_departure_time(trip_id, station):
     return departure_time
 
 
-def rdb_get_departure_times_of_day_json_list(yyyymmdd_format):
-    # Check passed parameters
-    try:
-        int(yyyymmdd_format)
-    except Exception as e:
-        logger.error("Date provided is not valid %s, %s" %
-                     (yyyymmdd_format, e))
-        return False
-    if len(yyyymmdd_format) != 8:
-        logger.error("Date provided is not valid %s" %
-                     (yyyymmdd_format))
-        return False
-
-    # Find weekday for day condition
-    datetime_format = datetime.datetime.strptime(yyyymmdd_format, "%Y%m%d")
-    weekday = calendar.day_name[datetime_format.weekday()].lower()
-
-    # Make query
-    connection = rdb_connection()
-    query = "SELECT * FROM stop_times_ext WHERE start_date<=%s AND end_date>=%s;" % (
-        yyyymmdd_format, yyyymmdd_format)
-    matching_stop_times = pd.read_sql(query, connection)
-
-    # Rename departure_time column, and add requested date
-    matching_stop_times.loc[:, "scheduled_departure_day"] = yyyymmdd_format
-    matching_stop_times.rename(
-        columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
-
-    json_list = json.loads(matching_stop_times.to_json(orient='records'))
-    logger.info("There are %d scheduled departures on %s" %
-                (len(json_list), yyyymmdd_format))
-    return json_list
-
-
+"""
 def get_services_of_day(yyyymmdd_format):
     all_services = pd.read_csv(os.path.join(gtfs_path, "calendar.txt"))
     datetime_format = datetime.datetime.strptime(yyyymmdd_format, "%Y%m%d")
@@ -111,10 +76,10 @@ def get_trips_of_day(yyyymmdd_format):
 
 
 def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None):
-    """
+    \"""
     stop_filter is a list of stops you want, it must be in GTFS format:
     station_filter is a list of stations you want, it must be api format
-    """
+    \"""
 
     all_stop_times = pd.read_csv(os.path.join(gtfs_path, "stop_times.txt"))
     trips_on_day = get_trips_of_day(yyyymmdd_format)
@@ -153,3 +118,38 @@ def save_scheduled_departures_of_day_mongo(yyyymmdd_format):
         "Upsert of %d items of json data in Mongo scheduled_departures collection" % len(json_list))
 
     mongo_async_upsert_items("scheduled_departures", json_list, index_fields)
+
+
+def rdb_get_departure_times_of_day_json_list(yyyymmdd_format):
+    # Check passed parameters
+    try:
+        int(yyyymmdd_format)
+    except Exception as e:
+        logger.error("Date provided is not valid %s, %s" %
+                     (yyyymmdd_format, e))
+        return False
+    if len(yyyymmdd_format) != 8:
+        logger.error("Date provided is not valid %s" %
+                     (yyyymmdd_format))
+        return False
+
+    # Find weekday for day condition
+    datetime_format = datetime.datetime.strptime(yyyymmdd_format, "%Y%m%d")
+    weekday = calendar.day_name[datetime_format.weekday()].lower()
+
+    # Make query
+    connection = rdb_connection()
+    query = "SELECT * FROM stop_times_ext WHERE start_date<=%s AND end_date>=%s;" % (
+        yyyymmdd_format, yyyymmdd_format)
+    matching_stop_times = pd.read_sql(query, connection)
+
+    # Rename departure_time column, and add requested date
+    matching_stop_times.loc[:, "scheduled_departure_day"] = yyyymmdd_format
+    matching_stop_times.rename(
+        columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
+
+    json_list = json.loads(matching_stop_times.to_json(orient='records'))
+    logger.info("There are %d scheduled departures on %s" %
+                (len(json_list), yyyymmdd_format))
+    return json_list
+"""

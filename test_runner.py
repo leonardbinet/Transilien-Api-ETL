@@ -9,13 +9,16 @@ if __name__ == '__main__':
 
 import unittest
 
-from test import test_01_extract_api, test_01_extract_schedule, test_02_query_schedule, test_03_match_collections, test_utils_misc
+from test import test_01_extract_api, test_01_extract_schedule, test_02_query_schedule, test_03_match_collections, test_utils_misc, test_utils_rdb, test_utils_mongo
 
 # initialize the test suite
 loader = unittest.TestLoader()
 suite = unittest.TestSuite()
 
 # add tests to the test suite
+suite.addTests(loader.loadTestsFromModule(test_utils_rdb))
+suite.addTests(loader.loadTestsFromModule(test_utils_mongo))
+
 suite.addTests(loader.loadTestsFromModule(test_01_extract_api))
 suite.addTests(loader.loadTestsFromModule(test_01_extract_schedule))
 suite.addTests(loader.loadTestsFromModule(test_02_query_schedule))

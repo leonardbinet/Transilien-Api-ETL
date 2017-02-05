@@ -31,6 +31,7 @@ class TestUtilsRdbFunctions(unittest.TestCase):
         def check_connection_alch(conn):
             try:
                 conn.has_table("trips_ext")
+                logger.debug("Connection worked.")
                 return True
             except Exception as e:
                 logger.warn("Connection didn't work: %s" % e.with_traceback())

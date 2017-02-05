@@ -7,7 +7,7 @@ import random
 
 from api_transilien_manager.settings import BASE_DIR
 from api_transilien_manager.mod_01_extract_schedule import build_stop_times_ext_df
-from api_transilien_manager.mod_02_query_schedule import get_departure_times_of_day_json_list, trip_scheduled_departure_time, rdb_get_departure_times_of_day_json_list
+from api_transilien_manager.mod_02_query_schedule import trip_scheduled_departure_time
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class TestSchedulesModuleFunctions(unittest.TestCase):
             result3 = trip_scheduled_departure_time(
                 trip_id, "false_station_id")
             self.assertFalse(result3)
-
+    """
     def test_rdb_get_departure_times_of_day_json_list(self):
         paris_tz = pytz.timezone('Europe/Paris')
         today_paris = paris_tz.localize(datetime.datetime.now())
@@ -69,6 +69,7 @@ class TestSchedulesModuleFunctions(unittest.TestCase):
             self.assertTrue(keys_all_exist)
 
         # Test if scheduled departure day is really on given day
+    """
 
 
 if __name__ == '__main__':
