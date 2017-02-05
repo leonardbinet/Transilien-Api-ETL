@@ -4,8 +4,10 @@ import pytz
 import datetime
 import logging
 import pandas as pd
+import random
 
 from api_transilien_manager.settings import BASE_DIR
+from api_transilien_manager.mod_01_extract_schedule import build_trips_ext_df
 from api_transilien_manager.mod_03_match_collections import api_train_num_to_trip_id, update_real_departures_mongo
 from api_transilien_manager.utils_misc import get_paris_local_datetime_now
 
@@ -15,26 +17,29 @@ logger = logging.getLogger(__name__)
 class TestMatchingModuleFunctions(unittest.TestCase):
 
     def test_api_train_num_to_trip_id(self):
-        train_num = "110313"
-        trip_id = "DUASN110313F03001-1_419961"
-        start_date = "20170102"
-        end_date = "20170707"
-        day = "20170202"
-        weekday = "thursday"
-        found_trip_id = api_train_num_to_trip_id(train_num, day, weekday)
-        self.assertEqual(found_trip_id, trip_id)
+        """
+        Check that rdb answers return what is really written in gtfs files:
+        - compute trips_ext dataframe
+        - check for each element if it scheduled on this day
+        - get for each element rdb answer
+        - compare
+        - count number of errors
+        """
+        # day = "20170202"
+        # Take today's date
+        day = datetime.datetime.now().strftime("%Y%m%d")
 
         def is_scheduled_on_day(day, start, end):
             start_cond = day >= start
             end_cond = start <= end
             return start_cond and end_cond
 
-        file_path = path.join(BASE_DIR, "test", "files", "test_trips_ext.csv")
-        test_trips_df = pd.read_csv(file_path)
-        test_trips_df = test_trips_df.iloc[:10, :]
+        test_trips_df = build_trips_ext_df()
+
+        random_indexes = random.sample(range(0, len(test_trips_df) - 1), 10)
+        test_trips_df = test_trips_df.iloc[random_indexes]
         # logger.info(test_trips_df)
 
-        day = "20170202"
         test_trips_df["scheduled"] = test_trips_df.apply(
             lambda x: is_scheduled_on_day(int(day), x["start_date"], x["end_date"]), axis=1)
 
