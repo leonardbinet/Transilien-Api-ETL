@@ -61,7 +61,8 @@ class TestMatchingModuleFunctions(unittest.TestCase):
         yesterday_paris_str = yesterday_paris.strftime("%Y%m%d")
         logger.info("Paris yesterday date is %s" % yesterday_paris_str)
 
-        # update_real_departures_mongo(str(today_paris_str), threads=5, limit=100)
+        update_real_departures_mongo(
+            str(today_paris_str), threads=5, limit=10)
 
 
 if __name__ == '__main__':
