@@ -26,3 +26,6 @@ data/*
 # Python package
 *.egg-info/
 dist/*
+
+# TODO
+TODO.md
