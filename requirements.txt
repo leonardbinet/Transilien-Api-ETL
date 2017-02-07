@@ -12,3 +12,7 @@ aiohttp
 psycopg2
 sqlalchemy
 aiopg
+django
+djangorestframework
+markdown
+django-filter
