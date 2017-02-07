@@ -158,7 +158,7 @@ def api_train_num_to_trip_id(train_num, yyyymmdd_day, weekday=None):
     query = "SELECT trip_id FROM trips_ext WHERE train_num='%s' AND start_date<='%s' AND end_date>='%s';" % (
         train_num, yyyymmdd_day, yyyymmdd_day)
     cursor.execute(query, (train_num, yyyymmdd_day, yyyymmdd_day))
-    trip_ids = cursor.fetchall()
+    trip_ids = cursor.fetchone()
 
     # Check number of results
     if not trip_ids:
@@ -166,7 +166,7 @@ def api_train_num_to_trip_id(train_num, yyyymmdd_day, weekday=None):
         connection.close()
         return False
     elif len(trip_ids) == 1:
-        trip_id = trip_ids[0][0]
+        trip_id = trip_ids[0]
         connection.close()
         logger.debug("Found trip_id: %s" % trip_ids)
         return trip_id
