@@ -14,11 +14,11 @@ with open(os.path.join(BASE_DIR, 'secret.json')) as secrets_file:
     secrets = json.load(secrets_file)
 
 
-def get_secret(setting, my_secrets=secrets):
+def get_secret(setting, my_secrets=secrets, env=False):
     try:
         value = my_secrets[setting]
-        # set as environment variable
-        # os.environ[setting] = value
-        return my_secrets[setting]
+        if env:
+            os.environ[setting] = value
+        return value
     except KeyError:
         logger.warn("Impossible to get " + setting)

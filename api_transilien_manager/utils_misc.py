@@ -6,7 +6,8 @@ from dateutil.tz import tzlocal
 import pytz
 from datetime import datetime
 import numpy as np
-from api_transilien_manager.settings import logs_path
+import pandas as pd
+from api_transilien_manager.settings import logs_path, data_path, responding_stations_path
 
 
 def chunks(l, n):
@@ -91,3 +92,19 @@ def set_logging_conf(log_name, level="INFO"):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
 
     sys.excepthook = handle_exception
+
+
+def get_responding_stations_from_sample(sample_loc=None, write_loc=None):
+    """
+    This function's purpose is to write down responding stations from a given "real_departures" sample, and to write it down so it can be used to query only necessary stations (and avoid to spend API credits on unnecessary stations)
+    """
+    if not sample_loc:
+        sample_loc = path.join(data_path, "20170131_real_departures.csv")
+    if not write_loc:
+        write_loc = responding_stations_path
+
+    df = pd.read_csv(sample_loc)
+    resp_stations = df["station"].unique()
+    np.savetxt(write_loc, resp_stations, delimiter=",", fmt="%s")
+
+    return list(resp_stations)

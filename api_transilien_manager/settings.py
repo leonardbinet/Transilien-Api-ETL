@@ -1,4 +1,5 @@
 import os
+from os import path
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
@@ -18,3 +19,9 @@ logs_path = os.path.join(BASE_DIR, "..", "logs")
 
 # Mongo DB collections:
 col_real_dep_unique = "real_departures_2"
+
+# Responding stations csv file location
+responding_stations_path = path.join(data_path, "responding_stations.csv")
+
+# All stations csv file location
+all_stations_path = path.join(data_path, "gares_transilien.csv")

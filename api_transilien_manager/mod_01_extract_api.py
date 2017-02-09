@@ -7,23 +7,37 @@ import xmltodict
 import pandas as pd
 import copy
 import logging
+import numpy as np
 
 from api_transilien_manager.utils_misc import get_paris_local_datetime_now, compute_delay, chunks
 from api_transilien_manager.utils_api_client import get_api_client
 from api_transilien_manager.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
-from api_transilien_manager.settings import data_path, col_real_dep_unique
+from api_transilien_manager.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path
 
 logger = logging.getLogger(__name__)
+
+# To avoid some pandas warnings
 pd.options.mode.chained_assignment = None
 
 
-def get_station_ids(id_format="UIC"):
-    df_gares = pd.read_csv(os.path.join(
-        data_path, "gares_transilien.csv"), sep=";")
-    station_ids = list(df_gares["Code UIC"].values)
-    station_ids = list(map(lambda x: str(x), station_ids))
+def get_station_ids(id_format="UIC", stations="responding"):
+    # Choose which file we load, depending on stations parameter: if all
+    if stations == "all":
+        df_gares = pd.read_csv(all_stations_path, sep=";")
+        station_ids = list(df_gares["Code UIC"].values)
+        station_ids = list(map(lambda x: str(x), station_ids))
+
+    elif stations == "responding":
+        station_ids = np.genfromtxt(
+            responding_stations_path, delimiter=',', dtype=str)
+    else:
+        raise ValueError(
+            "stations parameter should be either 'all' or 'responding'")
+
+    # Choose in which format we want it: either UIC: 8 digits, or UIC7: 7
+    # digits
     if id_format == "UIC":
-        return station_ids
+        return list(station_ids)
     elif id_format == "UIC7":
         station_ids_uic7 = list(map(lambda x: str(x)[:-1], station_ids))
         return station_ids_uic7
@@ -79,6 +93,9 @@ def xml_to_json_item_list(xml_string, station):
     # expected_passage_time: lower is better
     df_trains.loc[:, "data_freshness"] = df_trains.apply(lambda x: abs(
         compute_delay(x["request_time"], x["expected_passage_time"])), axis=1)
+    # Our hash key for dynamodb
+    df_trains.loc[:, "day_station"] = df_trains.apply(
+        lambda x: "%s_%s" % (x["expected_passage_day"], x["station"]), axis=1)
 
     data_json = json.loads(df_trains.to_json(orient='records'))
     return data_json

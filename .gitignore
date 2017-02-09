@@ -12,6 +12,7 @@ taskrunner_credentials.json
 data/*
 # Except
 !data/gares_transilien.csv
+!data/responding_stations.csv
 
 # Zip files
 *.zip

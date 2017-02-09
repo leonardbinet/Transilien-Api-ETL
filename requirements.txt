@@ -12,3 +12,4 @@ aiohttp
 psycopg2
 sqlalchemy
 aiopg
+boto3==1.4.4
