@@ -128,19 +128,3 @@ class ApiClient():
         future = asyncio.ensure_future(run(full_urls))
         loop.run_until_complete(future)
         return future.result()
-
-
-if __name__ == '__main__':
-    # https://pawelmhm.github.io/asyncio/python/aiohttp/2016/04/22/asyncio-aiohttp.html
-    # asyncio tutorial
-
-    # operate_timer()
-    import pandas as pd
-
-    data_path = os.path.join(BASE_DIR, "data")
-    df_gares = pd.read_csv(os.path.join(
-        data_path, "gares_transilien.csv"), sep=";")
-    station_ids = df_gares["Code UIC"].values
-
-    client = get_api_client()
-    responses = client.request_stations(station_ids)

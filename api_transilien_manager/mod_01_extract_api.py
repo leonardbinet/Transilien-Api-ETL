@@ -12,7 +12,8 @@ import numpy as np
 from api_transilien_manager.utils_misc import get_paris_local_datetime_now, compute_delay, chunks
 from api_transilien_manager.utils_api_client import get_api_client
 from api_transilien_manager.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
-from api_transilien_manager.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path
+from api_transilien_manager.utils_dynamo import dynamo_insert_batches
+from api_transilien_manager.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path, dynamo_table, top_stations_path
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,13 @@ def get_station_ids(id_format="UIC", stations="responding"):
     elif stations == "responding":
         station_ids = np.genfromtxt(
             responding_stations_path, delimiter=',', dtype=str)
+
+    elif stations == "top":
+        station_ids = np.genfromtxt(
+            top_stations_path, delimiter=',', dtype=str)
     else:
         raise ValueError(
-            "stations parameter should be either 'all' or 'responding'")
+            "stations parameter should be either 'all', 'top' or 'responding'")
 
     # Choose in which format we want it: either UIC: 8 digits, or UIC7: 7
     # digits
@@ -101,7 +106,7 @@ def xml_to_json_item_list(xml_string, station):
     return data_json
 
 
-def extract_save_stations(stations_list):
+def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=True, mongo_all=True):
     """
     Use col_real_dep_unique defined in settings to know in which collection to
     save data.
@@ -123,21 +128,34 @@ def extract_save_stations(stations_list):
         except Exception as e:
             logger.debug("Cannot parse station %s" % station)
             continue
-    # Save chunks in Mongo
-    # Make a deep copy, because mongo will add _ids to json_chunks
+
+    # Make deep copies, because mongo will add _ids to json_chunks
+    # For mongo 'real_departures'
     json_chunks_2 = copy.deepcopy(json_chunks)
-    item_list = [item for sublist in json_chunks_2 for item in sublist]
+    items_list2 = [item for sublist in json_chunks_2 for item in sublist]
 
-    logger.info("Saving of %d chunks of json data (total of %d items) in Mongo departures collection" %
-                (len(json_chunks), len(item_list)))
-    mongo_async_save_chunks("departures", json_chunks)
-    # Save items in other collection
-    # flatten chunks: -> list of elements to upsert
+    # For dynamo 'real_departures'
+    json_chunks_3 = copy.deepcopy(json_chunks)
+    items_list3 = [item for sublist in json_chunks_3 for item in sublist]
 
-    index_fields = ["request_day", "station", "train_num"]
-    logger.info("Upsert of %d items of json data in Mongo %s collection" %
-                (len(item_list), col_real_dep_unique))
-    mongo_async_upsert_items(col_real_dep_unique, item_list, index_fields)
+    if mongo_all:
+        # Save items in collection without compound primary key
+        logger.info("Saving of %d chunks of json data (total of %d items) in Mongo departures collection" %
+                    (len(json_chunks), len(items_list2)))
+        mongo_async_save_chunks("departures", json_chunks)
+
+    if mongo_unique:
+        # Save items in collection with compound primary key
+        index_fields = ["request_day", "station", "train_num"]
+        logger.info("Upsert of %d items of json data in Mongo %s collection" %
+                    (len(items_list2), col_real_dep_unique))
+        mongo_async_upsert_items(
+            col_real_dep_unique, items_list2, index_fields)
+
+    if dynamo_unique:
+        logger.info("Upsert of %d items of json data in dynamo %s table" %
+                    (len(items_list3), dynamo_table))
+        dynamo_insert_batches(items_list3, table_name=dynamo_table)
 
 
 def operate_one_cycle(station_filter=False, max_per_minute=300):

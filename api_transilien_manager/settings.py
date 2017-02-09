@@ -12,8 +12,6 @@ gtfs_csv_url = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien
 
 sqlite_path = os.path.join(BASE_DIR, "schedules.db")
 
-# First doesn't work
-# logs_path = "http://api-transilien-logs.s3-eu-west-1.amazonaws.com/logs/"
 logs_path = os.path.join(BASE_DIR, "..", "logs")
 
 
@@ -22,6 +20,10 @@ col_real_dep_unique = "real_departures_2"
 
 # Responding stations csv file location
 responding_stations_path = path.join(data_path, "responding_stations.csv")
+top_stations_path = path.join(data_path, "most_used_stations.csv")
 
 # All stations csv file location
 all_stations_path = path.join(data_path, "gares_transilien.csv")
+
+# Dynamo DB tables:
+dynamo_table = "real_departures"
