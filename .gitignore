@@ -13,6 +13,7 @@ data/*
 # Except
 !data/gares_transilien.csv
 !data/responding_stations.csv
+!data/most_used_stations.csv
 
 # Zip files
 *.zip

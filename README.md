@@ -137,3 +137,6 @@ ALTER ROLE api_transilien_user SET timezone TO 'UTC';
 
 GRANT ALL PRIVILEGES ON DATABASE api_transilien TO api_transilien_user;
 ```
+
+## Dynamo
+All is handled automatically.

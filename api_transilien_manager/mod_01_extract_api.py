@@ -165,7 +165,9 @@ def operate_one_cycle(station_filter=False, max_per_minute=300):
     else:
         station_list = station_filter
 
-    station_chunks = chunks(station_list, max_per_minute)
+    # station_chunks = chunks(station_list, max_per_minute)
+    # split stations in two of same size
+    station_chunks = [station_list[i::2] for i in range(2)]
 
     for station_chunk in station_chunks:
         chunk_begin_time = datetime.now()

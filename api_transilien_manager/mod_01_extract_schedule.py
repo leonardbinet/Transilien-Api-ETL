@@ -151,3 +151,16 @@ def save_stop_times_extended_rdb(dryrun=False):
 def save_all_schedule_tables_rdb():
     save_trips_extended_rdb()
     save_stop_times_extended_rdb()
+
+
+def save_trips_ext_dynamo():
+    pass
+
+
+def save_stop_times_extended_dynamo():
+    pass
+
+
+def save_all_schedule_tables_dynamo():
+    save_trips_ext_dynamo()
+    save_stop_times_extended_dynamo()
