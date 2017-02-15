@@ -1,9 +1,12 @@
 import os
 import pandas as pd
 import logging
+from boto3.dynamodb.conditions import Key, Attr
 
 from api_transilien_manager.utils_rdb import rdb_connection
 from api_transilien_manager.mod_01_extract_schedule import build_stop_times_ext_df
+from api_transilien_manager.utils_dynamo import dynamo_get_table
+from api_transilien_manager.settings import dynamo_sched_dep
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
@@ -46,63 +49,36 @@ def trip_scheduled_departure_time(trip_id, station):
     return departure_time
 
 
+def dynamo_get_trip_id_and_sch_dep_time(train_num, station, day):
+    """
+    Query dynamo to find trip_id and scheduled_departure_time from train_num, station, and day.
+
+    Day is here to double check, avoid errors: yyyymmdd_format.
+    Station_id is in 7 digits format.
+
+    Reminder: hash key: station_id
+    sort key: day_train_num
+    """
+    day_train_num = "%s_%s" % (day, train_num)
+
+    table = dynamo_get_table(dynamo_sched_dep)
+    response = table.query(
+        Select="ALL_ATTRIBUTES",
+        ConsistentRead=False,
+        KeyConditionExpression=Key('station_id').eq(station),
+        FilterExpression=Attr('day_train_num').eq(day_train_num)
+    )
+    if not response:
+        return None
+
+    try:
+        scheduled_departure_time = response["scheduled_departure_time"]
+        trip_id = response["trip_id"]
+    except KeyError as e:
+        logger.debug("Keys not found in response: %s" % e)
+
+
 """
-def get_services_of_day(yyyymmdd_format):
-    all_services = pd.read_csv(os.path.join(gtfs_path, "calendar.txt"))
-    datetime_format = datetime.datetime.strptime(yyyymmdd_format, "%Y%m%d")
-    weekday = calendar.day_name[datetime_format.weekday()].lower()
-
-    cond1 = all_services[weekday] == 1
-    cond2 = all_services["start_date"] <= int(yyyymmdd_format)
-    cond3 = all_services["end_date"] >= int(yyyymmdd_format)
-
-    # all_services = all_services[cond1][cond2][cond3]
-    all_services = all_services[cond1 & cond2 & cond3]
-    return list(all_services["service_id"].values)
-
-
-def get_trips_of_day(yyyymmdd_format):
-    all_trips = pd.read_csv(os.path.join(gtfs_path, "trips.txt"))
-    services_on_day = get_services_of_day(
-        yyyymmdd_format)
-    trips_condition = all_trips["service_id"].isin(services_on_day)
-    trips_on_day = list(all_trips[trips_condition]["trip_id"].unique())
-    return trips_on_day
-
-
-def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None):
-    \"""
-    stop_filter is a list of stops you want, it must be in GTFS format:
-    station_filter is a list of stations you want, it must be api format
-    \"""
-
-    all_stop_times = pd.read_csv(os.path.join(gtfs_path, "stop_times.txt"))
-    trips_on_day = get_trips_of_day(yyyymmdd_format)
-
-    cond1 = all_stop_times["trip_id"].isin(trips_on_day)
-    matching_stop_times = all_stop_times[cond1]
-
-    matching_stop_times.loc[:, "scheduled_departure_day"] = yyyymmdd_format
-    matching_stop_times.rename(
-        columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
-    matching_stop_times.loc[:, "station_id"] = matching_stop_times[
-        "stop_id"].str.extract("DUA(\d{7})", expand=False)
-    matching_stop_times.loc[:, "train_num"] = matching_stop_times[
-        "trip_id"].str.extract("^.{5}(\d{6})", expand=False)
-
-    if stop_filter:
-        cond2 = matching_stop_times["stop_id"].isin(stop_filter)
-        matching_stop_times = matching_stop_times[cond2]
-
-    if station_filter:
-        cond3 = matching_stop_times["station_id"].isin(station_filter)
-        matching_stop_times = matching_stop_times[cond3]
-
-    json_list = json.loads(matching_stop_times.to_json(orient='records'))
-    logger.info("There are %d scheduled departures on %s" %
-                (len(json_list), yyyymmdd_format))
-    return json_list
-
 
 def save_scheduled_departures_of_day_mongo(yyyymmdd_format):
     json_list = get_departure_times_of_day_json_list(yyyymmdd_format)

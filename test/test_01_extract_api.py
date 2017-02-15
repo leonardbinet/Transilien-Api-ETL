@@ -15,17 +15,14 @@ class TestExtractModuleFunctions(unittest.TestCase):
         """
         Test function that is supposed to return station ids.
         """
+        for filt in ["all", "responding", "scheduled", "top"]:
+            stations = get_station_ids(stations=filt)
+            self.assertIsInstance(stations, list)
+            self.assertIsInstance(stations[0], str)
+            self.assertEqual(len(stations[0]), 7)
+            self.assertGreater(len(stations), 10)
 
-        UIC_stations = get_station_ids()
-        UIC7_stations = get_station_ids(id_format="UIC7")
-        self.assertIsInstance(UIC_stations, list)
-        self.assertIsInstance(UIC_stations[0], str)
-        self.assertEqual(len(UIC_stations[0]), 8)
-        self.assertEqual(len(UIC7_stations[0]), 7)
-        self.assertEqual(len(UIC_stations), len(UIC7_stations))
-        self.assertRaises(ValueError, get_station_ids, id_format="notUIC")
-        # More than 200 stations
-        self.assertGreater(len(UIC_stations), 200)
+        self.assertRaises(ValueError, get_station_ids, stations="doesnt exist")
 
     def test_api_date_to_day_time_corrected(self):
         """
@@ -65,7 +62,7 @@ class TestExtractModuleFunctions(unittest.TestCase):
         output = xml_to_json_item_list(xml_string, "87393009")
 
         necessary_fields = ["date", "request_day",
-                            "request_time", "train_num", "miss", "station", "expected_passage_day", "expected_passage_time"]
+                            "request_time", "train_num", "miss", "station_id", "expected_passage_day", "expected_passage_time", "day_train_num"]
 
         def is_jsonable(x):
             try:

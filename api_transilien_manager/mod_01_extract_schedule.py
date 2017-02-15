@@ -5,16 +5,18 @@ import zipfile
 from urllib.request import urlretrieve
 import logging
 import json
+import datetime
+import calendar
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     from api_transilien_manager.utils_misc import set_logging_conf
     set_logging_conf(log_name="mod_01_extract_schedule.log")
 
-from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url
+from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url, dynamo_sched_dep
 from api_transilien_manager.utils_mongo import mongo_async_upsert_items
 from api_transilien_manager.utils_rdb import rdb_connection
-
+from api_transilien_manager.utils_dynamo import dynamo_insert_batches
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
@@ -153,14 +155,99 @@ def save_all_schedule_tables_rdb():
     save_stop_times_extended_rdb()
 
 
-def save_trips_ext_dynamo():
-    pass
+def get_services_of_day(yyyymmdd_format):
+    # Get weekday: for double check
+    datetime_format = datetime.datetime.strptime(yyyymmdd_format, "%Y%m%d")
+    weekday = calendar.day_name[datetime_format.weekday()].lower()
+
+    all_services = pd.read_csv(os.path.join(gtfs_path, "calendar.txt"))
+
+    cond1 = all_services[weekday] == 1
+    cond2 = all_services["start_date"] <= int(yyyymmdd_format)
+    cond3 = all_services["end_date"] >= int(yyyymmdd_format)
+    all_services = all_services[cond1 & cond2 & cond3]["service_id"].values
+
+    # Get service exceptions
+    # 1 = service (alors que normalement non)
+    # 2 = pas serviec (alors que normalement oui)
+    serv_exc = pd.read_csv(os.path.join(gtfs_path, "calendar_dates.txt"))
+    serv_exc = serv_exc[serv_exc["date"] == int(yyyymmdd_format)]
+
+    serv_add = serv_exc[serv_exc["exception_type"] == 1]["service_id"].values
+    serv_rem = serv_exc[serv_exc["exception_type"] == 2]["service_id"].values
+
+    serv_on_day = set(all_services)
+    serv_on_day.update(serv_add)
+    serv_on_day = serv_on_day - set(serv_rem)
+    serv_on_day = list(serv_on_day)
+    return serv_on_day
 
 
-def save_stop_times_extended_dynamo():
-    pass
+def get_trips_of_day(yyyymmdd_format):
+    all_trips = pd.read_csv(os.path.join(gtfs_path, "trips.txt"))
+    services_on_day = get_services_of_day(
+        yyyymmdd_format)
+    trips_condition = all_trips["service_id"].isin(services_on_day)
+    trips_on_day = list(all_trips[trips_condition]["trip_id"].unique())
+    return trips_on_day
 
 
-def save_all_schedule_tables_dynamo():
-    save_trips_ext_dynamo()
-    save_stop_times_extended_dynamo()
+def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None, df=False):
+    """
+    stop_filter is a list of stops you want, it must be in GTFS format:
+    station_filter is a list of stations you want, it must be api format
+    """
+
+    all_stop_times = pd.read_csv(os.path.join(gtfs_path, "stop_times.txt"))
+    trips_on_day = get_trips_of_day(yyyymmdd_format)
+
+    cond1 = all_stop_times["trip_id"].isin(trips_on_day)
+    matching_stop_times = all_stop_times[cond1]
+
+    # Add trips routes and agency fields
+    # agency = pd.read_csv(os.path.join(gtfs_path, "agency.txt"))
+    # agency = agency[["agency_id", "agency_name"]]
+    routes = pd.read_csv(os.path.join(gtfs_path, "routes.txt"))
+    routes = routes[["route_id", "route_short_name"]]
+    # routes = routes.merge(agency, on="agency_id", how="inner")
+    trips = pd.read_csv(os.path.join(gtfs_path, "trips.txt"))
+    trips = trips.merge(routes, on="route_id", how="inner")
+
+    matching_stop_times = matching_stop_times.merge(
+        trips, on="trip_id", how="inner")
+
+    # Custom fields
+    matching_stop_times.loc[:, "scheduled_departure_day"] = yyyymmdd_format
+    matching_stop_times.rename(
+        columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
+    matching_stop_times.loc[:, "station_id"] = matching_stop_times[
+        "stop_id"].str.extract("DUA(\d{7})", expand=False)
+    matching_stop_times.loc[:, "train_num"] = matching_stop_times[
+        "trip_id"].str.extract("^.{5}(\d{6})", expand=False)
+
+    # Dynamo sort key (hash is station_id)
+    matching_stop_times.loc[:, "day_train_num"] = matching_stop_times.apply(
+        lambda x: "%s_%s" % (x["scheduled_departure_day"], x["train_num"]), axis=1)
+
+    # Station filtering if asked
+    if stop_filter:
+        cond2 = matching_stop_times["stop_id"].isin(stop_filter)
+        matching_stop_times = matching_stop_times[cond2]
+
+    if station_filter:
+        cond3 = matching_stop_times["station_id"].isin(station_filter)
+        matching_stop_times = matching_stop_times[cond3]
+
+    if df:
+        return matching_stop_times
+    else:
+        json_list = json.loads(matching_stop_times.to_json(orient='records'))
+        logger.info("There are %d scheduled departures on %s" %
+                    (len(json_list), yyyymmdd_format))
+        return json_list
+
+
+def save_stop_times_of_day_extended_dynamo(yyyymmdd_format):
+    # Can take some time depending on write capacity
+    items = get_departure_times_of_day_json_list(yyyymmdd_format)
+    dynamo_insert_batches(items, dynamo_sched_dep)

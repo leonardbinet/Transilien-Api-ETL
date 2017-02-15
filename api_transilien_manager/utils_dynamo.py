@@ -12,7 +12,6 @@ if __name__ == '__main__':
     set_logging_conf(log_name="utils_dynamo.log")
 
 from api_transilien_manager.utils_secrets import get_secret
-from api_transilien_manager.settings import dynamo_table
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +23,7 @@ AWS_SECRET_ACCESS_KEY = get_secret("AWS_SECRET_ACCESS_KEY", env=True)
 dynamodb = boto3.resource('dynamodb')
 
 
-def dynamo_create_real_departures_table(table_name=None, read=5, write=5):
-    if not table_name:
-        table_name = dynamo_table
+def dynamo_create_real_departures_table(table_name, read=5, write=5):
 
     table = dynamodb.create_table(
         TableName=table_name,
@@ -51,9 +48,7 @@ def dynamo_create_real_departures_table(table_name=None, read=5, write=5):
     logger.info("Table %s created in DynamoDB" % table_name)
 
 
-def dynamo_get_table_provisionned_capacity(table_name=None):
-    if not table_name:
-        table_name = dynamo_table
+def dynamo_get_table_provisionned_capacity(table_name):
     table = dynamodb.Table(table_name)
 
     provisioned_throughput = table.provisioned_throughput
@@ -63,10 +58,7 @@ def dynamo_get_table_provisionned_capacity(table_name=None):
     return read, write
 
 
-def dynamo_update_provisionned_capacity(read, write, table_name=None):
-    if not table_name:
-        table_name = dynamo_table
-
+def dynamo_update_provisionned_capacity(read, write, table_name):
     table = dynamodb.Table(table_name)
 
     table = table.update(
@@ -77,13 +69,13 @@ def dynamo_update_provisionned_capacity(read, write, table_name=None):
     )
 
 
-def dynamo_insert_batches(items_list, table_name=None):
+def dynamo_get_table(table_name):
+    return dynamodb.Table(table_name)
+
+
+def dynamo_insert_batches(items_list, table_name):
     # transform list in batches of 25 elements (max authorized by dynamo API)
     # batches = [items_list[i:i + 25] for i in range(0, len(items_list), 25)]
-
-    # choose table name
-    if not table_name:
-        table_name = dynamo_table
 
     table = dynamodb.Table(table_name)
 
@@ -97,11 +89,7 @@ def dynamo_insert_batches(items_list, table_name=None):
     # logger.info("Task completed.")
 
 
-def dynamo_spread_writes_over_minute(items_list, table_name=None, splits=6):
-    # choose table name
-    if not table_name:
-        table_name = dynamo_table
-
+def dynamo_spread_writes_over_minute(items_list, table_name, splits=6):
     # split in 'splits' parts
     batches = [items_list[i::splits] for i in range(splits)]
 

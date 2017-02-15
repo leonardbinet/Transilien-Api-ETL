@@ -13,7 +13,7 @@ from api_transilien_manager.utils_misc import get_paris_local_datetime_now, comp
 from api_transilien_manager.utils_api_client import get_api_client
 from api_transilien_manager.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
 from api_transilien_manager.utils_dynamo import dynamo_insert_batches
-from api_transilien_manager.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path, dynamo_table, top_stations_path
+from api_transilien_manager.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path, dynamo_real_dep, top_stations_path, scheduled_stations_path
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +21,10 @@ logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
 
 
-def get_station_ids(id_format="UIC", stations="responding"):
-    # Choose which file we load, depending on stations parameter: if all
+def get_station_ids(stations="scheduled"):
     if stations == "all":
-        df_gares = pd.read_csv(all_stations_path, sep=";")
-        station_ids = list(df_gares["Code UIC"].values)
-        station_ids = list(map(lambda x: str(x), station_ids))
+        station_ids = np.genfromtxt(
+            all_stations_path, delimiter=',', dtype=str)
 
     elif stations == "responding":
         station_ids = np.genfromtxt(
@@ -35,20 +33,16 @@ def get_station_ids(id_format="UIC", stations="responding"):
     elif stations == "top":
         station_ids = np.genfromtxt(
             top_stations_path, delimiter=',', dtype=str)
+
+    elif stations == "scheduled":
+        station_ids = np.genfromtxt(
+            scheduled_stations_path, delimiter=",", dtype=str)
+
     else:
         raise ValueError(
-            "stations parameter should be either 'all', 'top' or 'responding'")
+            "stations parameter should be either 'all', 'top', 'scheduled' or 'responding'")
 
-    # Choose in which format we want it: either UIC: 8 digits, or UIC7: 7
-    # digits
-    if id_format == "UIC":
-        return list(station_ids)
-    elif id_format == "UIC7":
-        station_ids_uic7 = list(map(lambda x: str(x)[:-1], station_ids))
-        return station_ids_uic7
-    else:
-        logger.error("id_format must be either UIC or UIC7")
-        raise ValueError("Incorrect id_format provided.")
+    return list(station_ids)
 
 
 def api_date_to_day_time_corrected(api_date, time_or_day):
@@ -92,21 +86,24 @@ def xml_to_json_item_list(xml_string, station):
         "date"].apply(lambda x: api_date_to_day_time_corrected(x, "time"))
     df_trains.loc[:, "request_day"] = datetime_paris.strftime('%Y%m%d')
     df_trains.loc[:, "request_time"] = datetime_paris.strftime('%H:%M:%S')
-    df_trains.loc[:, "station"] = station
+    df_trains.loc[:, "station_8d"] = str(station)
+    df_trains.loc[:, "station_id"] = str(station)[:-1]
     df_trains.rename(columns={'num': 'train_num'}, inplace=True)
     # Data freshness is time in seconds between request time and
     # expected_passage_time: lower is better
     df_trains.loc[:, "data_freshness"] = df_trains.apply(lambda x: abs(
         compute_delay(x["request_time"], x["expected_passage_time"])), axis=1)
-    # Our hash key for dynamodb
-    df_trains.loc[:, "day_station"] = df_trains.apply(
-        lambda x: "%s_%s" % (x["expected_passage_day"], x["station"]), axis=1)
+
+    # Hash key for dynamodb: formerly: day_station, now, station (7 digits)
+    # Sort key for dynamodb: formerly: train_num, now, day_train_num
+    df_trains.loc[:, "day_train_num"] = df_trains.apply(
+        lambda x: "%s_%s" % (x["expected_passage_day"], x["train_num"]), axis=1)
 
     data_json = json.loads(df_trains.to_json(orient='records'))
     return data_json
 
 
-def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=True, mongo_all=True):
+def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=False, mongo_all=True):
     """
     Use col_real_dep_unique defined in settings to know in which collection to
     save data.
@@ -154,8 +151,8 @@ def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=True, 
 
     if dynamo_unique:
         logger.info("Upsert of %d items of json data in dynamo %s table" %
-                    (len(items_list3), dynamo_table))
-        dynamo_insert_batches(items_list3, table_name=dynamo_table)
+                    (len(items_list3), dynamo_real_dep))
+        dynamo_insert_batches(items_list3, table_name=dynamo_real_dep)
 
 
 def operate_one_cycle(station_filter=False, max_per_minute=300):
