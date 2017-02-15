@@ -3,6 +3,7 @@
 deploy.md
 log.txt
 hidden/*
+*.DS_Store
 
 # Secrets
 secret.json
