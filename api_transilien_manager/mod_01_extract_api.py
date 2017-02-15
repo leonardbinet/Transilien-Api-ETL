@@ -21,7 +21,12 @@ logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
 
 
-def get_station_ids(stations="scheduled"):
+def get_station_ids(stations="all"):
+    """
+    Beware: two formats:
+    - 8 digits format to query api
+    - 7 digits format to query gtfs files
+    """
     if stations == "all":
         station_ids = np.genfromtxt(
             all_stations_path, delimiter=',', dtype=str)
@@ -70,7 +75,7 @@ def api_date_to_day_time_corrected(api_date, time_or_day):
         raise ValueError("time or day should be 'time' or 'day'")
 
 
-def xml_to_json_item_list(xml_string, station):
+def xml_to_json_item_list(xml_string, station, df=False):
     # Save with Paris timezone (if server is abroad)
     datetime_paris = get_paris_local_datetime_now()
 
@@ -99,14 +104,16 @@ def xml_to_json_item_list(xml_string, station):
     df_trains.loc[:, "day_train_num"] = df_trains.apply(
         lambda x: "%s_%s" % (x["expected_passage_day"], x["train_num"]), axis=1)
 
+    if df:
+        return df_trains
+
     data_json = json.loads(df_trains.to_json(orient='records'))
     return data_json
 
 
-def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=False, mongo_all=True):
+def extract_stations(stations_list):
     """
-    Use col_real_dep_unique defined in settings to know in which collection to
-    save data.
+    Stations required by api are in 8 digits format
     """
     # Extract from API
     logger.info("Extraction of %d stations" % len(stations_list))
@@ -125,7 +132,14 @@ def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=False,
         except Exception as e:
             logger.debug("Cannot parse station %s" % station)
             continue
+    return json_chunks
 
+
+def save_stations(json_chunks, dynamo_unique, mongo_unique, mongo_all):
+    """
+    Use col_real_dep_unique defined in settings to know in which collection to
+    save data.
+    """
     # Make deep copies, because mongo will add _ids to json_chunks
     # For mongo 'real_departures'
     json_chunks_2 = copy.deepcopy(json_chunks)
@@ -134,6 +148,11 @@ def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=False,
     # For dynamo 'real_departures'
     json_chunks_3 = copy.deepcopy(json_chunks)
     items_list3 = [item for sublist in json_chunks_3 for item in sublist]
+
+    if dynamo_unique:
+        logger.info("Upsert of %d items of json data in dynamo %s table" %
+                    (len(items_list3), dynamo_real_dep))
+        dynamo_insert_batches(items_list3, table_name=dynamo_real_dep)
 
     if mongo_all:
         # Save items in collection without compound primary key
@@ -149,10 +168,11 @@ def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=False,
         mongo_async_upsert_items(
             col_real_dep_unique, items_list2, index_fields)
 
-    if dynamo_unique:
-        logger.info("Upsert of %d items of json data in dynamo %s table" %
-                    (len(items_list3), dynamo_real_dep))
-        dynamo_insert_batches(items_list3, table_name=dynamo_real_dep)
+
+def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=False, mongo_all=True):
+    json_chunks = extract_stations(stations_list)
+    save_stations(json_chunks, dynamo_unique=dynamo_unique,
+                  mongo_unique=mongo_unique, mongo_all=mongo_all)
 
 
 def operate_one_cycle(station_filter=False, max_per_minute=300):

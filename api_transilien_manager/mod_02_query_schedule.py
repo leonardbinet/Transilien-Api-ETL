@@ -1,11 +1,13 @@
 import os
 import pandas as pd
 import logging
-from boto3.dynamodb.conditions import Key, Attr
+from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
+
 
 from api_transilien_manager.utils_rdb import rdb_connection
 from api_transilien_manager.mod_01_extract_schedule import build_stop_times_ext_df
-from api_transilien_manager.utils_dynamo import dynamo_get_table
+from api_transilien_manager.utils_dynamo import dynamo_get_table, dynamo_get_client
 from api_transilien_manager.settings import dynamo_sched_dep
 
 logger = logging.getLogger(__name__)
@@ -49,7 +51,7 @@ def trip_scheduled_departure_time(trip_id, station):
     return departure_time
 
 
-def dynamo_get_trip_id_and_sch_dep_time(train_num, station, day):
+def dynamo_get_schedule_info(day_train_num, station, full_resp=False):
     """
     Query dynamo to find trip_id and scheduled_departure_time from train_num, station, and day.
 
@@ -59,68 +61,69 @@ def dynamo_get_trip_id_and_sch_dep_time(train_num, station, day):
     Reminder: hash key: station_id
     sort key: day_train_num
     """
-    day_train_num = "%s_%s" % (day, train_num)
+    table_name = dynamo_sched_dep
 
-    table = dynamo_get_table(dynamo_sched_dep)
-    response = table.query(
-        Select="ALL_ATTRIBUTES",
-        ConsistentRead=False,
-        KeyConditionExpression=Key('station_id').eq(station),
-        FilterExpression=Attr('day_train_num').eq(day_train_num)
+    # Query
+    # table = dynamo_get_table(table_name)
+    # response1 = table.query(
+    #    ConsistentRead=False,
+    #    KeyConditionExpression=Key('station_id').eq(
+    #        str(station)) & Key('day_train_num').eq(str(day_train_num))
+    #)
+
+    # GetItem
+    client = dynamo_get_client()
+    response = client.get_item(
+        TableName=table_name,
+        Key={
+            "station_id": {
+                "S": str(station)
+            },
+            "day_train_num": {
+                "S": str(day_train_num)
+            }
+        },
+        ConsistentRead=False
     )
-    if not response:
-        return None
+    if full_resp:
+        return response
 
-    try:
-        scheduled_departure_time = response["scheduled_departure_time"]
-        trip_id = response["trip_id"]
-    except KeyError as e:
-        logger.debug("Keys not found in response: %s" % e)
+    # Use a deserializer to parse
+    # Return object with ids and trip_id and scheduled_departure_time
+    deser = TypeDeserializer()
 
+    response_parsed = {}
+    for key, value in response["Item"].items():
+        response_parsed[key] = deser.deserialize(value)
 
-"""
-
-def save_scheduled_departures_of_day_mongo(yyyymmdd_format):
-    json_list = get_departure_times_of_day_json_list(yyyymmdd_format)
-
-    index_fields = ["scheduled_departure_day", "station_id", "train_num"]
-
-    logger.info(
-        "Upsert of %d items of json data in Mongo scheduled_departures collection" % len(json_list))
-
-    mongo_async_upsert_items("scheduled_departures", json_list, index_fields)
+    return response_parsed
 
 
-def rdb_get_departure_times_of_day_json_list(yyyymmdd_format):
-    # Check passed parameters
-    try:
-        int(yyyymmdd_format)
-    except Exception as e:
-        logger.error("Date provided is not valid %s, %s" %
-                     (yyyymmdd_format, e))
-        return False
-    if len(yyyymmdd_format) != 8:
-        logger.error("Date provided is not valid %s" %
-                     (yyyymmdd_format))
-        return False
+def dynamo_extend_dataframe_with_schedule(df, full=False):
+    # Extract items primary keys and format it for getitem
+    extract = df[["day_train_num", "station_id"]]
+    extract.station_id = extract.station_id.apply(str)
+    # Serialize in dynamo types
+    seres = TypeSerializer()
+    extract_ser = extract.applymap(seres.serialize)
+    items = extract_ser.to_dict(orient="records")
 
-    # Find weekday for day condition
-    datetime_format = datetime.datetime.strptime(yyyymmdd_format, "%Y%m%d")
-    weekday = calendar.day_name[datetime_format.weekday()].lower()
+    # Compute query in batches of 100 items
+    batches = [items[i:i + 100] for i in range(0, len(items), 100)]
 
-    # Make query
-    connection = rdb_connection()
-    query = "SELECT * FROM stop_times_ext WHERE start_date<=%s AND end_date>=%s;" % (
-        yyyymmdd_format, yyyymmdd_format)
-    matching_stop_times = pd.read_sql(query, connection)
+    client = dynamo_get_client()
 
-    # Rename departure_time column, and add requested date
-    matching_stop_times.loc[:, "scheduled_departure_day"] = yyyymmdd_format
-    matching_stop_times.rename(
-        columns={'departure_time': 'scheduled_departure_time'}, inplace=True)
+    responses = []
+    unprocessed_keys = []
+    for batch in batches:
+        response = client.batch_get_item(
+            RequestItems={
+                dynamo_sched_dep: {
+                    'Keys': batch
+                }
+            }
+        )
+        responses += response["Responses"][dynamo_sched_dep]
+        unprocessed_keys.append(response["UnprocessedKeys"])
 
-    json_list = json.loads(matching_stop_times.to_json(orient='records'))
-    logger.info("There are %d scheduled departures on %s" %
-                (len(json_list), yyyymmdd_format))
-    return json_list
-"""
+    # TODO

@@ -23,6 +23,10 @@ AWS_SECRET_ACCESS_KEY = get_secret("AWS_SECRET_ACCESS_KEY", env=True)
 dynamodb = boto3.resource('dynamodb')
 
 
+def dynamo_get_client():
+    return boto3.client("dynamodb")
+
+
 def dynamo_create_real_departures_table(table_name, read=5, write=5):
 
     table = dynamodb.create_table(
