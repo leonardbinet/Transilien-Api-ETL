@@ -158,7 +158,7 @@ def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=False,
 def operate_one_cycle(station_filter=False, max_per_minute=300):
 
     if not station_filter:
-        station_list = get_station_ids()
+        station_list = get_station_ids("all")
     else:
         station_list = station_filter
 
