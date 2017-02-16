@@ -193,7 +193,7 @@ def get_trips_of_day(yyyymmdd_format):
     return trips_on_day
 
 
-def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None, df=False):
+def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None, df=False, dropna_index=True):
     """
     stop_filter is a list of stops you want, it must be in GTFS format:
     station_filter is a list of stations you want, it must be api format
@@ -230,6 +230,11 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
     matching_stop_times.loc[:, "day_train_num"] = matching_stop_times.apply(
         lambda x: "%s_%s" % (x["scheduled_departure_day"], x["train_num"]), axis=1)
 
+    # Drop na on indexes: station_id and day_train_num
+    if dropna_index:
+        matching_stop_times = matching_stop_times.dropna(
+            subset=["station_id", "day_train_num"])
+
     # Station filtering if asked
     if stop_filter:
         cond2 = matching_stop_times["stop_id"].isin(stop_filter)
@@ -265,7 +270,7 @@ def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format):
 
     # Set provisioned_throughput
     dynamo_update_provisionned_capacity(
-        read=sched_read, write=shed_write_on, table_name=dynamo_sched_dep)
+        read=shed_read, write=shed_write_on, table_name=dynamo_sched_dep)
 
     # Wait for one minute till provisioned_throughput is updated
     time.sleep(60)
@@ -276,4 +281,4 @@ def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format):
 
     # Reset provisioned_throughput to minimal writing
     dynamo_update_provisionned_capacity(
-        read=sched_read, write=sched_write_off, table_name=dynamo_sched_dep)
+        read=shed_read, write=shed_write_off, table_name=dynamo_sched_dep)

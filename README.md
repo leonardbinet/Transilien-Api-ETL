@@ -12,9 +12,9 @@ ssh -i "~/.ssh/aws-eb2" ubuntu@ec2-54-229-174-254.eu-west-1.compute.amazonaws.co
 ```
 
 ### Configuration
-Create secret.json file: blablabla
+Create secret.json file: this is the file where the application will find credentials for the different apis.
 
-It is needed to create a JSON file in the root directory (same level as main.py):
+You have to create a JSON file in the root directory (same level as main.py):
 ```
 {
     "API_USER" : "your_api_user",
@@ -23,7 +23,11 @@ It is needed to create a JSON file in the root directory (same level as main.py)
     "MONGO_HOST":"***",
     "MONGO_USER":"***",
     "MONGO_DB_NAME":"***",
-    "MONGO_PASSWORD":"***"
+    "MONGO_PASSWORD":"***",
+
+    "AWS_ACCESS_KEY_ID":"***",
+    "AWS_SECRET_ACCESS_KEY":"***",
+    "AWS_DEFAULT_REGION":"eu-west-1"
 }
 ```
 
