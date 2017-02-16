@@ -14,7 +14,7 @@ if __name__ == '__main__':
     from api_transilien_manager.utils_misc import set_logging_conf
     set_logging_conf(log_name="mod_01_extract_schedule.log")
 
-from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url, dynamo_sched_dep
+from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url, dynamo_sched_dep, shed_read, shed_write_on, shed_write_off
 from api_transilien_manager.utils_mongo import mongo_async_upsert_items
 from api_transilien_manager.utils_rdb import rdb_connection
 from api_transilien_manager.utils_dynamo import dynamo_insert_batches, dynamo_update_provisionned_capacity
@@ -256,7 +256,8 @@ def dynamo_save_stop_times_of_day(yyyymmdd_format):
 
 def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format):
     """
-    Accepts either a single element or a list
+    Accepts either a single element or a list.
+    ProvisionedThroughput is set in settings parameters
     """
     # Format it in a list
     if not isinstance(yyyymmdd_format, list):
@@ -264,7 +265,7 @@ def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format):
 
     # Set provisioned_throughput
     dynamo_update_provisionned_capacity(
-        read=50, write=50, table_name=dynamo_sched_dep)
+        read=sched_read, write=shed_write_on, table_name=dynamo_sched_dep)
 
     # Wait for one minute till provisioned_throughput is updated
     time.sleep(60)
@@ -275,4 +276,4 @@ def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format):
 
     # Reset provisioned_throughput to minimal writing
     dynamo_update_provisionned_capacity(
-        read=50, write=1, table_name=dynamo_sched_dep)
+        read=sched_read, write=sched_write_off, table_name=dynamo_sched_dep)

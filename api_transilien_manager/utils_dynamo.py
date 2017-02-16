@@ -1,8 +1,9 @@
 from os import sys, path
 import logging
 import boto3
-import time
+import pandas as pd
 from datetime import datetime
+from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
 
 logger = logging.getLogger(__name__)
 
@@ -156,3 +157,20 @@ def dynamo_provisionned_capacity_manager(table_name=None):
 
     # if func now is lower than the hour before: check if hour in update hours
     # if so, set with majoration function
+
+
+def dynamo_extract_all_table(table_name, max_req=100):
+    """
+    Returns a dataframe.
+    """
+    table = dynamodb.Table(table_name)
+    response = table.scan()
+    data = response['Items']
+
+    while response.get('LastEvaluatedKey') and max_req > 0:
+        response = table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
+        data.extend(response['Items'])
+        max_req -= 1
+
+    resp_df = pd.DataFrame(data)
+    return resp_df

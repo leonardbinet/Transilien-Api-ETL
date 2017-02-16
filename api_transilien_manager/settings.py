@@ -34,3 +34,11 @@ col_real_dep_unique = "real_departures_2"
 # Dynamo DB tables:
 dynamo_real_dep = "real_departures_2"
 dynamo_sched_dep = "scheduled_departures"
+
+# Dynamo provisioned_throughput for tables
+real_read = 50
+real_write = 80
+# 'on' is for when we update, 'off' rest of the time
+shed_read = 100
+shed_write_off = 1
+shed_write_on = 50
