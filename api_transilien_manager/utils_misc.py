@@ -20,12 +20,34 @@ def compute_delay(scheduled_departure_time, real_departure_time):
     Return in seconds the delay:
     - positive if real_time > schedule time (delayed)
     - negative if real_time < schedule time (advance)
+
+    Return None if one value is not string
+
+    Convert custom hours (after midnight) TODO
     """
     # real_departure_date = "01/02/2017 22:12" (api format)
     # scheduled_departure_time = '22:12:00' (schedules format)
     # real_departure_time = "22:12:00"
     # We don't need to take into account time zones
 
+    # Accept only strings
+    if not isinstance(scheduled_departure_time, str) or not isinstance(real_departure_time, str):
+        return None
+
+    # Take into account 24->29 => 0->5
+    real_hour = int(real_departure_time[:2])
+    if real_hour >= 24:
+        real_hour -= 24
+        real_departure_time = "%s%s" % (
+            str(real_hour), real_departure_time[2:])
+
+    sched_hour = int(scheduled_departure_time[:2])
+    if sched_hour >= 24:
+        sched_hour -= 24
+        scheduled_departure_time = "%s%s" % (
+            str(sched_hour), scheduled_departure_time[2:])
+
+    # Convert into datime objects
     real_departure_time = datetime.strptime(
         real_departure_time, "%H:%M:%S")
 

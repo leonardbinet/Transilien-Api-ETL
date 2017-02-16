@@ -1,13 +1,14 @@
 import os
 import pandas as pd
+import json
 import logging
 from boto3.dynamodb.conditions import Key
 from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
 
 
 from api_transilien_manager.utils_rdb import rdb_connection
-from api_transilien_manager.mod_01_extract_schedule import build_stop_times_ext_df
-from api_transilien_manager.utils_dynamo import dynamo_get_table, dynamo_get_client
+from api_transilien_manager.utils_misc import compute_delay
+from api_transilien_manager.utils_dynamo import dynamo_get_table, dynamo_get_client, dynamo_submit_batch_getitem_request
 from api_transilien_manager.settings import dynamo_sched_dep
 
 logger = logging.getLogger(__name__)
@@ -99,31 +100,60 @@ def dynamo_get_schedule_info(day_train_num, station, full_resp=False):
     return response_parsed
 
 
-def dynamo_extend_dataframe_with_schedule(df, full=False):
+def dynamo_extend_items_with_schedule(items_list, full=False, df_format=False):
+    df = pd.DataFrame(items_list)
     # Extract items primary keys and format it for getitem
     extract = df[["day_train_num", "station_id"]]
     extract.station_id = extract.station_id.apply(str)
+
     # Serialize in dynamo types
     seres = TypeSerializer()
     extract_ser = extract.applymap(seres.serialize)
-    items = extract_ser.to_dict(orient="records")
+    items_keys = extract_ser.to_dict(orient="records")
 
-    # Compute query in batches of 100 items
-    batches = [items[i:i + 100] for i in range(0, len(items), 100)]
+    # Submit requests
+    responses = dynamo_submit_batch_getitem_request(
+        items_keys, dynamo_sched_dep)
 
-    client = dynamo_get_client()
+    # Deserialize into clean dataframe
+    resp_df = pd.DataFrame(responses)
+    deser = TypeDeserializer()
+    resp_df = resp_df.applymap(deser.deserialize)
 
-    responses = []
-    unprocessed_keys = []
-    for batch in batches:
-        response = client.batch_get_item(
-            RequestItems={
-                dynamo_sched_dep: {
-                    'Keys': batch
-                }
-            }
-        )
-        responses += response["Responses"][dynamo_sched_dep]
-        unprocessed_keys.append(response["UnprocessedKeys"])
+    # Select columns to keep:
+    all_columns = [
+        'arrival_time', 'block_id', 'day_train_num', 'direction_id',
+        'drop_off_type', 'pickup_type', 'route_id', 'route_short_name',
+        'scheduled_departure_day', 'scheduled_departure_time', 'service_id',
+        'station_id', 'stop_headsign', 'stop_id', 'stop_sequence', 'train_num',
+        'trip_headsign', 'trip_id'
+    ]
+    columns_to_keep = [
+        'day_train_num', 'station_id',
+        'scheduled_departure_time', 'trip_id', 'service_id',
+        'route_short_name', 'trip_headsign', 'stop_sequence'
+    ]
+    if full:
+        resp_df = resp_df[all_columns]
+    else:
+        resp_df = resp_df[columns_to_keep]
 
-    # TODO
+    # Merge to add response dataframe to initial dataframe
+    # We use left jointure to keep items even if we couldn't find schedule
+    index_cols = ["day_train_num", "station_id"]
+    df_updated = df.merge(resp_df, on=index_cols, how="left")
+
+    # Compute delay
+    df_updated.loc[:, "delay"] = df_updated.apply(lambda x: compute_delay(
+        x["scheduled_departure_time"], x["expected_passage_time"]), axis=1)
+
+    # Inform
+    logger.info("Asked to find schedule and trip_id for %d items, we found %d of them." % (
+        len(df), len(resp_df)))
+    if df_format:
+        return df_updated
+
+    # Safe json serializable python dict
+    df_updated = df_updated.applymap(str)
+    items_updated = json.loads(df_updated.to_json(orient='records'))
+    return items_updated

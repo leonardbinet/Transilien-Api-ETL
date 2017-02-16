@@ -93,33 +93,42 @@ def dynamo_insert_batches(items_list, table_name):
     # logger.info("Task completed.")
 
 
-def dynamo_spread_writes_over_minute(items_list, table_name, splits=6):
-    # split in 'splits' parts
-    batches = [items_list[i::splits] for i in range(splits)]
+def dynamo_submit_batch_getitem_request(items_keys, table_name, max_retry=3, prev_resp=None):
+    # Compute query in batches of 100 items
+    batches = [items_keys[i:i + 100]
+               for i in range(0, len(items_keys), 100)]
 
-    # time to wait between operations: spread over one minute
-    cycle_time_sec = float(60) / splits
+    client = dynamo_get_client()
 
-    logger.info("Dynamo: saving data for over next minute in %d steps." % splits)
-
-    for i, batch in enumerate(batches):
-        loop_begin_time = datetime.now()
-
+    responses = []
+    unprocessed_keys = []
+    for batch in batches:
+        response = client.batch_get_item(
+            RequestItems={
+                table_name: {
+                    'Keys': batch
+                }
+            }
+        )
         try:
-            dynamo_insert_batches(batch, table_name=table_name)
-        except Exception as e:
-            logger.error("Error on batch number %d, error: %s" %
-                         (i, e.with_traceback()))
+            responses += response["Responses"][table_name]
+        except KeyError:
+            pass
+        try:
+            unprocessed_keys += response[
+                "UnprocessedKeys"][table_name]
+        except KeyError:
+            pass
 
-        time_passed = (datetime.now() - loop_begin_time).seconds
-        if i != (len(batches) - 1):
-            # don't wait on last round
-            if time_passed < cycle_time_sec:
-                time_to_wait = cycle_time_sec - time_passed
-                logger.debug("Waiting %d seconds till next cycle." %
-                             time_to_wait)
-                time.sleep(time_to_wait)
-    logger.info("Operation completed")
+    # TODO: add timer
+    if len(unprocessed_keys) > 0:
+        if max_retry == 0:
+            return responses
+        else:
+            max_retry = max_retry - 1
+            return dynamo_submit_batch_getitem_request(unprocessed_keys, table_name, max_retry=max_retry, prev_resp=responses)
+
+    return responses
 
 
 def dynamo_provisionned_capacity_manager(table_name=None):
@@ -134,8 +143,7 @@ def dynamo_provisionned_capacity_manager(table_name=None):
     - define four "hour" steps: choose only update hours
     - apply function on these times slots
     """
-    if not table_name:
-        table_name = dynamo_table
+    pass
 
     # define prediction function
 
