@@ -2,6 +2,7 @@ import os
 from os import sys, path
 import pandas as pd
 import zipfile
+import time
 from urllib.request import urlretrieve
 import logging
 import json
@@ -16,7 +17,7 @@ if __name__ == '__main__':
 from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url, dynamo_sched_dep
 from api_transilien_manager.utils_mongo import mongo_async_upsert_items
 from api_transilien_manager.utils_rdb import rdb_connection
-from api_transilien_manager.utils_dynamo import dynamo_insert_batches
+from api_transilien_manager.utils_dynamo import dynamo_insert_batches, dynamo_update_provisionned_capacity
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
@@ -247,7 +248,31 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
         return json_list
 
 
-def save_stop_times_of_day_extended_dynamo(yyyymmdd_format):
+def dynamo_save_stop_times_of_day(yyyymmdd_format):
     # Can take some time depending on write capacity
     items = get_departure_times_of_day_json_list(yyyymmdd_format)
     dynamo_insert_batches(items, dynamo_sched_dep)
+
+
+def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format):
+    """
+    Accepts either a single element or a list
+    """
+    # Format it in a list
+    if not isinstance(yyyymmdd_format, list):
+        yyyymmdd_format = [str(yyyymmdd_format)]
+
+    # Set provisioned_throughput
+    dynamo_update_provisionned_capacity(
+        read=50, write=50, table_name=dynamo_sched_dep)
+
+    # Wait for one minute till provisioned_throughput is updated
+    time.sleep(60)
+
+    # Insert items
+    for day in yyyymmdd_format:
+        dynamo_save_stop_times_of_day(str(day))
+
+    # Reset provisioned_throughput to minimal writing
+    dynamo_update_provisionned_capacity(
+        read=50, write=1, table_name=dynamo_sched_dep)

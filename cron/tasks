@@ -10,17 +10,8 @@
 # Every 5 min
 */5 * * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_01_single_cycle_api.py
 
-# Every hour at :30: DEACTIVATED
-# 30 * * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_01_h_extract_api.py
-
-# Every day at 4:00AM - standby: not necessary
-# 0 4 * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_02_d_sch_dep.py
-
-# Every day at 5:00AM - standby: not necessary for now
-# 0 5 * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_01_d_move_col.py
-
-# Every day at 5:00AM
-0 5 * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_03_d_match.py
+# Every day at 11:00PM
+0 23 * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_01_d_sch_dep.py
 
 # Every week on Monday at 5:30 AM
 30 5 * * 1 /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_01_w_extract_schedule.py
