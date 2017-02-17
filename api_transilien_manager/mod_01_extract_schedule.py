@@ -264,7 +264,7 @@ def dynamo_save_stop_times_of_day(yyyymmdd_format):
     dynamo_insert_batches(items, dynamo_sched_dep)
 
 
-def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format):
+def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format, ignore_fail=True):
     """
     Accepts either a single element or a list.
     ProvisionedThroughput is set in settings parameters
@@ -274,8 +274,12 @@ def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format):
         yyyymmdd_format = [str(yyyymmdd_format)]
 
     # Set provisioned_throughput
-    dynamo_update_provisionned_capacity(
-        read=shed_read, write=shed_write_on, table_name=dynamo_sched_dep)
+    try:
+        dynamo_update_provisionned_capacity(
+            read=shed_read, write=shed_write_on, table_name=dynamo_sched_dep)
+    except Exception as e:
+        if not ignore_fail:
+            raise ValueError("Could not change provisioned_throughput")
 
     # Wait for one minute till provisioned_throughput is updated
     time.sleep(60)
