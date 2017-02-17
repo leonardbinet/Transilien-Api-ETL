@@ -37,7 +37,7 @@ POSTGRES_PASSWORD = get_secret("POSTGRES_PASSWORD")
 def deploy():
     _create_directory_structure_if_necessary(site_folder)
     _get_latest_source(source_folder)
-    _send_secret_jsons()
+    send_secret_jsons()
     _update_virtualenv(source_folder)
     _start_postgres_server()
 
@@ -48,7 +48,7 @@ def initial_deploy():
     deploy()
 
 
-def _send_secret_jsons():
+def send_secret_jsons():
     put(SECRET_PATH, os.path.join(source_folder, SECRET_PATH))
 
 

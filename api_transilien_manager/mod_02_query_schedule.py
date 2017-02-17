@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import json
 import logging
-from boto3.dynamodb.conditions import Key
 from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
 
 
@@ -111,51 +110,3 @@ def trip_scheduled_departure_time(trip_id, station):
                        len(departure_time))
         return False
     return departure_time
-
-
-def dynamo_get_schedule_info(day_train_num, station, full_resp=False):
-    """
-    Query dynamo to find trip_id and scheduled_departure_time from train_num, station, and day.
-
-    Day is here to double check, avoid errors: yyyymmdd_format.
-    Station_id is in 7 digits format.
-
-    Reminder: hash key: station_id
-    sort key: day_train_num
-    """
-    table_name = dynamo_sched_dep
-
-    # Query
-    # table = dynamo_get_table(table_name)
-    # response1 = table.query(
-    #    ConsistentRead=False,
-    #    KeyConditionExpression=Key('station_id').eq(
-    #        str(station)) & Key('day_train_num').eq(str(day_train_num))
-    #)
-
-    # GetItem
-    client = dynamo_get_client()
-    response = client.get_item(
-        TableName=table_name,
-        Key={
-            "station_id": {
-                "S": str(station)
-            },
-            "day_train_num": {
-                "S": str(day_train_num)
-            }
-        },
-        ConsistentRead=False
-    )
-    if full_resp:
-        return response
-
-    # Use a deserializer to parse
-    # Return object with ids and trip_id and scheduled_departure_time
-    deser = TypeDeserializer()
-
-    response_parsed = {}
-    for key, value in response["Item"].items():
-        response_parsed[key] = deser.deserialize(value)
-
-    return response_parsed

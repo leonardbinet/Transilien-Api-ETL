@@ -7,8 +7,8 @@
 #
 # all x min = */x
 
-# Every 5 min
-*/5 * * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_01_single_cycle_api.py
+# Every 2 min
+*/2 * * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_01_single_cycle_api.py
 
 # Every day at 11:00PM
 0 23 * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_01_d_sch_dep.py

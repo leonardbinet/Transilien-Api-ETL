@@ -193,7 +193,7 @@ def get_trips_of_day(yyyymmdd_format):
     return trips_on_day
 
 
-def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None, df=False, dropna_index=True):
+def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None, df=False, dropna_index=True, drop_dup=True):
     """
     stop_filter is a list of stops you want, it must be in GTFS format:
     station_filter is a list of stations you want, it must be api format
@@ -233,6 +233,11 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
     # Drop na on indexes: station_id and day_train_num
     if dropna_index:
         matching_stop_times = matching_stop_times.dropna(
+            subset=["station_id", "day_train_num"])
+
+    # Drop duplication on indexes
+    if drop_dup:
+        matching_stop_times = matching_stop_times.drop_duplicates(
             subset=["station_id", "day_train_num"])
 
     # Station filtering if asked

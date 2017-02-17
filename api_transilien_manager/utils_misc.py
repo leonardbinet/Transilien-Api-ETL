@@ -30,8 +30,15 @@ def compute_delay(scheduled_departure_time, real_departure_time):
     # real_departure_time = "22:12:00"
     # We don't need to take into account time zones
 
-    # Accept only strings
-    if not isinstance(scheduled_departure_time, str) or not isinstance(real_departure_time, str):
+    # Accept only string
+    if pd.isnull(scheduled_departure_time) or pd.isnull(real_departure_time):
+        return None
+
+    try:
+        scheduled_departure_time = str(scheduled_departure_time)
+        real_departure_time = str(real_departure_time)
+    except Exception as e:
+        print(e)
         return None
 
     # Take into account 24->29 => 0->5

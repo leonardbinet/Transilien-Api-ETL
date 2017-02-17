@@ -5,7 +5,7 @@
 ### EC2 Instance
 You should set up an EC2 instance with ssh keys that you can access this way:
 ```
-ssh -i "~/.ssh/aws-eb2" ubuntu@ec2-54-154-184-96.eu-west-1.compute.amazonaws.com
+ssh -i "~/.ssh/aws-eb2" ubuntu@ec2-54-154-46-28.eu-west-1.compute.amazonaws.com
 
 # test ec2
 ssh -i "~/.ssh/aws-eb2" ubuntu@ec2-54-229-174-254.eu-west-1.compute.amazonaws.com
