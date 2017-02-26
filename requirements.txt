@@ -17,3 +17,5 @@ django
 djangorestframework
 markdown
 django-filter
+Sphinx
+sphinx_rtd_theme

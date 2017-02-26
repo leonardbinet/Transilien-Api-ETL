@@ -6,7 +6,7 @@ hidden/*
 *.DS_Store
 
 # Secrets
-secret.json
+secret_hidden.json
 taskrunner_credentials.json
 
 # All Data
@@ -34,3 +34,10 @@ dist/*
 
 # TODO
 TODO.md
+
+# Docs
+# docs/*
+!docs/conf.py
+!docs/index.rst
+!docs/make.bat
+!docs/Makefile
