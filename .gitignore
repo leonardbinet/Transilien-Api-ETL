@@ -36,7 +36,7 @@ dist/*
 TODO.md
 
 # Docs
-# docs/*
+docs/*
 !docs/conf.py
 !docs/index.rst
 !docs/make.bat

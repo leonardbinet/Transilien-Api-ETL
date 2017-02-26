@@ -141,3 +141,17 @@ GRANT ALL PRIVILEGES ON DATABASE api_transilien TO api_transilien_user;
 
 ## Dynamo
 All is handled automatically.
+
+## Documentation
+To generate documentation:
+
+First activate your virtualenv (you should have Sphinx and sphinx_rtd_theme installed), from root directory:
+```
+# create structure
+sphinx-apidoc --separate -f -o docs api_transilien_manager
+
+# generate html
+cd docs
+make html
+```
+You will find documentation in `docs/_build` directory
