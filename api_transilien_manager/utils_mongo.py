@@ -110,7 +110,6 @@ def mongo_async_upsert_items(collection, item_list, index_fields):
             logger.debug("Item inserted")
             if not result.acknowledged:
                 logger.error("Item %s not inserted" % item_to_upsert)
-            # print("Result: %s" % result)
 
         except Exception as e:
             logger.error("Could not save item, error %s" % e)
@@ -126,8 +125,6 @@ def mongo_async_upsert_items(collection, item_list, index_fields):
         responses = await asyncio.gather(*tasks)
         return responses
 
-    # def print_responses(result):
-    #    print(result)
     loop = asyncio.get_event_loop()
     future = asyncio.ensure_future(run(item_list=item_list))
     loop.run_until_complete(future)
