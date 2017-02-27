@@ -3,7 +3,7 @@ from fabric.api import env, local, run, put, sudo
 import os
 from os import path
 from fabric.api import *
-from api_transilien_manager.utils_secrets import get_secret
+from api_etl.utils_secrets import get_secret
 
 # NEEDS TO BE CONFIGURED
 env.key_filename = "~/.ssh/aws-eb2"

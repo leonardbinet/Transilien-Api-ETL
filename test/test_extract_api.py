@@ -3,8 +3,8 @@ import unittest
 import logging
 import json
 
-from api_transilien_manager.settings import BASE_DIR
-from api_transilien_manager.mod_01_extract_api import get_station_ids, xml_to_json_item_list, api_date_to_day_time_corrected
+from api_etl.settings import BASE_DIR
+from api_etl.extract_api import get_station_ids, xml_to_json_item_list, api_date_to_day_time_corrected
 
 logger = logging.getLogger(__name__)
 

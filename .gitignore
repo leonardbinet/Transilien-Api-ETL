@@ -6,7 +6,9 @@ hidden/*
 *.DS_Store
 
 # Secrets
+secret.json
 secret_hidden.json
+secret.json.template
 taskrunner_credentials.json
 
 # All Data

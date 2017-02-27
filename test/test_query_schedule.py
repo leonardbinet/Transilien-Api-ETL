@@ -5,9 +5,9 @@ import datetime
 import logging
 import random
 
-from api_transilien_manager.settings import BASE_DIR
-from api_transilien_manager.mod_01_extract_schedule import build_stop_times_ext_df
-from api_transilien_manager.mod_02_query_schedule import trip_scheduled_departure_time
+from api_etl.settings import BASE_DIR
+from api_etl.extract_schedule import build_stop_times_ext_df
+from api_etl.query_schedule import trip_scheduled_departure_time
 
 logger = logging.getLogger(__name__)
 

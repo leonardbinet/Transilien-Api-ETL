@@ -3,10 +3,10 @@ import datetime
 import logging
 import random
 
-from api_transilien_manager.utils_misc import get_paris_local_datetime_now
-from api_transilien_manager.mod_01_extract_schedule import build_trips_ext_df
+from api_etl.utils_misc import get_paris_local_datetime_now
+from api_etl.extract_schedule import build_trips_ext_df
 
-from api_transilien_manager.mod_03_match_collections import api_train_num_to_trip_id, update_real_departures_mongo
+from api_etl.match_ids import api_train_num_to_trip_id, update_real_departures_mongo
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ This module contains configuration information.
 import os
 import json
 import logging
-from api_transilien_manager.settings import BASE_DIR
+from api_etl.settings import BASE_DIR
 
 logger = logging.getLogger(__name__)
 

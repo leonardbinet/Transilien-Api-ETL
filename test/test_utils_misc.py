@@ -1,7 +1,7 @@
 import unittest
 import logging
 
-from api_transilien_manager.utils_misc import compute_delay
+from api_etl.utils_misc import compute_delay
 
 logger = logging.getLogger(__name__)
 

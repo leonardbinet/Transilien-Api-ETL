@@ -5,10 +5,10 @@ import logging
 from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
 
 
-from api_transilien_manager.utils_rdb import rdb_connection
-from api_transilien_manager.utils_misc import compute_delay
-from api_transilien_manager.utils_dynamo import dynamo_get_table, dynamo_get_client, dynamo_submit_batch_getitem_request
-from api_transilien_manager.settings import dynamo_sched_dep
+from api_etl.utils_rdb import rdb_connection
+from api_etl.utils_misc import compute_delay
+from api_etl.utils_dynamo import dynamo_get_table, dynamo_get_client, dynamo_submit_batch_getitem_request
+from api_etl.settings import dynamo_sched_dep
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None

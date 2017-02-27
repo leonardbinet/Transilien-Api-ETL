@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from api_transilien_manager.utils_misc import set_logging_conf
+    from api_etl.utils_misc import set_logging_conf
     set_logging_conf(log_name="mongo_direct.log")
 
-from api_transilien_manager.utils_secrets import get_secret
+from api_etl.utils_secrets import get_secret
 
 logger = logging.getLogger(__name__)
 

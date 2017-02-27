@@ -6,11 +6,11 @@ if __name__ == '__main__':
 
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     # Logging configuration
-    from api_transilien_manager.utils_misc import set_logging_conf
+    from api_etl.utils_misc import set_logging_conf
     set_logging_conf(log_name="task_01_d_sch_dep.log")
 
-    from api_transilien_manager.utils_misc import get_paris_local_datetime_now
-    from api_transilien_manager.mod_01_extract_schedule import dynamo_save_stop_times_of_day_adapt_provision
+    from api_etl.utils_misc import get_paris_local_datetime_now
+    from api_etl.extract_schedule import dynamo_save_stop_times_of_day_adapt_provision
 
     logger = logging.getLogger(__name__)
 

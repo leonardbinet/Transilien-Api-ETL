@@ -11,13 +11,13 @@ import calendar
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from api_transilien_manager.utils_misc import set_logging_conf
+    from api_etl.utils_misc import set_logging_conf
     set_logging_conf(log_name="mod_01_extract_schedule.log")
 
-from api_transilien_manager.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url, dynamo_sched_dep, shed_read, shed_write_on, shed_write_off
-from api_transilien_manager.utils_mongo import mongo_async_upsert_items
-from api_transilien_manager.utils_rdb import rdb_connection
-from api_transilien_manager.utils_dynamo import dynamo_insert_batches, dynamo_update_provisionned_capacity
+from api_etl.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url, dynamo_sched_dep, shed_read, shed_write_on, shed_write_off
+from api_etl.utils_mongo import mongo_async_upsert_items
+from api_etl.utils_rdb import rdb_connection
+from api_etl.utils_dynamo import dynamo_insert_batches, dynamo_update_provisionned_capacity
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None

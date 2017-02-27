@@ -9,12 +9,12 @@ import copy
 import logging
 import numpy as np
 
-from api_transilien_manager.utils_misc import get_paris_local_datetime_now, compute_delay, chunks
-from api_transilien_manager.utils_api_client import get_api_client
-from api_transilien_manager.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
-from api_transilien_manager.utils_dynamo import dynamo_insert_batches
-from api_transilien_manager.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path, dynamo_real_dep, top_stations_path, scheduled_stations_path
-from api_transilien_manager.mod_02_query_schedule import dynamo_extend_items_with_schedule
+from api_etl.utils_misc import get_paris_local_datetime_now, compute_delay, chunks
+from api_etl.utils_api_client import get_api_client
+from api_etl.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
+from api_etl.utils_dynamo import dynamo_insert_batches
+from api_etl.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path, dynamo_real_dep, top_stations_path, scheduled_stations_path
+from api_etl.query_schedule import dynamo_extend_items_with_schedule
 
 logger = logging.getLogger(__name__)
 

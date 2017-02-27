@@ -1,7 +1,7 @@
 import unittest
 import logging
 
-from api_transilien_manager.utils_rdb import rdb_connection
+from api_etl.utils_rdb import rdb_connection
 
 logger = logging.getLogger(__name__)
 

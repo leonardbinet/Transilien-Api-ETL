@@ -1,7 +1,7 @@
 import unittest
 import logging
 
-from api_transilien_manager.utils_mongo import mongo_get_collection
+from api_etl.utils_mongo import mongo_get_collection
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ import pytz
 from datetime import datetime
 import numpy as np
 import pandas as pd
-from api_transilien_manager.settings import logs_path, data_path, responding_stations_path
+from api_etl.settings import logs_path, data_path, responding_stations_path
 
 
 def chunks(l, n):

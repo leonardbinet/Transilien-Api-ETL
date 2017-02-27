@@ -2,7 +2,7 @@ from os import sys, path
 import unittest
 import logging
 
-from api_transilien_manager.mod_01_extract_schedule import build_trips_ext_df, build_stop_times_ext_df, save_trips_extended_rdb, save_stop_times_extended_rdb
+from api_etl.extract_schedule import build_trips_ext_df, build_stop_times_ext_df, save_trips_extended_rdb, save_stop_times_extended_rdb
 
 logger = logging.getLogger(__name__)
 
