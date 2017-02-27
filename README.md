@@ -155,3 +155,5 @@ cd docs
 make html
 ```
 You will find documentation in `docs/_build` directory
+
+*Warning*: beware of secrets. If your secrets are set in the secret.json file, they might be exposed through `get_secret` function parameters in documentation.
