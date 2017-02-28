@@ -12,9 +12,15 @@ Hello, this documentation will detail how this ETL (Extract/Transform/Load) appl
 
 This repository is part of a broader project with SNCF's R&D department to provide arrival time predictions for trains in Paris area.
 
-An other repository_ details how this project is deployed through Vagrant and Salt automation tools.
+A repository_ details how this project is deployed through Vagrant and Salt automation tools.
 
 .. _repository: https://github.com/leonardbinet/Salt-Vagrant-master-mode
+
+Another_ details details how the website and the API built for this project work.
+
+.. _Another: https://github.com/leonardbinet/SNCF_project_website
+
+.. image:: project_overview.png
 
 
 Basically, this application is build around two tasks:
