@@ -7,7 +7,7 @@ hidden/*
 
 # Secrets
 secret.json
-secret_hidden.json
+secret.json.real
 secret.json.template
 taskrunner_credentials.json
 

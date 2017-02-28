@@ -148,7 +148,7 @@ To generate documentation:
 First activate your virtualenv (you should have Sphinx and sphinx_rtd_theme installed), from root directory:
 ```
 # create structure
-sphinx-apidoc --separate -f -o docs api_transilien_manager
+sphinx-apidoc --separate -f -o docs api_etl
 
 # generate html
 cd docs
