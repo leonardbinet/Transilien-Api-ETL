@@ -245,6 +245,7 @@ def operate_multiple_cycles(station_filter=False, cycle_time_sec=1200, stop_time
 
     logger.info("BEGINNING OPERATION WITH LIMIT OF %d SECONDS" %
                 stop_time_sec)
+    begin_time = datetime.now()
 
     while (datetime.now() - begin_time).seconds < stop_time_sec:
         # Set cycle loop
