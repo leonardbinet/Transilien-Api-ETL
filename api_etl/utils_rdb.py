@@ -2,7 +2,7 @@
 Module used to interact with Dynamo databases.
 """
 
-from os import sys, path
+from os import path
 import logging
 import sqlite3
 import psycopg2

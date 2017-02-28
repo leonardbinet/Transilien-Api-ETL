@@ -17,9 +17,10 @@ from api_etl.utils_misc import get_paris_local_datetime_now, compute_delay, chun
 from api_etl.utils_api_client import get_api_client
 from api_etl.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
 from api_etl.utils_dynamo import dynamo_insert_batches
-from api_etl.query_schedule import dynamo_extend_items_with_schedule
 
 from api_etl.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path, dynamo_real_dep, top_stations_path, scheduled_stations_path
+
+from api_etl.query_schedule import dynamo_extend_items_with_schedule
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,21 @@ pd.options.mode.chained_assignment = None
 
 
 def xml_to_json_item_list(xml_string, station, df_format=False):
+    """
+    This function transforms transilien's API XML answers into a list of objects, in a valid format.
+    It might be useful to use a class to define object structure.
+
+    :param xml_string: XML string you want to transform
+    :type xml_string: string
+
+    :param station: station id that was queried. This is necessary to add a station field in output. This must be a 8 digits string or integer. You can find the stations ids on SNCF website. https://ressources.data.sncf.com/explore/dataset/referentiel-gares-voyageurs/
+    :type station: string/integer
+
+    :param df_format: default False, set True so that the function returns a pandas dataframe instead of a list of dictionnaries.
+    :type df_format: boolean
+
+    :rtype: list of dictionnaries of strings only, this is json-serializable so it can easily be inserted in Mongo or Dynamo databases.
+    """
     # Save with Paris timezone (if server is abroad)
     datetime_paris = get_paris_local_datetime_now()
 
@@ -65,7 +81,14 @@ def xml_to_json_item_list(xml_string, station, df_format=False):
 
 def extract_stations(stations_list):
     """
-    Stations required by api are in 8 digits format
+    This function will query transilien's API asking for expected trains passages in near future on stations defined as paramater. Note that stations id required by api are in 8 digits format.
+
+    This function will return clean data (json serializable), ready to be inserted in Mongo or Dynamo databases.
+
+    :param stations_list: these are the stations for which the transilien's api will be queried. List of stations of length 8.
+    :type stations_list: list of str/int
+
+    :rtype: list of dictionnaries (of strings)
     """
     # Extract from API
     logger.info("Extraction of %d stations" % len(stations_list))
@@ -89,8 +112,19 @@ def extract_stations(stations_list):
 
 def save_stations(items_list, dynamo_unique, mongo_unique, mongo_all):
     """
-    Use col_real_dep_unique defined in settings to know in which collection to
-    save data.
+    This function will save in the specified databases, with uniqueness or not, the items provided as parameter.
+
+    :param items_list: the items you want to save. They must be in relevant format, and contain fields that are used as primary fields.
+    :type item_list: list of dictionnaries of strings (json serializable)
+
+    :param dynamo_unique: save items in dynamo table that save unique passages
+    :type dynamo_unique: boolean
+
+    :param mongo_unique: save items in dynamo table that save unique passages
+    :type mongo_unique: boolean
+
+    :param mongo_all: save items in dynamo table that save all passages
+    :type mongo_all: boolean
     """
     # Make deep copies, because mongo will add _ids
     items_list2 = copy.deepcopy(items_list)
