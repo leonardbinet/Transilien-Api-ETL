@@ -1,3 +1,7 @@
+"""
+Module used to interact with Dynamo databases.
+"""
+
 from os import sys, path
 import logging
 import sqlite3
@@ -5,12 +9,6 @@ import psycopg2
 import sqlalchemy
 # import asyncio
 # import aiopg
-
-
-if __name__ == '__main__':
-    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from api_etl.utils_misc import set_logging_conf
-    set_logging_conf(log_name="sqlite_direct.log")
 
 from api_etl.utils_secrets import get_secret
 from api_etl.settings import sqlite_path

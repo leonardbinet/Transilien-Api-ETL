@@ -1,79 +1,30 @@
-import asyncio
-import os
+"""
+Core module using other modules to:
+- extract data from the Transilien's API (use utils_api_client)
+- update it with GTFS data (use query_schedule, if data was previously saved with extract_schedule)
+- save it in databases, Mongo or/and Dynamo (use utils_dynamo, utils_mongo)
+"""
+
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import xmltodict
 import pandas as pd
 import copy
 import logging
-import numpy as np
 
-from api_etl.utils_misc import get_paris_local_datetime_now, compute_delay, chunks
+from api_etl.utils_misc import get_paris_local_datetime_now, compute_delay, chunks, get_station_ids, api_date_to_day_time_corrected
 from api_etl.utils_api_client import get_api_client
 from api_etl.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
 from api_etl.utils_dynamo import dynamo_insert_batches
-from api_etl.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path, dynamo_real_dep, top_stations_path, scheduled_stations_path
 from api_etl.query_schedule import dynamo_extend_items_with_schedule
+
+from api_etl.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path, dynamo_real_dep, top_stations_path, scheduled_stations_path
 
 logger = logging.getLogger(__name__)
 
 # To avoid some pandas warnings
 pd.options.mode.chained_assignment = None
-
-
-def get_station_ids(stations="all"):
-    """
-    Beware: two formats:
-    - 8 digits format to query api
-    - 7 digits format to query gtfs files
-    """
-    if stations == "all":
-        station_ids = np.genfromtxt(
-            all_stations_path, delimiter=',', dtype=str)
-
-    elif stations == "responding":
-        station_ids = np.genfromtxt(
-            responding_stations_path, delimiter=',', dtype=str)
-
-    elif stations == "top":
-        station_ids = np.genfromtxt(
-            top_stations_path, delimiter=',', dtype=str)
-
-    elif stations == "scheduled":
-        station_ids = np.genfromtxt(
-            scheduled_stations_path, delimiter=",", dtype=str)
-
-    else:
-        raise ValueError(
-            "stations parameter should be either 'all', 'top', 'scheduled' or 'responding'")
-
-    return list(station_ids)
-
-
-def api_date_to_day_time_corrected(api_date, time_or_day):
-    expected_passage_date = datetime.strptime(api_date, "%d/%m/%Y %H:%M")
-
-    day_string = expected_passage_date.strftime("%Y%m%d")
-    time_string = expected_passage_date.strftime("%H:%M:00")
-
-    # For hours between 00:00:00 and 02:59:59: we add 24h and say it
-    # is from the day before
-    if expected_passage_date.hour in (0, 1, 2):
-        # say this train is departed the time before
-        expected_passage_date = expected_passage_date - timedelta(days=1)
-        # overwrite day_string
-        day_string = expected_passage_date.strftime("%Y%m%d")
-        # overwrite time_string with +24: 01:44:00 -> 25:44:00
-        time_string = "%d:%d:00" % (
-            expected_passage_date.hour + 24, expected_passage_date.minute)
-
-    if time_or_day == "day":
-        return day_string
-    elif time_or_day == "time":
-        return time_string
-    else:
-        raise ValueError("time or day should be 'time' or 'day'")
 
 
 def xml_to_json_item_list(xml_string, station, df_format=False):

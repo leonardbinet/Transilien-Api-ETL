@@ -1,15 +1,12 @@
 if __name__ == '__main__':
-    import os
     import logging
     from os import sys, path
-
-    BASE_DIR = os.path.dirname(
-        os.path.dirname(os.path.abspath(__file__)))
 
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     # Logging configuration
     from api_etl.utils_misc import set_logging_conf
-    set_logging_conf(log_name="task_01_w_extract_schedule.log")
+    module_name = sys.modules[__name__]
+    set_logging_conf(log_name=module_name)
 
     from api_etl.extract_schedule import download_gtfs_files
 

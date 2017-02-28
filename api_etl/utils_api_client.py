@@ -1,5 +1,8 @@
-import os
-from os import path, sys
+"""
+Module used to query Transilien's API.
+"""
+
+from os import path
 import logging
 import asyncio
 from aiohttp import ClientSession
@@ -7,15 +10,12 @@ from datetime import datetime, timedelta
 import requests
 import time
 
-if __name__ == '__main__':
-    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-
 from api_etl.utils_secrets import get_secret
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = path.dirname(
+    path.dirname(path.abspath(__file__)))
 
 
 API_USER = get_secret("API_USER")
@@ -55,7 +55,7 @@ class ApiClient():
             delay_seconds = 0.5 * 1.5 ** (retry_counter - 1)
             time.sleep(delay_seconds)
 
-        full_url = os.path.join(self.core_url, url)
+        full_url = path.join(self.core_url, url)
 
         response = requests.get(
             url=full_url, auth=(self.user, self.password), params=(extra_params or {}))
@@ -75,13 +75,13 @@ class ApiClient():
 
     def request_station(self, station, verbose=False, ignore_fail=False, extra_params=None):
         # example_url = "http://api.transilien.com/gare/87393009/depart/"
-        url = os.path.join("gare", str(station), "depart")
+        url = path.join("gare", str(station), "depart")
         return self._get(url=url, verbose=verbose, extra_params=extra_params)
 
     def _stations_to_full_urls(self, station_list):
         full_url_list = []
         for station in station_list:
-            full_url = os.path.join(
+            full_url = path.join(
                 self.core_url, "gare", str(station), "depart")
             # remove http:// from full_url and add it at beginning
             full_url = "http://%s:%s@%s" % (self.user,

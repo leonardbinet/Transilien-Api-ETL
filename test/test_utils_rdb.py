@@ -1,3 +1,7 @@
+"""
+Tests for utils_rdb module.
+"""
+
 import unittest
 import logging
 

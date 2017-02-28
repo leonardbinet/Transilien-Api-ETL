@@ -1,49 +1,19 @@
-from os import sys, path
+"""
+Tests for extract_api module.
+"""
+
+from os import path
 import unittest
 import logging
 import json
 
 from api_etl.settings import BASE_DIR
-from api_etl.extract_api import get_station_ids, xml_to_json_item_list, api_date_to_day_time_corrected
+from api_etl.extract_api import xml_to_json_item_list
 
 logger = logging.getLogger(__name__)
 
 
 class TestExtractModuleFunctions(unittest.TestCase):
-
-    def test_get_station_ids(self):
-        """
-        Test function that is supposed to return station ids.
-        """
-        for filt in ["all", "responding", "scheduled", "top"]:
-            stations = get_station_ids(stations=filt)
-            self.assertIsInstance(stations, list)
-            self.assertIsInstance(stations[0], str)
-            self.assertEqual(len(stations[0]), 7)
-            self.assertGreater(len(stations), 10)
-
-        self.assertRaises(ValueError, get_station_ids, stations="doesnt exist")
-
-    def test_api_date_to_day_time_corrected(self):
-        """
-        Test function that transform dates given by api in usable fields:
-        - expected_passage_day : "20120523" format
-        - expected_passage_time: "12:55:00" format
-
-        Important: dates between 0 and 3 AM are transformed in +24h time format with day as previous day.
-        """
-
-        api_date_1 = "23/05/2012 12:55"
-        day_result_1 = api_date_to_day_time_corrected(api_date_1, "day")
-        time_result_1 = api_date_to_day_time_corrected(api_date_1, "time")
-        self.assertEqual(day_result_1, "20120523")
-        self.assertEqual(time_result_1, "12:55:00")
-
-        api_date_2 = "01/07/2016 01:32"
-        day_result_2 = api_date_to_day_time_corrected(api_date_2, "day")
-        time_result_2 = api_date_to_day_time_corrected(api_date_2, "time")
-        self.assertEqual(day_result_2, "20160630")
-        self.assertEqual(time_result_2, "25:32:00")
 
     def test_xml_to_json_item_list(self):
         """

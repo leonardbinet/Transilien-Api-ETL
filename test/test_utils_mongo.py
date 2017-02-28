@@ -1,3 +1,7 @@
+"""
+Tests for utils_mongo module.
+"""
+
 import unittest
 import logging
 

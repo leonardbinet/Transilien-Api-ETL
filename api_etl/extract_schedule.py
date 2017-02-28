@@ -1,3 +1,7 @@
+"""
+Module used to download from SNCF website trains schedules and save it in the right format in different databases (Dynamo or relational database)
+"""
+
 import os
 from os import sys, path
 import pandas as pd
@@ -9,10 +13,6 @@ import json
 import datetime
 import calendar
 
-if __name__ == '__main__':
-    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from api_etl.utils_misc import set_logging_conf
-    set_logging_conf(log_name="mod_01_extract_schedule.log")
 
 from api_etl.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url, dynamo_sched_dep, shed_read, shed_write_on, shed_write_off
 from api_etl.utils_mongo import mongo_async_upsert_items

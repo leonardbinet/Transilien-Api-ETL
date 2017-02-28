@@ -1,5 +1,5 @@
 """
-This module contains configuration information.
+This module contains a function to extract secrets from environment or a secret file.
 """
 
 import os
@@ -21,4 +21,4 @@ def get_secret(setting, my_secrets=secrets, env=False):
             os.environ[setting] = value
         return value
     except KeyError:
-        logger.warn("Impossible to get " + setting)
+        logger.warning("Impossible to get " + setting)

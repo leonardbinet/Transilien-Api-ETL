@@ -1,3 +1,7 @@
+"""
+Module regrouping all project's settings.
+"""
+
 import os
 from os import path
 

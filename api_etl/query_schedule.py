@@ -1,3 +1,8 @@
+"""
+Module used to query schedule data contained in Dynamo, Mongo or Postgres databases.
+"""
+
+
 import os
 import pandas as pd
 import json

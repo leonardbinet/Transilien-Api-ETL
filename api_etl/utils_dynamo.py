@@ -1,16 +1,11 @@
-from os import sys, path
+"""
+Module used to interact with Dynamo databases.
+"""
+
 import logging
 import boto3
 import pandas as pd
-from datetime import datetime
-from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
-
-logger = logging.getLogger(__name__)
-
-if __name__ == '__main__':
-    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from api_etl.utils_misc import set_logging_conf
-    set_logging_conf(log_name="utils_dynamo.log")
+from boto3.dynamodb.types import TypeDeserializer  # TypeSerializer
 
 from api_etl.utils_secrets import get_secret
 
@@ -19,7 +14,6 @@ logger = logging.getLogger(__name__)
 AWS_DEFAULT_REGION = get_secret("AWS_DEFAULT_REGION", env=True)
 AWS_ACCESS_KEY_ID = get_secret("AWS_ACCESS_KEY_ID", env=True)
 AWS_SECRET_ACCESS_KEY = get_secret("AWS_SECRET_ACCESS_KEY", env=True)
-
 
 dynamodb = boto3.resource('dynamodb')
 

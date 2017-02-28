@@ -1,13 +1,13 @@
 if __name__ == '__main__':
-    import os
     import logging
     from os import sys, path
     import datetime
 
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    # Logging configuration
+
     from api_etl.utils_misc import set_logging_conf
-    set_logging_conf(log_name="task_01_d_sch_dep.log")
+    module_name = sys.modules[__name__]
+    set_logging_conf(log_name=module_name)
 
     from api_etl.utils_misc import get_paris_local_datetime_now
     from api_etl.extract_schedule import dynamo_save_stop_times_of_day_adapt_provision
@@ -23,7 +23,7 @@ if __name__ == '__main__':
     after_tomorrow_paris = today_paris + datetime.timedelta(days=2)
     after_tomorrow_paris_str = after_tomorrow_paris.strftime("%Y%m%d")
 
-    logger.info("Paris tomorrow date is %s, update in schedule table, with day after as well" %
-                tomorrow_paris_str)
+    logger.info(
+        "Paris tomorrow date is {0}, update in schedule table, with day after as well", tomorrow_paris_str)
     days = [tomorrow_paris_str, after_tomorrow_paris_str]
     dynamo_save_stop_times_of_day_adapt_provision(days)

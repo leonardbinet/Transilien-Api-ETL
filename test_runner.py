@@ -1,13 +1,16 @@
+"""
+Module made to launch all tests.
+"""
 # https://www.internalpointers.com/post/run-painless-test-suites-python-unittest
+
 from os import path, sys
+import unittest
 
 if __name__ == '__main__':
     sys.path.append(path.dirname(path.abspath(__file__)))
-    # Logging configuration
     from api_etl.utils_misc import set_logging_conf
-    set_logging_conf(log_name="test_runner.log", level="DEBUG")
+    set_logging_conf(log_name="tests.log", level="DEBUG")
 
-import unittest
 
 from test import test_extract_api, test_extract_schedule, test_query_schedule, test_match_ids, test_utils_misc, test_utils_rdb, test_utils_mongo
 

@@ -1,3 +1,7 @@
+"""
+Tests for extract_schedule module.
+"""
+
 from os import sys, path
 import unittest
 import logging

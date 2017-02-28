@@ -1,18 +1,77 @@
-import os
+"""
+Module containing some useful functions that might be used by all other modules.
+"""
+
 from os import sys, path
 import logging
 from logging.handlers import RotatingFileHandler
 from dateutil.tz import tzlocal
 import pytz
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 from api_etl.settings import logs_path, data_path, responding_stations_path
+
+from api_etl.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path, dynamo_real_dep, top_stations_path, scheduled_stations_path
 
 
 def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
+
+
+def get_station_ids(stations="all"):
+    """
+    Beware: two formats:
+    - 8 digits format to query api
+    - 7 digits format to query gtfs files
+    """
+    if stations == "all":
+        station_ids = np.genfromtxt(
+            all_stations_path, delimiter=',', dtype=str)
+
+    elif stations == "responding":
+        station_ids = np.genfromtxt(
+            responding_stations_path, delimiter=',', dtype=str)
+
+    elif stations == "top":
+        station_ids = np.genfromtxt(
+            top_stations_path, delimiter=',', dtype=str)
+
+    elif stations == "scheduled":
+        station_ids = np.genfromtxt(
+            scheduled_stations_path, delimiter=",", dtype=str)
+
+    else:
+        raise ValueError(
+            "stations parameter should be either 'all', 'top', 'scheduled' or 'responding'")
+
+    return list(station_ids)
+
+
+def api_date_to_day_time_corrected(api_date, time_or_day):
+    expected_passage_date = datetime.strptime(api_date, "%d/%m/%Y %H:%M")
+
+    day_string = expected_passage_date.strftime("%Y%m%d")
+    time_string = expected_passage_date.strftime("%H:%M:00")
+
+    # For hours between 00:00:00 and 02:59:59: we add 24h and say it
+    # is from the day before
+    if expected_passage_date.hour in (0, 1, 2):
+        # say this train is departed the time before
+        expected_passage_date = expected_passage_date - timedelta(days=1)
+        # overwrite day_string
+        day_string = expected_passage_date.strftime("%Y%m%d")
+        # overwrite time_string with +24: 01:44:00 -> 25:44:00
+        time_string = "%d:%d:00" % (
+            expected_passage_date.hour + 24, expected_passage_date.minute)
+
+    if time_or_day == "day":
+        return day_string
+    elif time_or_day == "time":
+        return time_string
+    else:
+        raise ValueError("time or day should be 'time' or 'day'")
 
 
 def compute_delay(scheduled_departure_time, real_departure_time):

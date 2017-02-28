@@ -1,11 +1,10 @@
+"""
+Module used to match data with different identification formats: more specifically, Transilien's API gives train_num, and GTFS schedule files provide a trip_id.
+"""
+
 from os import sys, path
 import logging
 from multiprocessing.dummy import Pool as ThreadPool
-
-if __name__ == '__main__':
-    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from api_etl.utils_misc import set_logging_conf
-    set_logging_conf(log_name="mod_03_match.log")
 
 from api_etl.utils_rdb import rdb_connection
 from api_etl.utils_mongo import mongo_get_collection, mongo_async_update_items
