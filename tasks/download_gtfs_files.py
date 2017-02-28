@@ -5,8 +5,7 @@ if __name__ == '__main__':
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     # Logging configuration
     from api_etl.utils_misc import set_logging_conf
-    module_name = sys.modules[__name__]
-    set_logging_conf(log_name=module_name)
+    set_logging_conf(log_name="download_gtfs_files")
 
     from api_etl.extract_schedule import download_gtfs_files
 

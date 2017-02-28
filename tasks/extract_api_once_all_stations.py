@@ -8,8 +8,7 @@ if __name__ == '__main__':
     from api_etl.extract_api import operate_one_cycle
     from api_etl.utils_misc import set_logging_conf
 
-    module_name = sys.modules[__name__]
-    set_logging_conf(log_name=module_name)
+    set_logging_conf(log_name="extract_api_once_all_stations")
     logger = logging.getLogger(__name__)
 
     # Default: all stations, and max 300 queries per sec
