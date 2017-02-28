@@ -153,7 +153,26 @@ def save_stations(items_list, dynamo_unique, mongo_unique, mongo_all):
             col_real_dep_unique, items_list3, index_fields)
 
 
-def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=False, mongo_all=True):
+def extract_save_stations(stations_list, dynamo_unique, mongo_unique, mongo_all):
+    """
+    This function performs the following operations:
+    - query transilien's api for the requested stations
+    - transform xml answers into json-serializable items
+    - update items with schedule information
+    - save it in requested databases
+
+    :param stations_list: these are the stations for which the transilien's api will be queried. List of stations of length 8.
+    :type stations_list: list of str/int
+
+    :param dynamo_unique: save items in dynamo table that save unique passages
+    :type dynamo_unique: boolean
+
+    :param mongo_unique: save items in dynamo table that save unique passages
+    :type mongo_unique: boolean
+
+    :param mongo_all: save items in dynamo table that save all passages
+    :type mongo_all: boolean
+    """
     # Extract
     items_list = extract_stations(stations_list)
     # Update
@@ -163,8 +182,22 @@ def extract_save_stations(stations_list, dynamo_unique=True, mongo_unique=False,
                   mongo_unique=mongo_unique, mongo_all=mongo_all)
 
 
-def operate_one_cycle(station_filter=False, max_per_minute=300):
+def operate_one_cycle(station_filter=False, dynamo_unique=True, mongo_unique=False, mongo_all=False):
+    """
+    This function performs the extract_save_stations operation in two steps. First half of stations, then second half of stations. This is made so that we do not exceed transilien's api max requests per minute (350/min).
 
+    :param station_filter: default to False. If no filter, the function will take all stations provided by the get_station_ids function. If set to list, these are the stations for which the transilien's api will be queried. List of stations of length 8.
+    :type station_filter: list of str/int OR False
+
+    :param dynamo_unique: save items in dynamo table that save unique passages
+    :type dynamo_unique: boolean
+
+    :param mongo_unique: save items in dynamo table that save unique passages
+    :type mongo_unique: boolean
+
+    :param mongo_all: save items in dynamo table that save all passages
+    :type mongo_all: boolean
+    """
     if not station_filter:
         station_list = get_station_ids("all")
     else:
@@ -176,7 +209,12 @@ def operate_one_cycle(station_filter=False, max_per_minute=300):
 
     for station_chunk in station_chunks:
         chunk_begin_time = datetime.now()
-        extract_save_stations(station_chunk)
+        extract_save_stations(
+            station_chunk,
+            mongo_all=mongo_all,
+            dynamo_unique=dynamo_unique,
+            mongo_unique=mongo_unique
+        )
 
         time_passed = (datetime.now() - chunk_begin_time).seconds
         logger.info("Time spent: %d seconds" % int(time_passed))
@@ -189,20 +227,31 @@ def operate_one_cycle(station_filter=False, max_per_minute=300):
                 "Chunk time took more than one minute: %d seconds" % time_passed)
 
 
-def operate_multiple_cycles(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600, max_per_minute=300):
+def operate_multiple_cycles(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600):
+    """
+    Deprecated: a cron job is scheduled to run operate_one_cycle every 'n' minutes.
+
+    This function performs the operate_one_cycle operation every 'cycle_time_sec' seconds (default 10 minutes), during the time defined as 'stop_time_sec' (default 60 minutes).
+
+    :param station_filter: default to False. If no filter, the function will take all stations provided by the get_station_ids function. If set to list, these are the stations for which the transilien's api will be queried. List of stations of length 8.
+    :type station_filter: list of str/int OR False
+
+    :param cycle_time_sec: number of seconds between each cycle beginning.
+    :type cycle_time_sec: int
+
+    :param stop_time_sec: number of seconds until a new cycle cannot begin.
+    :type stop_time_sec: int
+    """
 
     logger.info("BEGINNING OPERATION WITH LIMIT OF %d SECONDS" %
                 stop_time_sec)
-    logger.info("MAX NUMBER OF QUERY PER MINUTE TO API: %d" % max_per_minute)
-    begin_time = datetime.now()
 
     while (datetime.now() - begin_time).seconds < stop_time_sec:
         # Set cycle loop
         loop_begin_time = datetime.now()
         logger.info("BEGINNING CYCLE OF %d SECONDS" % cycle_time_sec)
 
-        operate_one_cycle(station_filter=station_filter,
-                          max_per_minute=max_per_minute)
+        operate_one_cycle(station_filter=station_filter)
 
         # Wait until beginning of next cycle
         time_passed = (datetime.now() - loop_begin_time).seconds
