@@ -12,7 +12,7 @@ if __name__ == '__main__':
     set_logging_conf(log_name="tests.log", level="DEBUG")
 
 
-from test import test_extract_api, test_extract_schedule, test_query_schedule, test_match_ids, test_utils_misc, test_utils_rdb, test_utils_mongo
+from tests import test_extract_api, test_extract_schedule, test_query_schedule, test_match_ids, test_utils_misc, test_utils_rdb, test_utils_mongo
 
 # initialize the test suite
 loader = unittest.TestLoader()
