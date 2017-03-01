@@ -1,15 +1,54 @@
 # API TRANSILIEN
 
-## Setup
+## Overview
 
-### EC2 Instance
-You should set up an EC2 instance with ssh keys that you can access this way:
+This repository is part of a broader project with SNCF’s R&D department to provide arrival time predictions for trains in Paris area.
+
+A repository details how this project is deployed through Vagrant and Salt automation tools.
+
+Another details details how the website and the API built for this project work.
+
+
+#### Tasks overview
+![tasks](ressources/ETL_SNCF_tasks.png)
+
+#### Diagram
+![diagram](ressources/ETL_SNCF_diagram.png)
+
+## What it does
+
+#### Task 1: scheduled departure times (from SNCF website in GTFS format):
+
+- download schedules from SNCF website (csv format)
+- save it in relational database (optionally)
+- find each day which trips should pass, and at what time trains should pass in stations
+- save it in Dynamo ‘scheduled_departures’ table
+
+#### Task 2: real departure times (from Transilien’s API)
+
+- extract data from transilien’s api
+- transform XML received by api into json serializable objects
+- query Dynamo ‘scheduled_departures’ table (can also query Postgres, but is much slower) to find out for each train predicted to arrive in a station, which trip_id is linked, and at what time it was scheduled to arrive.
+- enrich these objects
+- save it in Dynamo ‘real_departures’ table
+
+
+
+## Documentation
+
+You will find detailed documentation here.
+[HERE](https://leonardbinet.github.io/)
+
+## SSH reminder
 ```
 ssh -i "~/.ssh/aws-eb2" ubuntu@34.251.124.59
 ```
 
 ### Configuration
-Create secret.json file: this is the file where the application will find credentials for the different apis.
+
+Either use [salt-vagrant repository](https://github.com/leonardbinet/Salt-Vagrant-master-mode) explaining how to set this project up.
+
+Or create secret.json file: this is the file where the application will find credentials for the different apis.
 
 You have to create a JSON file in the root directory (same level as main.py):
 ```
@@ -17,63 +56,15 @@ You have to create a JSON file in the root directory (same level as main.py):
     "API_USER" : "your_api_user",
     "API_PASSWORD" : "your_api_password",
 
-    "MONGO_HOST":"***",
-    "MONGO_USER":"***",
-    "MONGO_DB_NAME":"***",
-    "MONGO_PASSWORD":"***",
-
     "AWS_ACCESS_KEY_ID":"***",
     "AWS_SECRET_ACCESS_KEY":"***",
     "AWS_DEFAULT_REGION":"eu-west-1"
 }
 ```
 
-Set configuration variables in fabfile or in conf file.
 
-### Environment
+## Debug
 
-All setup with fabfile:
-Note: Fabric only works with python2, so you might have to launch it from a virtual environment.
-```
-# If your default python is 3
-conda create --name fabric_env python=2
-source activate fabric_env
-pip install fabric
-
-# If your default python is 2
-pip install fabric
-
-# Launch fabfile:
-# For first time:
-fab initial_deploy:host=ubuntu@ec2-54-154-184-96.eu-west-1.compute.amazonaws.com
-# Then later, to update if needed (shorter operation):
-fab deploy:host=ubuntu@ec2-54-154-184-96.eu-west-1.compute.amazonaws.com
-
-
-# For test env
-fab initial_deploy:host=ubuntu@ec2-54-229-174-254.eu-west-1.compute.amazonaws.com
-fab deploy:host=ubuntu@ec2-54-229-174-254.eu-west-1.compute.amazonaws.com
-
-```
-
-
-
-## Extract data from Transilien API
-After deploying this repository with the fabfile, the extraction will be automated (default: cycle of 120 seconds, for 3500 seconds).
-
-To launch script manually: (default: cycle of 120 seconds, for 3500 seconds)
-```
-python main.py extract
-```
-Or you can choose your cycle: for instance 10 minutes (600 seconds).
-```
-python main.py extract 600
-```
-
-## Cron:
-
-
-### Logs
 ```
 cat /var/log/syslog
 ```
@@ -86,8 +77,6 @@ Check what will be run:
 run-parts --test /etc/cron.hourly
 ```
 
-### Check what is running (all processes):
-https://doc.ubuntu-fr.org/faq_process
 ```
 ps -ef
 ps -p "5513" -o etime=
@@ -96,51 +85,7 @@ To kill: brutal(replace number by id from last command)
 ```
 sudo pkill -9 5513
 ```
-## MongoDB
 
-real_departures Unique Compound Index: day/station/num:
-(beware after midnight)
-```
-
-scheduled_departures.create_index( [("scheduled_departure_day", pymongo.ASCENDING), ("station_id", pymongo.ASCENDING), ("train_num",pymongo.ASCENDING)], unique=True)
-
-real_departures.create_index( [("request_day", pymongo.ASCENDING), ("station", pymongo.ASCENDING), ("num",pymongo.DESCENDING)], unique=True)
-
-real_departures.create_index("train_num")
-
-real_departures.create_index("station_id")
-
-real_departures.create_index("scheduled_departure_day")
-
-# New version with new index
-real_departures.create_index( [("expected_passage_day", pymongo.ASCENDING), ("station", pymongo.ASCENDING), ("train_num",pymongo.ASCENDING)], unique=True)
-
-real_departures.create_index("train_num")
-
-real_departures.create_index("station_id")
-
-real_departures.create_index("scheduled_departure_day")
-
-```
-
-## Postgres:
-
-All is done automatically by the fabric script, when deploying, assuming that you created the secret.json file.
-```
-sudo -u postgres psql
-
-CREATE DATABASE api_transilien;
-CREATE USER api_transilien_user WITH PASSWORD 'password';
-
-ALTER ROLE api_transilien_user SET client_encoding TO 'utf8';
-ALTER ROLE api_transilien_user SET default_transaction_isolation TO 'read committed';
-ALTER ROLE api_transilien_user SET timezone TO 'UTC';
-
-GRANT ALL PRIVILEGES ON DATABASE api_transilien TO api_transilien_user;
-```
-
-## Dynamo
-All is handled automatically.
 
 ## Documentation
 To generate documentation:
