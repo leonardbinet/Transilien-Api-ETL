@@ -21,4 +21,4 @@ def get_secret(setting, my_secrets=secrets, env=False):
             os.environ[setting] = value
         return value
     except KeyError:
-        logger.warning("Impossible to get " + setting)
+        logger.warning("Impossible to get %s", setting)

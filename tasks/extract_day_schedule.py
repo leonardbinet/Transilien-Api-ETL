@@ -23,6 +23,6 @@ if __name__ == '__main__':
     after_tomorrow_paris_str = after_tomorrow_paris.strftime("%Y%m%d")
 
     logger.info(
-        "Paris tomorrow date is {0}, update in schedule table, with day after as well", tomorrow_paris_str)
+        "Paris tomorrow date is %s, update in schedule table, with day after as well", tomorrow_paris_str)
     days = [tomorrow_paris_str, after_tomorrow_paris_str]
     dynamo_save_stop_times_of_day_adapt_provision(days)

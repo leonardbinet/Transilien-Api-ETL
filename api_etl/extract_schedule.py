@@ -38,17 +38,17 @@ def download_gtfs_files():
     :rtype: boolean
     """
     logger.info(
-        "Download of csv containing links of zip files, at url %s" % gtfs_csv_url)
+        "Download of csv containing links of zip files, at url %s", gtfs_csv_url)
     df_links_gtfs = pd.read_csv(gtfs_csv_url)
 
     # Download and unzip all files
     # Check if one is "gtfs-lines-last" (necessary)
     gtfs_lines_last_present = False
     for link in df_links_gtfs["file"].values:
-        logger.info("Download of %s" % link)
+        logger.info("Download of %s", link)
         local_filename, headers = urlretrieve(link)
 
-        logger.info("File name is %s" % headers.get_filename())
+        logger.info("File name is %s", headers.get_filename())
         # Get name in header and remove the ".zip"
         extracted_data_folder_name = headers.get_filename().split(".")[0]
         if extracted_data_folder_name == "gtfs-lines-last":
@@ -205,7 +205,7 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
         return matching_stop_times
     else:
         json_list = json.loads(matching_stop_times.to_json(orient='records'))
-        logger.info("There are %d scheduled departures on %s" %
+        logger.info("There are %d scheduled departures on %s",
                     (len(json_list), yyyymmdd_format))
         return json_list
 
@@ -276,7 +276,7 @@ def build_trips_ext_df():
     - remove NaN values
     """
     trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
-    logger.debug("Found %d trips." % len(trips.index))
+    logger.debug("Found %d trips.", len(trips.index))
     calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
 
     trips["train_num"] = trips["trip_id"].str.extract(
@@ -340,7 +340,7 @@ def save_trips_extended_rdb(dryrun=False):
     """
     trips_ext = build_trips_ext_df()
 
-    logger.debug("%d trips with calendar dates." % len(trips_ext.index))
+    logger.debug("%d trips with calendar dates.", len(trips_ext.index))
 
     if not dryrun:
         connection = rdb_connection(db="postgres_alch")

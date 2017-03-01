@@ -42,7 +42,7 @@ class ApiClient():
         Low level function to process single queries with retries.
         """
         if verbose and not first_request_time:
-            logger.debug("Import on url %s " % url)
+            logger.debug("Import on url %s ", url)
 
         if not first_request_time:
             first_request_time = datetime.now()
@@ -66,12 +66,12 @@ class ApiClient():
 
         # Warn if not 200
         if response.status_code != 200:
-            logger.debug("WARNING: response status_code is %s" %
+            logger.debug("WARNING: response status_code is %s",
                          response.status_code)
 
         if response.status_code in _RETRIABLE_STATUSES:
             # Retry request.
-            logger.debug("WARNING: retry number %d" % retry_counter)
+            logger.debug("WARNING: retry number %d", retry_counter)
             return self._get(url=url, extra_params=extra_params, first_request_time=first_request_time, retry_counter=retry_counter + 1, verbose=verbose)
 
         return response
@@ -126,7 +126,7 @@ class ApiClient():
                     return [resp, station]
                 except:
                     logger.debug(
-                        "Error getting station %s information" % station)
+                        "Error getting station %s information", station)
                     return [False, station]
 
         async def run(url_list):

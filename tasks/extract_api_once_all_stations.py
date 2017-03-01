@@ -13,4 +13,4 @@ if __name__ == '__main__':
 
     # Default: all stations, and max 300 queries per sec
     logger.info("Beginning single cycle extraction")
-    operate_one_cycle(station_filter=False, max_per_minute=300)
+    operate_one_cycle(station_filter=False)

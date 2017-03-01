@@ -131,13 +131,13 @@ def save_stations(items_list, dynamo_unique, mongo_unique, mongo_all):
     items_list3 = copy.deepcopy(items_list)
 
     if dynamo_unique:
-        logger.info("Upsert of %d items of json data in dynamo %s table" %
-                    (len(items_list), dynamo_real_dep))
+        logger.info("Upsert of %d items of json data in dynamo %s table",
+                    len(items_list), dynamo_real_dep)
         dynamo_insert_batches(items_list, table_name=dynamo_real_dep)
 
     if mongo_all:
         # Save items in collection without compound primary key
-        logger.info("Saving  %d items in Mongo departures collection" %
+        logger.info("Saving  %d items in Mongo departures collection",
                     len(items_list2))
         # Save in chunks of 100
         chunks = [items_list2[i:i + 100]
@@ -147,8 +147,11 @@ def save_stations(items_list, dynamo_unique, mongo_unique, mongo_all):
     if mongo_unique:
         # Save items in collection with compound primary key
         index_fields = ["request_day", "station", "train_num"]
-        logger.info("Upsert of %d items of json data in Mongo %s collection" %
-                    (len(items_list3), col_real_dep_unique))
+        logger.info(
+            "Upsert of %d items of json data in Mongo %s collection",
+            len(items_list3),
+            col_real_dep_unique
+        )
         mongo_async_upsert_items(
             col_real_dep_unique, items_list3, index_fields)
 
@@ -217,14 +220,16 @@ def operate_one_cycle(station_filter=False, dynamo_unique=True, mongo_unique=Fal
         )
 
         time_passed = (datetime.now() - chunk_begin_time).seconds
-        logger.info("Time spent: %d seconds" % int(time_passed))
+        logger.info("Time spent: %d seconds", int(time_passed))
 
         # Max per minute: so have to wait
         if time_passed < 60:
             time.sleep(60 - time_passed)
         else:
             logger.warning(
-                "Chunk time took more than one minute: %d seconds" % time_passed)
+                "Chunk time took more than one minute: %d seconds",
+                time_passed
+            )
 
 
 def operate_multiple_cycles(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600):
@@ -243,29 +248,33 @@ def operate_multiple_cycles(station_filter=False, cycle_time_sec=1200, stop_time
     :type stop_time_sec: int
     """
 
-    logger.info("BEGINNING OPERATION WITH LIMIT OF %d SECONDS" %
-                stop_time_sec)
+    logger.info(
+        "BEGINNING OPERATION WITH LIMIT OF %d SECONDS",
+        stop_time_sec
+    )
     begin_time = datetime.now()
 
     while (datetime.now() - begin_time).seconds < stop_time_sec:
         # Set cycle loop
         loop_begin_time = datetime.now()
-        logger.info("BEGINNING CYCLE OF %d SECONDS" % cycle_time_sec)
+        logger.info("BEGINNING CYCLE OF %d SECONDS", cycle_time_sec)
 
         operate_one_cycle(station_filter=station_filter)
 
         # Wait until beginning of next cycle
         time_passed = (datetime.now() - loop_begin_time).seconds
-        logger.info("Time spent on cycle: %d seconds" % int(time_passed))
+        logger.info("Time spent on cycle: %d seconds", int(time_passed))
         if time_passed < cycle_time_sec:
             time_to_wait = cycle_time_sec - time_passed
-            logger.info("Waiting %d seconds till next cycle." % time_to_wait)
+            logger.info("Waiting %d seconds till next cycle.", time_to_wait)
             time.sleep(time_to_wait)
         else:
             logger.warning(
-                "Cycle time took more than expected: %d seconds" % time_passed)
+                "Cycle time took more than expected: %d seconds", time_passed)
 
         # Information about general timing
         time_from_begin = (datetime.now() - begin_time).seconds
-        logger.info("Time spent from beginning: %d seconds. (stop at %d seconds)" %
-                    (time_from_begin, stop_time_sec))
+        logger.info(
+            "Time spent from beginning: %d seconds. (stop at %d seconds)",
+            time_from_begin, stop_time_sec
+        )

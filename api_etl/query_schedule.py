@@ -89,8 +89,10 @@ def dynamo_extend_items_with_schedule(items_list, full=False, df_format=False):
         x["scheduled_departure_time"], x["expected_passage_time"]), axis=1)
 
     # Inform
-    logger.info("Asked to find schedule and trip_id for %d items, we found %d of them." % (
-        len(df), len(resp_df)))
+    logger.info(
+        "Asked to find schedule and trip_id for %d items, we found %d of them.",
+        len(df), len(resp_df)
+    )
     if df_format:
         return df_updated
 
@@ -133,10 +135,10 @@ def trip_scheduled_departure_time(trip_id, station):
         return False
     elif len(departure_time) == 1:
         departure_time = departure_time[0]
-        logger.debug("Found departure time: %s" % departure_time)
+        logger.debug("Found departure time: %s", departure_time)
         return departure_time
     else:
-        logger.warning("Multiple scheduled time found: %d matches" %
+        logger.warning("Multiple scheduled time found: %d matches",
                        len(departure_time))
         return False
     return departure_time

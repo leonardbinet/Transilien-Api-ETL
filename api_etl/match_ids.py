@@ -24,10 +24,13 @@ def add_trip_id(item):
     - either return None
     """
     try:
-        logger.debug("Update train %s on station %s on day %s" %
-                     (item["train_num"], item["station"], item["expected_passage_day"]))
+        logger.debug(
+            "Update train %s on station %s on day %s",
+            item["train_num"], item["station"],
+            item["expected_passage_day"])
         item_trip_id = api_train_num_to_trip_id(
-            item["train_num"], item["expected_passage_day"])
+            item["train_num"], item["expected_passage_day"]
+        )
         if not item_trip_id:
             # If we can't find trip_id, we remove item from list
             logger.debug("Cannot find trip_id for element")
@@ -36,8 +39,10 @@ def add_trip_id(item):
             logger.debug("Found trip_id")
             return item
     except Exception as e:
-        logger.debug("Cannot find trip_id for element, exception %s" %
-                     e.with_traceback)
+        logger.debug(
+            "Cannot find trip_id for element, exception %s",
+            e.with_traceback
+        )
 
 
 def add_schedule_and_delay(item):
@@ -63,7 +68,7 @@ def add_schedule_and_delay(item):
             return item
     except Exception as e:
         logger.debug(
-            "Cannot find schedule or delay for element: exception %s" % e)
+            "Cannot find schedule or delay for element: exception %s", e)
 
 
 def build_mongo_update_object(item):
@@ -85,7 +90,7 @@ def build_mongo_update_object(item):
         return item_to_update
     except Exception as e:
         logger.error(
-            "Couldn't prepare element: %s, exception %s" % (item, e.with_traceback))
+            "Couldn't prepare element: %s, exception %s", item, e)
 
 
 def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station=False, dryrun=False):
@@ -107,14 +112,16 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station
     if not one_station:
         real_dep_on_day = list(real_departures_col.find(
             {"expected_passage_day": yyyymmdd}).limit(limit))
-        logger.info("Found %d elements in real_departures collection." %
+        logger.info("Found %d elements in real_departures collection.",
                     len(real_dep_on_day))
     else:
         one_station = str(one_station)
         real_dep_on_day = list(real_departures_col.find(
             {"expected_passage_day": yyyymmdd, "station": one_station}).limit(limit))
-        logger.info("Found %d elements in real_departures collection for station %s." %
-                    (len(real_dep_on_day), one_station))
+        logger.info(
+            "Found %d elements in real_departures collection for station %s.",
+            len(real_dep_on_day), one_station
+        )
 
     # PART 2 : GET TRIP_ID, SCHEDULED_DEPARTURE_TIME AND DELAY
     # PART 2.A : GET TRIP_ID
@@ -123,7 +130,7 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station
     pool.close()
     pool.join()
     real_dep_on_day = list(filter(None, real_dep_on_day))
-    logger.info("Found trip_id for %s elements." % len(real_dep_on_day))
+    logger.info("Found trip_id for %s elements.", len(real_dep_on_day))
 
     # PART 2.B : GET TRIP SCHEDULED_DEPARTURE_TIME, DELAY
     pool = ThreadPool(5)
@@ -136,14 +143,16 @@ def update_real_departures_mongo(yyyymmdd, threads=5, limit=1000000, one_station
     items_to_update = list(map(build_mongo_update_object, real_dep_on_day))
     items_to_update = list(filter(None, items_to_update))
     logger.info("Real departures gathering finished. Beginning update.")
-    logger.info("Gathered %d elements to update." % len(items_to_update))
+    logger.info("Gathered %d elements to update.", len(items_to_update))
 
     # PART 3: UPDATE ALL IN MONGO
     if not dryrun:
         update_chunks = chunks(items_to_update, 1000)
         for i, update_chunk in enumerate(update_chunks):
             logger.info(
-                "Processing chunk number %d (chunks of max 1000) containing %d elements to update." % (i, len(update_chunk)))
+                "Processing chunk number %d (chunks of max 1000) containing %d elements to update.",
+                i, len(update_chunk)
+            )
             mongo_async_update_items(col_real_dep_unique, update_chunk)
     else:
         logger.info("Dryrun is on: nothing is updated on mongo")
@@ -167,11 +176,11 @@ def api_train_num_to_trip_id(train_num, yyyymmdd_day, weekday=None):
     elif len(trip_ids) == 1:
         trip_id = trip_ids[0]
         connection.close()
-        logger.debug("Found trip_id: %s" % trip_ids)
+        logger.debug("Found trip_id: %s", trip_ids)
         return trip_id
     else:
-        logger.debug("Multiple trip_ids found: %d matches: %s" %
-                     (len(trip_ids), trip_ids))
+        logger.debug("Multiple trip_ids found: %d matches: %s",
+                     len(trip_ids), trip_ids)
         connection.close()
         return False
 
