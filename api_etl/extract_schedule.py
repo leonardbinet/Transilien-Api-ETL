@@ -24,6 +24,19 @@ pd.options.mode.chained_assignment = None
 
 
 def download_gtfs_files():
+    """
+    Download gtfs files from SNCF website (based on URL defined in settings module) and saves it in data folder (defined as well in settings module). There is no paramater to pass.
+
+    Process is in two steps:
+    - first: download csv file containing links to zip files
+    - second: download files based on urls found in csv from first step
+
+    Folder names in which files are unzip are based on the headers of the zip files.
+
+    Function returns True if 'gtfs-lines-last' folder has been found (this is the usual folder we use then to find schedules). Return False otherwise.
+
+    :rtype: boolean
+    """
     logger.info(
         "Download of csv containing links of zip files, at url %s" % gtfs_csv_url)
     df_links_gtfs = pd.read_csv(gtfs_csv_url)
@@ -54,109 +67,17 @@ def download_gtfs_files():
             return False
 
 
-def build_trips_ext_df():
-    """
-    Build trips extended dataframe out of:
-    - trips
-    - calendar
-    Adds column:
-    - train_num out of trip_id
-    Clean:
-    - remove NaN values
-    """
-    trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
-    logger.debug("Found %d trips." % len(trips.index))
-    calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
-
-    trips["train_num"] = trips["trip_id"].str.extract(
-        "^.{5}(\d{6})", expand=False)
-    trips_ext = trips.merge(calendar, on="service_id", how="inner")
-
-    # Clean missing fields
-    # Block id is always NaN, and drop where calendar is not present
-    del trips_ext['block_id']
-    trips_ext.dropna(axis=0, how='any', inplace=True)
-    return trips_ext
-
-
-def build_stop_times_ext_df():
-    """
-    Build stop times extended dataframe out of:
-    - trips
-    - calendar
-    - stop_times
-    - stops
-    Adds column:
-    - train_num out of trip_id
-    - station_id out of stop_id
-    Clean:
-    - remove NaN values
-    """
-    trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
-    calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
-    stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
-    stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
-
-    stop_times_ext = stop_times.merge(trips, on="trip_id", how="inner")
-    stop_times_ext = stop_times_ext.merge(
-        calendar, on="service_id", how="inner")
-    stop_times_ext = stop_times_ext.merge(stops, on="stop_id", how="inner")
-
-    # Delete empty columns
-    del stop_times_ext['block_id']
-    del stop_times_ext['stop_headsign']
-    del stop_times_ext['stop_desc']
-    del stop_times_ext['zone_id']
-    del stop_times_ext['stop_url']
-
-    stop_times_ext["train_num"] = stop_times_ext[
-        "trip_id"].str.extract("^.{5}(\d{6})", expand=False)
-    stop_times_ext["station_id"] = stop_times_ext.stop_id.str.extract(
-        "DUA(\d{7})", expand=False)
-
-    # In some case we cannot extract station number
-    stop_times_ext.dropna(axis=0, inplace=True)
-    return stop_times_ext
-
-
-def save_trips_extended_rdb(dryrun=False):
-    """
-    Save trips_ext table
-    """
-    trips_ext = build_trips_ext_df()
-
-    logger.debug("%d trips with calendar dates." % len(trips_ext.index))
-
-    if not dryrun:
-        connection = rdb_connection(db="postgres_alch")
-        trips_ext.to_sql("trips_ext", connection, if_exists='replace',
-                         index=False, index_label="trip_id", chunksize=1000)
-    else:
-        logger.info("Dryrun is True, database has not changed.")
-    return trips_ext
-
-
-def save_stop_times_extended_rdb(dryrun=False):
-    """
-    Save stop_times_ext table
-    """
-    stop_times_ext = build_stop_times_ext_df()
-
-    if not dryrun:
-        connection = rdb_connection(db="postgres_alch")
-        stop_times_ext.to_sql("stop_times_ext", connection, if_exists='replace',
-                              index=True, index_label=None, chunksize=1000)
-    else:
-        logger.info("Dry run is True: database has not been modified.")
-    return stop_times_ext
-
-
-def save_all_schedule_tables_rdb():
-    save_trips_extended_rdb()
-    save_stop_times_extended_rdb()
-
-
 def get_services_of_day(yyyymmdd_format):
+    """
+    Given a date, this function will return all service-ids scheduled on transilien's network on this day.
+
+    This function requires that gtfs files are present in data folder specified in settings module.
+
+    :param yyyymmdd_format: date on yyyymmdd format
+    :type yyyymmdd_format: string or int
+
+    :rtype: list
+    """
     # Get weekday: for double check
     datetime_format = datetime.datetime.strptime(yyyymmdd_format, "%Y%m%d")
     weekday = calendar.day_name[datetime_format.weekday()].lower()
@@ -185,6 +106,16 @@ def get_services_of_day(yyyymmdd_format):
 
 
 def get_trips_of_day(yyyymmdd_format):
+    """
+    Given a date, this function will return all trip-ids scheduled on transilien's network on this day.
+
+    This function requires that gtfs files are present in data folder specified in settings module.
+
+    :param yyyymmdd_format: date on yyyymmdd format
+    :type yyyymmdd_format: string or int
+
+    :rtype: list
+    """
     all_trips = pd.read_csv(os.path.join(gtfs_path, "trips.txt"))
     services_on_day = get_services_of_day(
         yyyymmdd_format)
@@ -193,10 +124,31 @@ def get_trips_of_day(yyyymmdd_format):
     return trips_on_day
 
 
-def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None, df=False, dropna_index=True, drop_dup=True):
+def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None, df_format=False, dropna_index=True, drop_dup=True):
     """
-    stop_filter is a list of stops you want, it must be in GTFS format:
-    station_filter is a list of stations you want, it must be api format
+    Given a date, this function will return all trip-ids scheduled on transilien's network on this day.
+
+    This function requires that gtfs files are present in data folder specified in settings module.
+
+    :param yyyymmdd_format: date on yyyymmdd format
+    :type yyyymmdd_format: string or int
+
+    :param stop_filter: default None. If set, should be a list of stops for which you want to obtain stop times scheduled on this day. Otherwise, if set to False or None, it will get all stops without restrictions on stations.
+    :type stop_filter: None/False or list of valid stops_ids
+
+    :param station_filter: default None. If set, should be a list of station ids for which you want to obtain stop times scheduled on this day. Otherwise, if set to False or None, it will get all stops without restrictions on stations.
+    :type station_filter: None/False or list of valid station_filter
+
+    :param df_format: default False
+    :type df_format: boolean
+
+    :param dropna_index: default True. If True, it will drop all rows where the index fields ("station_id", "day_train_num") might have NaN values. Do not set to False in production since the items with no such fields will raise errors when trying to save on tables with primary keys on these fields. The purpose of this function is to facilitate schedule investigation.
+    :type dropna_index: boolean
+
+    :param drop_dup: default True. If True, it will drop all duplicates based on index fields ("station_id", "day_train_num"). There should not be duplicates given the GTFS structure. This parameter is just here for investigation.
+    :type drop_dup: boolean
+
+    :rtype: list of json serializable objects, or pandas dataframe if df_format is set to True
     """
 
     all_stop_times = pd.read_csv(os.path.join(gtfs_path, "stop_times.txt"))
@@ -249,7 +201,7 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
         cond3 = matching_stop_times["station_id"].isin(station_filter)
         matching_stop_times = matching_stop_times[cond3]
 
-    if df:
+    if df_format:
         return matching_stop_times
     else:
         json_list = json.loads(matching_stop_times.to_json(orient='records'))
@@ -259,6 +211,14 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
 
 
 def dynamo_save_stop_times_of_day(yyyymmdd_format):
+    """
+    Given a date, this function will save all trip-ids scheduled on transilien's network on this day in Dynamo's 'scheduled_departures' table.
+
+    This function requires that gtfs files are present in data folder specified in settings module.
+
+    :param yyyymmdd_format: date on yyyymmdd format
+    :type yyyymmdd_format: string or int
+    """
     # Can take some time depending on write capacity
     items = get_departure_times_of_day_json_list(yyyymmdd_format)
     dynamo_insert_batches(items, dynamo_sched_dep)
@@ -266,8 +226,18 @@ def dynamo_save_stop_times_of_day(yyyymmdd_format):
 
 def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format, ignore_fail=True):
     """
-    Accepts either a single element or a list.
-    ProvisionedThroughput is set in settings parameters
+
+    Given a date, this function will first update Dynamo's "scheduled_departures" table provisioned throughput to be able to save data in less than 30 minutes.
+
+    Then it will save all trip-ids scheduled on transilien's network on this day in Dynamo's table.
+
+    Finally it update table provisioned throughput to a lower value on write operations.
+
+    :param yyyymmdd_format: date on yyyymmdd format
+    :type yyyymmdd_format: string or int
+
+    :param ignore_fail: default True. If you try to update provisioned throughput to existing values, it will raise an error. It is not a problem, so you might want to ignore this error.
+    :type ignore_fail: boolean
     """
     # Format it in a list
     if not isinstance(yyyymmdd_format, list):
@@ -291,3 +261,116 @@ def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format, ignore_fail=T
     # Reset provisioned_throughput to minimal writing
     dynamo_update_provisionned_capacity(
         read=shed_read, write=shed_write_off, table_name=dynamo_sched_dep)
+
+
+def build_trips_ext_df():
+    """
+    DEPRECATED
+
+    Build trips extended dataframe out of:
+    - trips
+    - calendar
+    Adds column:
+    - train_num out of trip_id
+    Clean:
+    - remove NaN values
+    """
+    trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
+    logger.debug("Found %d trips." % len(trips.index))
+    calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
+
+    trips["train_num"] = trips["trip_id"].str.extract(
+        "^.{5}(\d{6})", expand=False)
+    trips_ext = trips.merge(calendar, on="service_id", how="inner")
+
+    # Clean missing fields
+    # Block id is always NaN, and drop where calendar is not present
+    del trips_ext['block_id']
+    trips_ext.dropna(axis=0, how='any', inplace=True)
+    return trips_ext
+
+
+def build_stop_times_ext_df():
+    """
+    DEPRECATED
+
+    Build stop times extended dataframe out of:
+    - trips
+    - calendar
+    - stop_times
+    - stops
+    Adds column:
+    - train_num out of trip_id
+    - station_id out of stop_id
+    Clean:
+    - remove NaN values
+    """
+    trips = pd.read_csv(path.join(gtfs_path, "trips.txt"))
+    calendar = pd.read_csv(path.join(gtfs_path, "calendar.txt"))
+    stop_times = pd.read_csv(path.join(gtfs_path, "stop_times.txt"))
+    stops = pd.read_csv(path.join(gtfs_path, "stops.txt"))
+
+    stop_times_ext = stop_times.merge(trips, on="trip_id", how="inner")
+    stop_times_ext = stop_times_ext.merge(
+        calendar, on="service_id", how="inner")
+    stop_times_ext = stop_times_ext.merge(stops, on="stop_id", how="inner")
+
+    # Delete empty columns
+    del stop_times_ext['block_id']
+    del stop_times_ext['stop_headsign']
+    del stop_times_ext['stop_desc']
+    del stop_times_ext['zone_id']
+    del stop_times_ext['stop_url']
+
+    stop_times_ext["train_num"] = stop_times_ext[
+        "trip_id"].str.extract("^.{5}(\d{6})", expand=False)
+    stop_times_ext["station_id"] = stop_times_ext.stop_id.str.extract(
+        "DUA(\d{7})", expand=False)
+
+    # In some case we cannot extract station number
+    stop_times_ext.dropna(axis=0, inplace=True)
+    return stop_times_ext
+
+
+def save_trips_extended_rdb(dryrun=False):
+    """
+    DEPRECATED
+
+    Save trips_ext table
+    """
+    trips_ext = build_trips_ext_df()
+
+    logger.debug("%d trips with calendar dates." % len(trips_ext.index))
+
+    if not dryrun:
+        connection = rdb_connection(db="postgres_alch")
+        trips_ext.to_sql("trips_ext", connection, if_exists='replace',
+                         index=False, index_label="trip_id", chunksize=1000)
+    else:
+        logger.info("Dryrun is True, database has not changed.")
+    return trips_ext
+
+
+def save_stop_times_extended_rdb(dryrun=False):
+    """
+    DEPRECATED
+
+    Save stop_times_ext table
+    """
+    stop_times_ext = build_stop_times_ext_df()
+
+    if not dryrun:
+        connection = rdb_connection(db="postgres_alch")
+        stop_times_ext.to_sql("stop_times_ext", connection, if_exists='replace',
+                              index=True, index_label=None, chunksize=1000)
+    else:
+        logger.info("Dry run is True: database has not been modified.")
+    return stop_times_ext
+
+
+def save_all_schedule_tables_rdb():
+    """
+    DEPRECATED
+    """
+    save_trips_extended_rdb()
+    save_stop_times_extended_rdb()
