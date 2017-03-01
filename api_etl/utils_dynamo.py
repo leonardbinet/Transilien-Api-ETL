@@ -5,7 +5,7 @@ Module used to interact with Dynamo databases.
 import logging
 import boto3
 import pandas as pd
-from boto3.dynamodb.types import TypeDeserializer  # TypeSerializer
+# from boto3.dynamodb.types import TypeDeserializer  # TypeSerializer
 
 from api_etl.utils_secrets import get_secret
 
@@ -19,20 +19,41 @@ dynamodb = boto3.resource('dynamodb')
 
 
 def dynamo_get_client():
+    """
+    Return Dynamo client (credentials already set up)
+    """
     return boto3.client("dynamodb")
 
 
-def dynamo_create_real_departures_table(table_name, read=5, write=5):
+def dynamo_create_real_departures_table(table_name, read=5, write=5, hash_key="day_station", range_key="expected_passage_day"):
+    """
+    Creates a table in Dynamo with given hash and range keys, with provisioned throughput given in parameters.
+
+    :param table_name: table name
+    :type table_name: str
+
+    :param read: table read provisioned throughput
+    :type read: int
+
+    :param write: table write provisioned throughput
+    :type write: int
+
+    :param hash_key: table Hash Key
+    :type hash_key: str
+
+    :param range_key: table Range Key
+    :type range_key: str
+    """
 
     table = dynamodb.create_table(
         TableName=table_name,
         KeySchema=[
             {
-                'AttributeName': 'day_station',
+                'AttributeName': hash_key,
                 'KeyType': 'HASH'
             },
             {
-                'AttributeName': 'expected_passage_day',
+                'AttributeName': range_key,
                 'KeyType': 'RANGE'
             }
         ],
@@ -44,10 +65,17 @@ def dynamo_create_real_departures_table(table_name, read=5, write=5):
 
     # Wait until the table exists.
     table.meta.client.get_waiter('table_exists').wait(TableName=table_name)
-    logger.info("Table %s created in DynamoDB" % table_name)
+    logger.info("Table %s created in DynamoDB", table_name)
 
 
 def dynamo_get_table_provisionned_capacity(table_name):
+    """
+    This function returns a given table provisioned throughput. Returns (read, write)
+
+    :param table_name: table name
+    :type table_name: str
+    """
+
     table = dynamodb.Table(table_name)
 
     provisioned_throughput = table.provisioned_throughput
@@ -58,6 +86,18 @@ def dynamo_get_table_provisionned_capacity(table_name):
 
 
 def dynamo_update_provisionned_capacity(read, write, table_name):
+    """
+    Update a table provisioned throughput.
+
+    :param table_name: table name
+    :type table_name: str
+
+    :param read: table read provisioned throughput
+    :type read: int
+
+    :param write: table write provisioned throughput
+    :type write: int
+    """
     table = dynamodb.Table(table_name)
 
     table = table.update(
@@ -69,6 +109,12 @@ def dynamo_update_provisionned_capacity(read, write, table_name):
 
 
 def dynamo_get_table(table_name):
+    """
+    Get a Dynamo table object.
+
+    :param table_name: table name
+    :type table_name: str
+    """
     return dynamodb.Table(table_name)
 
 
@@ -126,36 +172,18 @@ def dynamo_submit_batch_getitem_request(items_keys, table_name, max_retry=3, pre
     return responses
 
 
-def dynamo_provisionned_capacity_manager(table_name=None):
+def dynamo_extract_whole_table(table_name, max_req=100):
     """
-    This function will be called every hour.
-    We can go up as much as we want, but can go down only 4 times a day.
-
-    For up:
-    - go incremental, every hour, given a function
-
-    For down:
-    - define four "hour" steps: choose only update hours
-    - apply function on these times slots
-    """
-    pass
-
-    # define prediction function
-
-    # define majoration function: how much margin we want (for the whole next
-    # hour)
-
-    # every hour:
-    # if func now is higher than the hour before: update higher with
-    # majoration function
-
-    # if func now is lower than the hour before: check if hour in update hours
-    # if so, set with majoration function
-
-
-def dynamo_extract_all_table(table_name, max_req=100):
-    """
+    Extract content of a dynamo table. With limit of "max_req" requests.
     Returns a dataframe.
+
+    :param table_name: table name
+    :type table_name: str
+
+    :param max_req: maximum number of requests
+    :type max_req: int
+
+    :rtype: pandas dataframe
     """
     table = dynamodb.Table(table_name)
     response = table.scan()
