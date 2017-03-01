@@ -139,7 +139,7 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
     :param station_filter: default None. If set, should be a list of station ids for which you want to obtain stop times scheduled on this day. Otherwise, if set to False or None, it will get all stops without restrictions on stations.
     :type station_filter: None/False or list of valid station_filter
 
-    :param df_format: default False
+    :param df_format: default False. If set to True, will return a pandas dataframe
     :type df_format: boolean
 
     :param dropna_index: default True. If True, it will drop all rows where the index fields ("station_id", "day_train_num") might have NaN values. Do not set to False in production since the items with no such fields will raise errors when trying to save on tables with primary keys on these fields. The purpose of this function is to facilitate schedule investigation.

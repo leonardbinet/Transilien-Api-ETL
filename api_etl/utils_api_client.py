@@ -24,13 +24,13 @@ API_PASSWORD = get_secret("API_PASSWORD")
 _RETRIABLE_STATUSES = set([500, 503, 504])
 
 
-def get_api_client():
-    return ApiClient(user=API_USER, password=API_PASSWORD)
-
-
 class ApiClient():
+    """
+    This class provide a client to process requests to transilien's API.
+    It provides methods to process either single queries, or asynchronous batch queries that rely on asyncio library.
+    """
 
-    def __init__(self, user, password="", retry_timeout=20, core_url='http://api.transilien.com/'):
+    def __init__(self, user=API_USER, password=API_PASSWORD, retry_timeout=20, core_url='http://api.transilien.com/'):
         self.core_url = core_url
         self.user = user
         self.password = password
@@ -38,6 +38,9 @@ class ApiClient():
         self.requested_urls = []
 
     def _get(self, url, extra_params=None, verbose=False, first_request_time=None, retry_counter=0):
+        """
+        Low level function to process single queries with retries.
+        """
         if verbose and not first_request_time:
             logger.debug("Import on url %s " % url)
 
@@ -73,12 +76,23 @@ class ApiClient():
 
         return response
 
-    def request_station(self, station, verbose=False, ignore_fail=False, extra_params=None):
+    def request_station(self, station, verbose=False, extra_params=None):
+        """
+        This method process a single query.
+
+        :param station: station you want to query (8 digits format)
+        :type station: str/int (8 digits format)
+
+        :rtype: str (xml answer)
+        """
         # example_url = "http://api.transilien.com/gare/87393009/depart/"
         url = path.join("gare", str(station), "depart")
         return self._get(url=url, verbose=verbose, extra_params=extra_params)
 
     def _stations_to_full_urls(self, station_list):
+        """
+        Hack function for asynchronous calls.
+        """
         full_url_list = []
         for station in station_list:
             full_url = path.join(
@@ -90,6 +104,14 @@ class ApiClient():
         return full_url_list
 
     def request_stations(self, station_list):
+        """
+        This method process asynchronous batch queries. It will return answers with station ids so that you can identify stations answers.
+
+        :param station_list: list of station_ids in the 8 digits format used by transilien's API to identify stations (warning: different than station ids in GTFS files that are 7 digits).
+        :type station_list: list of str
+
+        :rtype: list of tuples (api_response, station_id)
+        """
         def url_to_station(url):
             station = url.split("/")[-2]
             return station

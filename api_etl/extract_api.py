@@ -14,7 +14,7 @@ import copy
 import logging
 
 from api_etl.utils_misc import get_paris_local_datetime_now, compute_delay, chunks, get_station_ids, api_date_to_day_time_corrected
-from api_etl.utils_api_client import get_api_client
+from api_etl.utils_api_client import ApiClient
 from api_etl.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
 from api_etl.utils_dynamo import dynamo_insert_batches
 
@@ -92,7 +92,7 @@ def extract_stations(stations_list):
     """
     # Extract from API
     logger.info("Extraction of %d stations" % len(stations_list))
-    client = get_api_client()
+    client = ApiClient()
     responses = client.request_stations(stations_list)
 
     # Parse responses in JSON format

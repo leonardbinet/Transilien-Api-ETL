@@ -71,10 +71,9 @@ So we could easily and without any problem launch this task every 10 seconds!
    api_etl.extract_api
    api_etl.extract_schedule
    api_etl.query_schedule
-   api_etl.match_ids
    api_etl.utils_dynamo
-   api_etl.utils_misc
    api_etl.utils_api_client
+   api_etl.utils_misc
 
 .. toctree::
    :maxdepth: 2

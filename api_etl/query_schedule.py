@@ -2,8 +2,6 @@
 Module used to query schedule data contained in Dynamo, Mongo or Postgres databases.
 """
 
-
-import os
 import pandas as pd
 import json
 import logging
@@ -20,6 +18,30 @@ pd.options.mode.chained_assignment = None
 
 
 def dynamo_extend_items_with_schedule(items_list, full=False, df_format=False):
+    """
+    This function takes as input 'train stop times' items collected from the transilien's API and extend them with informations from schedule.
+
+    The main goals are:
+    - to find for a given 'train stop time' what was the trip_id (transilien's api provide train_num which do not match with trip_id)
+    - to find at what time this stop was scheduled (transilien's api provide times at which trains are predicted to arrive at a given time, updated in real-time)
+
+    The steps will be:
+    - extract index fields ("day_train_num", "station_id") from input items
+    - send queries to Dynamo's 'scheduled_departures' table to find their trip_ids, scheduled_departure_time and other useful informations (line, route, agency etc)
+    - extend initial items with information found from schedule
+
+    :param items_list: the items you want to extend. They must be in relevant format, and contain fields that are used as primary fields.
+    :type item_list: list of dictionnaries of strings (json serializable)
+
+    :param full: default False. If set to True, items returned will be extended with all fields contained in scheduled_departure table (more detail on trains).
+    :type full: boolean
+
+    :param df_format: default False. If set to True, will return a pandas dataframe
+    :type df_format: boolean
+
+    :rtype: list of json serializable objects, or pandas dataframe if df_format is set to True.
+    """
+
     df = pd.DataFrame(items_list)
     # Extract items primary keys and format it for getitem
     extract = df[["day_train_num", "station_id"]]
@@ -81,6 +103,9 @@ def dynamo_extend_items_with_schedule(items_list, full=False, df_format=False):
 # NOT USED IN PRODUCTION
 
 def trip_scheduled_departure_time(trip_id, station):
+    """
+    DEPRECATED
+    """
     # Check parameters
     if len(str(station)) == 8:
         station = str(station)[:-1]
