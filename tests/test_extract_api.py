@@ -26,7 +26,7 @@ class TestExtractModuleFunctions(unittest.TestCase):
         """
 
         # Open a xml file that is supposed to be from station 87393009
-        file_path = path.join(BASE_DIR, "test", "files", "api_response.xml")
+        file_path = path.join(BASE_DIR, "tests", "files", "api_response.xml")
         with open(file_path, 'r') as xml_file:
             xml_string = xml_file.read()
         output = xml_to_json_item_list(xml_string, "87393009")
