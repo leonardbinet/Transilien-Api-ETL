@@ -16,12 +16,24 @@ from api_etl.settings import data_path, col_real_dep_unique, responding_stations
 
 
 def chunks(l, n):
+    """
+    Yield a list in 'n' lists of nearly same size (some can be one more than others).
+
+    :param l: list you want to divide in chunks
+    :type l: list
+
+    :param n: number of chunks you want to get
+    :type n: int
+    """
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
 
 def get_station_ids(stations="all"):
     """
+    Get stations ids either in API format (8 digits), or in GTFS format (7 digits).
+
+    Beware, this function has to be more tested.
     Beware: two formats:
     - 8 digits format to query api
     - 7 digits format to query gtfs files
@@ -50,6 +62,19 @@ def get_station_ids(stations="all"):
 
 
 def api_date_to_day_time_corrected(api_date, time_or_day):
+    """
+    Function that transform dates given by api in usable fields:
+    - expected_passage_day : "20120523" format
+    - expected_passage_time: "12:55:00" format
+
+    Important: dates between 0 and 3 AM are transformed in +24h time format with day as previous day.
+
+    :param api_date: api date you want to transform
+    :type api_date: str
+
+    :param time_or_day: choose either "time" or "day", do you want to get corrected day or time?
+    :type time_or_day: str ("time", or "day")
+    """
     expected_passage_date = datetime.strptime(api_date, "%d/%m/%Y %H:%M")
 
     day_string = expected_passage_date.strftime("%Y%m%d")
@@ -134,6 +159,9 @@ def compute_delay(scheduled_departure_time, real_departure_time):
 
 
 def get_paris_local_datetime_now():
+    """
+    Return paris local time (necessary for operations operated on other time zones)
+    """
     paris_tz = pytz.timezone('Europe/Paris')
     datetime_paris = datetime.now(tzlocal()).astimezone(paris_tz)
     return datetime_paris
@@ -141,7 +169,7 @@ def get_paris_local_datetime_now():
 
 def set_logging_conf(log_name, level="INFO"):
     """
-    This must be imported by all scripts running as "main"
+    This function sets the logging configuration.
     """
     if level == "INFO":
         level = logging.INFO
