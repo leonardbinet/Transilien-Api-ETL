@@ -229,7 +229,8 @@ def operate_one_cycle(station_filter=False, dynamo_unique=True, mongo_unique=Fal
                 time_passed
             )
 
-        if time_passed < 60 and i != len(station_chunks) + 1:
+        if time_passed < 60 and i != 1:
+            # doesn't wait on last cycle (0,1 -> last cycle is 1)
             time.sleep(60 - time_passed)
 
 
