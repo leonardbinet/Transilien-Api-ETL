@@ -210,7 +210,7 @@ def operate_one_cycle(station_filter=False, dynamo_unique=True, mongo_unique=Fal
     # split stations in two of same size
     station_chunks = [station_list[i::2] for i in range(2)]
 
-    for station_chunk in station_chunks:
+    for i, station_chunk in enumerate(station_chunks):
         chunk_begin_time = datetime.now()
         extract_save_stations(
             station_chunk,
@@ -223,13 +223,14 @@ def operate_one_cycle(station_filter=False, dynamo_unique=True, mongo_unique=Fal
         logger.info("Time spent: %d seconds", int(time_passed))
 
         # Max per minute: so have to wait
-        if time_passed < 60:
-            time.sleep(60 - time_passed)
-        else:
+        if time_passed > 60:
             logger.warning(
                 "Chunk time took more than one minute: %d seconds",
                 time_passed
             )
+
+        if time_passed < 60 and i != len(station_chunks) + 1:
+            time.sleep(60 - time_passed)
 
 
 def operate_multiple_cycles(station_filter=False, cycle_time_sec=1200, stop_time_sec=3600):
