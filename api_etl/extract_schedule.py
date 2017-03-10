@@ -124,7 +124,7 @@ def get_trips_of_day(yyyymmdd_format):
     return trips_on_day
 
 
-def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None, df_format=False, dropna_index=True, drop_dup=True):
+def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None, df_format=False, dropna_index=["station_id", "day_train_num"]):
     """
     Given a date, this function will return all trip-ids scheduled on transilien's network on this day.
 
@@ -142,21 +142,21 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
     :param df_format: default False. If set to True, will return a pandas dataframe
     :type df_format: boolean
 
-    :param dropna_index: default True. If True, it will drop all rows where the index fields ("station_id", "day_train_num") might have NaN values. Do not set to False in production since the items with no such fields will raise errors when trying to save on tables with primary keys on these fields. The purpose of this function is to facilitate schedule investigation.
-    :type dropna_index: boolean
-
-    :param drop_dup: default True. If True, it will drop all duplicates based on index fields ("station_id", "day_train_num"). There should not be duplicates given the GTFS structure. This parameter is just here for investigation.
-    :type drop_dup: boolean
+    :param dropna_index: default ["station_id", "day_train_num"]. If set, it will drop all rows where the index fields might have NaN values or are duplicates of others rows.
+    :type dropna_index: list or None
 
     :rtype: list of json serializable objects, or pandas dataframe if df_format is set to True
     """
 
     all_stop_times = pd.read_csv(os.path.join(gtfs_path, "stop_times.txt"))
-    trips_on_day = get_trips_of_day(yyyymmdd_format)
 
-    cond1 = all_stop_times["trip_id"].isin(trips_on_day)
-    matching_stop_times = all_stop_times[cond1]
-
+    # Take either all lines, either only those for given day
+    if yyyymmdd_format == "all":
+        matching_stop_times = all_stop_times
+    else:
+        trips_on_day = get_trips_of_day(yyyymmdd_format)
+        cond1 = all_stop_times["trip_id"].isin(trips_on_day)
+        matching_stop_times = all_stop_times[cond1]
     # Add trips routes and agency fields
     # agency = pd.read_csv(os.path.join(gtfs_path, "agency.txt"))
     # agency = agency[["agency_id", "agency_name"]]
@@ -177,20 +177,16 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
         "stop_id"].str.extract("DUA(\d{7})", expand=False)
     matching_stop_times.loc[:, "train_num"] = matching_stop_times[
         "trip_id"].str.extract("^.{5}(\d{6})", expand=False)
-
     # Dynamo sort key (hash is station_id)
     matching_stop_times.loc[:, "day_train_num"] = matching_stop_times.apply(
         lambda x: "%s_%s" % (x["scheduled_departure_day"], x["train_num"]), axis=1)
 
-    # Drop na on indexes: station_id and day_train_num
-    if dropna_index:
+    # Drop na and dups on indexes: station_id and day_train_num
+    if isinstance(dropna_index, list):
         matching_stop_times = matching_stop_times.dropna(
-            subset=["station_id", "day_train_num"])
-
-    # Drop duplication on indexes
-    if drop_dup:
+            subset=dropna_index)
         matching_stop_times = matching_stop_times.drop_duplicates(
-            subset=["station_id", "day_train_num"])
+            subset=dropna_index)
 
     # Station filtering if asked
     if stop_filter:
@@ -206,11 +202,11 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
     else:
         json_list = json.loads(matching_stop_times.to_json(orient='records'))
         logger.info("There are %d scheduled departures on %s",
-                    (len(json_list), yyyymmdd_format))
+                    len(json_list), yyyymmdd_format)
         return json_list
 
 
-def dynamo_save_stop_times_of_day(yyyymmdd_format):
+def dynamo_save_stop_times_of_day(yyyymmdd_format, table_name):
     """
     Given a date, this function will save all trip-ids scheduled on transilien's network on this day in Dynamo's 'scheduled_departures' table.
 
@@ -219,14 +215,44 @@ def dynamo_save_stop_times_of_day(yyyymmdd_format):
     :param yyyymmdd_format: date on yyyymmdd format
     :type yyyymmdd_format: string or int
     """
-    # Can take some time depending on write capacity
-    items = get_departure_times_of_day_json_list(yyyymmdd_format)
-    dynamo_insert_batches(items, dynamo_sched_dep)
+    if yyyymmdd_format == "all":
+        items = get_departure_times_of_day_json_list(
+            "all", df_format=False, dropna_index=["trip_id", "station_id"])
+        dynamo_insert_batches(items, table_name)
+    else:
+        # Format it in a list
+        if not isinstance(yyyymmdd_format, list):
+            yyyymmdd_format = [str(yyyymmdd_format)]
+        # Can take some time depending on write capacity
+        for day in yyyymmdd_format:
+            items = get_departure_times_of_day_json_list(str(day))
+            dynamo_insert_batches(items, table_name)
 
 
-def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format, ignore_fail=True):
+def adapt_table_provision(func):
+    """ Decorator to provision table before and after operation.
     """
+    def wrapper(yyyymmdd_format, table_name):
+        # Set provisioned_throughput
+        try:
+            dynamo_update_provisionned_capacity(
+                read=shed_read, write=shed_write_on, table_name=table_name)
+        except Exception as e:
+            logger.warning("Could not change provisioned_throughput %s", e)
 
+        # Wait for one minute till provisioned_throughput is updated
+        time.sleep(60)
+        # Actually perform operation
+        func(yyyymmdd_format, table_name)
+        # Reset provisioned_throughput to minimal writing
+        dynamo_update_provisionned_capacity(
+            read=shed_read, write=shed_write_off, table_name=table_name)
+    return wrapper
+
+
+@adapt_table_provision
+def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format, table_name):
+    """
     Given a date, this function will first update Dynamo's "scheduled_departures" table provisioned throughput to be able to save data in less than 30 minutes.
 
     Then it will save all trip-ids scheduled on transilien's network on this day in Dynamo's table.
@@ -239,28 +265,7 @@ def dynamo_save_stop_times_of_day_adapt_provision(yyyymmdd_format, ignore_fail=T
     :param ignore_fail: default True. If you try to update provisioned throughput to existing values, it will raise an error. It is not a problem, so you might want to ignore this error.
     :type ignore_fail: boolean
     """
-    # Format it in a list
-    if not isinstance(yyyymmdd_format, list):
-        yyyymmdd_format = [str(yyyymmdd_format)]
-
-    # Set provisioned_throughput
-    try:
-        dynamo_update_provisionned_capacity(
-            read=shed_read, write=shed_write_on, table_name=dynamo_sched_dep)
-    except Exception as e:
-        if not ignore_fail:
-            raise ValueError("Could not change provisioned_throughput")
-
-    # Wait for one minute till provisioned_throughput is updated
-    time.sleep(60)
-
-    # Insert items
-    for day in yyyymmdd_format:
-        dynamo_save_stop_times_of_day(str(day))
-
-    # Reset provisioned_throughput to minimal writing
-    dynamo_update_provisionned_capacity(
-        read=shed_read, write=shed_write_off, table_name=dynamo_sched_dep)
+    dynamo_save_stop_times_of_day(yyyymmdd_format, table_name=table_name)
 
 
 def build_trips_ext_df():

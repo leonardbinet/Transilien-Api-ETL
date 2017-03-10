@@ -8,6 +8,8 @@ if __name__ == '__main__':
     from api_etl.utils_misc import set_logging_conf
     set_logging_conf(log_name="extract_day_schedule")
 
+    from api_etl.settings import dynamo_sched_dep
+
     from api_etl.utils_misc import get_paris_local_datetime_now
     from api_etl.extract_schedule import dynamo_save_stop_times_of_day_adapt_provision
 
@@ -25,4 +27,5 @@ if __name__ == '__main__':
     logger.info(
         "Paris tomorrow date is %s, update in schedule table, with day after as well", tomorrow_paris_str)
     days = [tomorrow_paris_str, after_tomorrow_paris_str]
-    dynamo_save_stop_times_of_day_adapt_provision(days)
+    dynamo_save_stop_times_of_day_adapt_provision(
+        days, table_name=dynamo_sched_dep)
