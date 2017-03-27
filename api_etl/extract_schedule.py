@@ -17,7 +17,7 @@ import calendar
 from api_etl.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url, dynamo_sched_dep, shed_read, shed_write_on, shed_write_off
 from api_etl.utils_mongo import mongo_async_upsert_items
 from api_etl.utils_rdb import rdb_connection
-from api_etl.utils_dynamo import dynamo_insert_batches, dynamo_update_provisionned_capacity
+from api_etl.utils_dynamo import dynamo_insert_batches, dynamo_update_provisionned_capacity, ScheduledDeparture
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
@@ -124,7 +124,7 @@ def get_trips_of_day(yyyymmdd_format):
     return trips_on_day
 
 
-def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, station_filter=None, df_format=False, dropna_index=["station_id", "day_train_num"]):
+def get_departure_times_of_day_dict_list(yyyymmdd_format, stop_filter=None, station_filter=None, df_format=False, dropna_index=["station_id", "day_train_num"]):
     """
     Given a date, this function will return all trip-ids scheduled on transilien's network on this day.
 
@@ -199,11 +199,15 @@ def get_departure_times_of_day_json_list(yyyymmdd_format, stop_filter=None, stat
 
     if df_format:
         return matching_stop_times
+
     else:
-        json_list = json.loads(matching_stop_times.to_json(orient='records'))
+        # Only string for saving in dynamo
+        matching_stop_times = matching_stop_times.applymap(str)
+        # json_list = json.loads(matching_stop_times.to_json(orient='records'))
+        dict_list = matching_stop_times.to_dict(orient='records')
         logger.info("There are %d scheduled departures on %s",
-                    len(json_list), yyyymmdd_format)
-        return json_list
+                    len(dict_list), yyyymmdd_format)
+        return dict_list
 
 
 def dynamo_save_stop_times_of_day(yyyymmdd_format, table_name):
@@ -216,17 +220,26 @@ def dynamo_save_stop_times_of_day(yyyymmdd_format, table_name):
     :type yyyymmdd_format: string or int
     """
     if yyyymmdd_format == "all":
-        items = get_departure_times_of_day_json_list(
-            "all", df_format=False, dropna_index=["trip_id", "station_id"])
-        dynamo_insert_batches(items, table_name)
+        items = get_departure_times_of_day_dict_list(
+            "all", dropna_index=["trip_id", "station_id"])
+
+        with ScheduledDeparture.batch_write() as batch:
+            objects = [ScheduledDeparture(**item) for item in items]
+            for obj in objects:
+                batch.save(obj)
+
+        # dynamo_insert_batches(items, table_name)
     else:
         # Format it in a list
         if not isinstance(yyyymmdd_format, list):
             yyyymmdd_format = [str(yyyymmdd_format)]
         # Can take some time depending on write capacity
         for day in yyyymmdd_format:
-            items = get_departure_times_of_day_json_list(str(day))
-            dynamo_insert_batches(items, table_name)
+            items = get_departure_times_of_day_dict_list(str(day))
+            with ScheduledDeparture.batch_write() as batch:
+                objects = [ScheduledDeparture(**item) for item in items]
+                for obj in objects:
+                    batch.save(obj)
 
 
 def adapt_table_provision(func):

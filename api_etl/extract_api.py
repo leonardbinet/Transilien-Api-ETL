@@ -16,7 +16,7 @@ import logging
 from api_etl.utils_misc import get_paris_local_datetime_now, compute_delay, chunks, get_station_ids, api_date_to_day_time_corrected
 from api_etl.utils_api_client import ApiClient
 from api_etl.utils_mongo import mongo_get_collection, mongo_async_save_chunks, mongo_async_upsert_items
-from api_etl.utils_dynamo import dynamo_insert_batches
+from api_etl.utils_dynamo import dynamo_insert_batches, RealTimeDeparture
 
 from api_etl.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path, dynamo_real_dep, top_stations_path, scheduled_stations_path
 
@@ -28,161 +28,181 @@ logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
 
 
-def xml_to_json_item_list(xml_string, station, df_format=False):
+class Extractor():
+    """ Made for unique usage
     """
-    This function transforms transilien's API XML answers into a list of objects, in a valid format.
-    It might be useful to use a class to define object structure.
 
-    :param xml_string: XML string you want to transform
-    :type xml_string: string
+    def __init__(self, stations, max_per_minute=350):
 
-    :param station: station id that was queried. This is necessary to add a station field in output. This must be a 8 digits string or integer. You can find the stations ids on SNCF website. https://ressources.data.sncf.com/explore/dataset/referentiel-gares-voyageurs/
-    :type station: string/integer
+        assert isinstance(stations, list)
+        stations = list(map(str, stations))
+        for station in stations:
+            assert len(station) == 8
+        self.stations = stations
 
-    :param df_format: default False, set True so that the function returns a pandas dataframe instead of a list of dictionnaries.
-    :type df_format: boolean
+        self.max_per_minute = max_per_minute
+        self.request_paris_time = None
+        self.raw_responses = []
+        self.json_objects = []
+        self.dict_objects = []
+        self.dynamo_objects = []
+        self.saved_dynamo = False
+        self.saved_mongo = False
 
-    :rtype: list of dictionnaries of strings only, this is json-serializable so it can easily be inserted in Mongo or Dynamo databases.
-    """
-    # Save with Paris timezone (if server is abroad)
-    datetime_paris = get_paris_local_datetime_now()
+    def request_api_for_stations(self):
+        """
+        This function will query transilien's API asking for expected trains passages in near future on stations defined as paramater, and parse responses so that it can be saved in databases.
 
-    mydict = xmltodict.parse(xml_string)
-    trains = mydict["passages"]["train"]
-    df_trains = pd.DataFrame(trains)
+        Note that stations id required by api are in 8 digits format.
 
-    # Add custom fields
-    df_trains.loc[:, "date"] = df_trains.date.apply(lambda x: x["#text"])
-    df_trains.loc[:, "expected_passage_day"] = df_trains[
-        "date"].apply(lambda x: api_date_to_day_time_corrected(x, "day"))
-    df_trains.loc[:, "expected_passage_time"] = df_trains[
-        "date"].apply(lambda x: api_date_to_day_time_corrected(x, "time"))
-    df_trains.loc[:, "request_day"] = datetime_paris.strftime('%Y%m%d')
-    df_trains.loc[:, "request_time"] = datetime_paris.strftime('%H:%M:%S')
-    df_trains.loc[:, "station_8d"] = str(station)
-    df_trains.loc[:, "station_id"] = str(station)[:-1]
-    df_trains.rename(columns={'num': 'train_num'}, inplace=True)
-    # Data freshness is time in seconds between request time and
-    # expected_passage_time: lower is better
-    df_trains.loc[:, "data_freshness"] = df_trains.apply(lambda x: abs(
-        compute_delay(x["request_time"], x["expected_passage_time"])), axis=1)
+        Note also that the maximum queries per minute accepted by the API is 350.
 
-    # Hash key for dynamodb: formerly: day_station, now, station (7 digits)
-    # Sort key for dynamodb: formerly: train_num, now, day_train_num
-    df_trains.loc[:, "day_train_num"] = df_trains.apply(
-        lambda x: "%s_%s" % (x["expected_passage_day"], x["train_num"]), axis=1)
+        This function will save responses in "raw_responses" attribute, each response being a tuple (string response, station).
+        """
 
-    if df_format:
-        return df_trains
+        logger.info("Extraction of %d stations" % len(self.stations))
+        client = ApiClient()
+        self.raw_responses = client.request_stations(self.stations)
 
-    data_json = json.loads(df_trains.to_json(orient='records'))
-    return data_json
+        # Save at what time the request was made (Paris Time)
+        self.request_paris_time = get_paris_local_datetime_now()
 
+        # Parse responses
+        self._parse_responses()
 
-def extract_stations(stations_list):
-    """
-    This function will query transilien's API asking for expected trains passages in near future on stations defined as paramater. Note that stations id required by api are in 8 digits format.
+    def _parse_responses(self):
+        """
+        This function parses responses located in "raw_responses" attribute, and saves parsed responses in following attributes:
+        - json_objects
+        - dict_objects
+        - dynamo_objects
+        """
 
-    This function will return clean data (json serializable), ready to be inserted in Mongo or Dynamo databases.
+        # Parse responses in JSON format
+        logger.info("Parsing")
+        for response in self.raw_responses:
+            try:
+                xml_string = response[0]
+                station = response[1]
+                self._parse_response(xml_string, station)
+            except Exception as e:
+                logger.debug("Cannot parse station %s" % response[1])
+                logger.warning(e)
+                continue
 
-    :param stations_list: these are the stations for which the transilien's api will be queried. List of stations of length 8.
-    :type stations_list: list of str/int
+    def _parse_response(self, xml_string, station, return_df=False):
+        """
+        This function transforms transilien's API XML answers into a list of objects, in a valid format, and saves it in attributes:
+        - json_objects
+        - dict_objects
+        - dynamo_objects
 
-    :rtype: list of dictionnaries (of strings)
-    """
-    # Extract from API
-    logger.info("Extraction of %d stations" % len(stations_list))
-    client = ApiClient()
-    responses = client.request_stations(stations_list)
+        :param xml_string: XML string you want to transform
+        :type xml_string: string
 
-    # Parse responses in JSON format
-    logger.info("Parsing")
-    items_list = []
-    for response in responses:
-        xml_string = response[0]
-        station = response[1]
-        try:
-            items_list += xml_to_json_item_list(
-                xml_string, station)
-        except Exception as e:
-            logger.debug("Cannot parse station %s" % station)
-            continue
-    return items_list
+        :param station: station id that was queried. This is necessary to add a station field in output. This must be a 8 digits string or integer. You can find the stations ids on SNCF website. https://ressources.data.sncf.com/explore/dataset/referentiel-gares-voyageurs/
+        :type station: string/integer
 
+        """
 
-def save_stations(items_list, dynamo_unique, mongo_unique, mongo_all):
-    """
-    This function will save in the specified databases, with uniqueness or not, the items provided as parameter.
+        # Save with Paris timezone (if server is abroad)
+        request_dt = self.request_paris_time
 
-    :param items_list: the items you want to save. They must be in relevant format, and contain fields that are used as primary fields.
-    :type item_list: list of dictionnaries of strings (json serializable)
+        # Parse XML into a dataframe
+        mydict = xmltodict.parse(xml_string)
+        trains = mydict["passages"]["train"]
+        df_trains = pd.DataFrame(trains)
 
-    :param dynamo_unique: save items in dynamo table that save unique passages
-    :type dynamo_unique: boolean
+        # Add custom fields
+        df_trains.loc[:, "date"] = df_trains.date.apply(lambda x: x["#text"])
+        df_trains.loc[:, "expected_passage_day"] = df_trains[
+            "date"].apply(lambda x: api_date_to_day_time_corrected(x, "day"))
+        df_trains.loc[:, "expected_passage_time"] = df_trains[
+            "date"].apply(lambda x: api_date_to_day_time_corrected(x, "time"))
+        df_trains.loc[:, "request_day"] = request_dt.strftime('%Y%m%d')
+        df_trains.loc[:, "request_time"] = request_dt.strftime('%H:%M:%S')
+        df_trains.loc[:, "station_8d"] = str(station)
+        df_trains.loc[:, "station_id"] = str(station)[:-1]
+        df_trains.rename(columns={'num': 'train_num'}, inplace=True)
 
-    :param mongo_unique: save items in dynamo table that save unique passages
-    :type mongo_unique: boolean
+        # Data freshness is time in seconds between request time and
+        # expected_passage_time: lower is better
+        df_trains.loc[:, "data_freshness"] = df_trains.apply(lambda x: abs(
+            compute_delay(x["request_time"], x["expected_passage_time"])), axis=1)
 
-    :param mongo_all: save items in dynamo table that save all passages
-    :type mongo_all: boolean
-    """
-    # Make deep copies, because mongo will add _ids
-    items_list2 = copy.deepcopy(items_list)
-    items_list3 = copy.deepcopy(items_list)
+        # Hash key for dynamodb: formerly: day_station, now, station (7 digits)
+        # Sort key for dynamodb: formerly: train_num, now, day_train_num
+        df_trains.loc[:, "day_train_num"] = df_trains.apply(
+            lambda x: "%s_%s" % (x["expected_passage_day"], x["train_num"]), axis=1)
 
-    if dynamo_unique:
-        logger.info("Upsert of %d items of json data in dynamo %s table",
-                    len(items_list), dynamo_real_dep)
-        dynamo_insert_batches(items_list, table_name=dynamo_real_dep)
+        # Save only strings in databases
+        df_trains = df_trains.applymap(str)
 
-    if mongo_all:
-        # Save items in collection without compound primary key
-        logger.info("Saving  %d items in Mongo departures collection",
-                    len(items_list2))
-        # Save in chunks of 100
-        chunks = [items_list2[i:i + 100]
-                  for i in range(0, len(items_list2), 100)]
-        mongo_async_save_chunks("departures", chunks)
+        # Drop possible duplicates on keys:
+        df_trains.drop_duplicates(
+            subset=["day_train_num", "station_id"], inplace=True)
 
-    if mongo_unique:
-        # Save items in collection with compound primary key
-        index_fields = ["request_day", "station", "train_num"]
-        logger.info(
-            "Upsert of %d items of json data in Mongo %s collection",
-            len(items_list3),
-            col_real_dep_unique
-        )
-        mongo_async_upsert_items(
-            col_real_dep_unique, items_list3, index_fields)
+        self.json_objects = json.loads(
+            df_trains.to_json(orient='records'))
 
+        self.dict_objects = df_trains.to_dict(orient='records')
 
-def extract_save_stations(stations_list, dynamo_unique, mongo_unique, mongo_all):
-    """
-    This function performs the following operations:
-    - query transilien's api for the requested stations
-    - transform xml answers into json-serializable items
-    - update items with schedule information
-    - save it in requested databases
+        self.dynamo_objects = [RealTimeDeparture(
+            **item) for item in self.dict_objects]
 
-    :param stations_list: these are the stations for which the transilien's api will be queried. List of stations of length 8.
-    :type stations_list: list of str/int
+        if return_df:
+            return df_trains
 
-    :param dynamo_unique: save items in dynamo table that save unique passages
-    :type dynamo_unique: boolean
+    def extend_data_with_schedule(self):
+        self.json_objects = dynamo_extend_items_with_schedule(
+            self.json_objects)
 
-    :param mongo_unique: save items in dynamo table that save unique passages
-    :type mongo_unique: boolean
+    def save_in_dynamo(self):
+        """
+        Saves objects in dynamo database.
+        """
+        logger.info("Upsert of %d objects in dynamo", len(self.dynamo_objects))
+        with RealTimeDeparture.batch_write() as batch:
+            for obj in self.dynamo_objects:
+                batch.save(obj)
+        # Previously:
+        # dynamo_insert_batches(items_list, table_name = dynamo_real_dep)
 
-    :param mongo_all: save items in dynamo table that save all passages
-    :type mongo_all: boolean
-    """
-    # Extract
-    items_list = extract_stations(stations_list)
-    # Update
-    items_list = dynamo_extend_items_with_schedule(items_list)
-    # Save
-    save_stations(items_list, dynamo_unique=dynamo_unique,
-                  mongo_unique=mongo_unique, mongo_all=mongo_all)
+    def save_in_mongo(self, mongo_unique=True, mongo_all=False):
+        """
+        This function will save items in Mongo.
+
+        :param mongo_unique: save items in dynamo table that save unique passages
+        :type mongo_unique: boolean
+
+        :param mongo_all: save items in dynamo table that save all passages
+        :type mongo_all: boolean
+        """
+        assert (mongo_unique or mongo_all)
+
+        # Make deep copies, because mongo will add _ids
+        items_list2 = copy.deepcopy(self.json_objects)
+        items_list3 = copy.deepcopy(self.json_objects)
+
+        if mongo_all:
+            # Save items in collection without compound primary key
+            logger.info("Saving  %d items in Mongo departures collection",
+                        len(items_list2))
+            # Save in chunks of 100
+            chunks = [items_list2[i:i + 100]
+                      for i in range(0, len(items_list2), 100)]
+            mongo_async_save_chunks("departures", chunks)
+
+        if mongo_unique:
+            # Save items in collection with compound primary key
+            index_fields = ["request_day", "station", "train_num"]
+            logger.info(
+                "Upsert of %d items of json data in Mongo %s collection",
+                len(items_list3),
+                col_real_dep_unique
+            )
+            mongo_async_upsert_items(
+                col_real_dep_unique, items_list3, index_fields)
 
 
 def operate_one_cycle(station_filter=False, dynamo_unique=True, mongo_unique=False, mongo_all=False):
@@ -212,12 +232,16 @@ def operate_one_cycle(station_filter=False, dynamo_unique=True, mongo_unique=Fal
 
     for i, station_chunk in enumerate(station_chunks):
         chunk_begin_time = datetime.now()
-        extract_save_stations(
-            station_chunk,
-            mongo_all=mongo_all,
-            dynamo_unique=dynamo_unique,
-            mongo_unique=mongo_unique
-        )
+
+        extractor = Extractor(station_chunk)
+        extractor.request_api_for_stations()
+        extractor.save_in_dynamo()
+        # extract_save_stations(
+        #    station_chunk,
+        #    mongo_all=mongo_all,
+        #    dynamo_unique=dynamo_unique,
+        #    mongo_unique=mongo_unique
+        #)
 
         time_passed = (datetime.now() - chunk_begin_time).seconds
         logger.info("Time spent: %d seconds", int(time_passed))
