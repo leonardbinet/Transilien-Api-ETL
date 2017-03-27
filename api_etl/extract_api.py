@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
 
 
-class Extractor():
+class ApiExtractor():
     """ Made for unique usage
     """
 
@@ -168,7 +168,7 @@ class Extractor():
         # Previously:
         # dynamo_insert_batches(items_list, table_name = dynamo_real_dep)
 
-    def save_in_mongo(self, mongo_unique=True, mongo_all=False):
+    def save_in_mongo(self, mongo_unique, mongo_all):
         """
         This function will save items in Mongo.
 
@@ -233,15 +233,17 @@ def operate_one_cycle(station_filter=False, dynamo_unique=True, mongo_unique=Fal
     for i, station_chunk in enumerate(station_chunks):
         chunk_begin_time = datetime.now()
 
-        extractor = Extractor(station_chunk)
+        extractor = ApiExtractor(station_chunk)
         extractor.request_api_for_stations()
-        extractor.save_in_dynamo()
-        # extract_save_stations(
-        #    station_chunk,
-        #    mongo_all=mongo_all,
-        #    dynamo_unique=dynamo_unique,
-        #    mongo_unique=mongo_unique
-        #)
+
+        if dynamo_unique:
+            extractor.save_in_dynamo()
+
+        if mongo_unique or mongo_all:
+            extractor.save_in_mongo(
+                mongo_unique=mongo_unique,
+                mongo_all=mongo_all
+            )
 
         time_passed = (datetime.now() - chunk_begin_time).seconds
         logger.info("Time spent: %d seconds", int(time_passed))

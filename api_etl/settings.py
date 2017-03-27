@@ -46,4 +46,4 @@ real_write = 80
 # 'on' is for when we update, 'off' rest of the time
 shed_read = 100
 shed_write_off = 1
-shed_write_on = 50
+shed_write_on = 100
