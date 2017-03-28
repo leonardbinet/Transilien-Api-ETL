@@ -7,7 +7,10 @@ import boto3
 import pandas as pd
 from pynamodb.models import Model
 from pynamodb.attributes import (
-    UnicodeAttribute, NumberAttribute, UnicodeSetAttribute, UTCDateTimeAttribute
+    UnicodeAttribute,
+    NumberAttribute,
+    UnicodeSetAttribute,
+    UTCDateTimeAttribute
 )
 
 # from boto3.dynamodb.types import TypeDeserializer  # TypeSerializer

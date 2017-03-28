@@ -12,8 +12,13 @@ from datetime import datetime
 import calendar
 
 
-from api_etl.settings import BASE_DIR, data_path, gtfs_path, gtfs_csv_url, dynamo_sched_dep, shed_read, shed_write_on, shed_write_off
-from api_etl.utils_dynamo import dynamo_update_provisionned_capacity, ScheduledDeparture
+from api_etl.settings import (
+    BASE_DIR, data_path, gtfs_path, gtfs_csv_url, dynamo_sched_dep,
+    shed_read, shed_write_on, shed_write_off
+)
+from api_etl.utils_dynamo import (
+    dynamo_update_provisionned_capacity, ScheduledDeparture
+)
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
