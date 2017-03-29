@@ -13,11 +13,21 @@ import calendar
 
 
 from api_etl.settings import (
-    BASE_DIR, data_path, gtfs_path, gtfs_csv_url, dynamo_sched_dep,
+    data_path, gtfs_csv_url, dynamo_sched_dep,
     shed_read, shed_write_on, shed_write_off
 )
 from api_etl.utils_dynamo import (
     dynamo_update_provisionned_capacity, ScheduledDeparture
+)
+from api_etl.utils_rdb import Provider
+from api_etl.models import (
+    Agency,
+    Route,
+    Trip,
+    StopTime,
+    Stop,
+    Calendar,
+    CalendarDate
 )
 
 logger = logging.getLogger(__name__)
@@ -25,21 +35,10 @@ pd.options.mode.chained_assignment = None
 
 
 class ScheduleExtractor():
+    """ Common class for schedule extractors
+    """
 
-    def __init__(self, yyyymmdd, data_folder=None, schedule_url=None, dynamo_table=None, read_on=None, write_on=None, read_off=None, write_off=None):
-
-        # Check dates formats (list or single entry)
-        if isinstance(yyyymmdd, str) or isinstance(yyyymmdd, int):
-            yyyymmdd = [str(yyyymmdd)]
-        if isinstance(yyyymmdd, list):
-            for yyyymmdd_day in yyyymmdd:
-                try:
-                    datetime.strptime(yyyymmdd_day, "%Y%m%d")
-                except ValueError as e:
-                    raise ValueError(
-                        "Error: date in wrong format, should be yyyymmdd")
-        self.days = yyyymmdd
-
+    def __init__(self, data_folder=None, schedule_url=None):
         # Place where gtfs folder is supposed to be located
         # If none specified, takes default folder specified in settings
         if not data_folder:
@@ -56,45 +55,6 @@ class ScheduleExtractor():
 
         self.files_present = None
         self._check_files()
-
-        # Data to be collected
-        self.services = {}
-        self.trips = {}
-        self.departures = {}
-
-        # Dynamo ORM
-        self.dynamo_departures = {}
-
-        # Dynamo saving status
-        self.dynamo_saved_days = []
-
-        # Dynamo table
-        if not dynamo_table:
-            dynamo_table = dynamo_sched_dep
-        self.dynamo_table = dynamo_table
-
-        # ProvisionedThroughput
-        if not read_on:
-            read_on = shed_read
-        self.read_on = read_on
-
-        if not read_off:
-            read_off = shed_read
-        self.read_off = read_off
-
-        if not write_on:
-            write_on = shed_write_on
-        self.write_on = write_on
-
-        if not write_off:
-            write_off = shed_write_off
-        self.write_off = write_off
-
-        if self.files_present:
-            self.build_all_departures()
-        else:
-            logging.warning(
-                "Files were not present. Please download gtfs files and call build_all_departures method before trying to save schedule in dynamo.")
 
     def _check_files(self):
         files_to_check = [
@@ -158,6 +118,115 @@ class ScheduleExtractor():
                 logger.error(
                     "The 'gtfs-lines-last' folder has not been found! Schedules will not be updated.")
                 return False
+
+
+class ScheduleExtractorRDB(ScheduleExtractor):
+    """ For relational database
+    """
+
+    def __init__(self, data_folder=None, schedule_url=None, dsn=None):
+        ScheduleExtractor.__init__(
+            self, data_folder=data_folder, schedule_url=schedule_url)
+
+        self.dsn = dsn
+        self.rdb_provider = Provider(self.dsn)
+
+    def save_in_rdb(self, tables=None):
+        assert self.files_present
+
+        to_save = [
+            ("agency.txt", Agency),
+            ("routes.txt", Route),
+            ("trips.txt", Trip),
+            ("stops.txt", Stop),
+            ("stop_times.txt", StopTime),
+            ("calendar.txt", Calendar),
+            ("calendar_dates.txt", CalendarDate)
+        ]
+        if tables:
+            assert isinstance(tables, list)
+            to_save = [to_save[i] for i in tables]
+
+        for name, model in to_save:
+            df = pd.read_csv(path.join(self.gtfs_folder, name))
+            df = df.applymap(str)
+            dicts = df.to_dict(orient="records")
+            objects = list(map(lambda x: model(**x), dicts))
+            session = self.rdb_provider.get_session()
+            try:
+                # Try to save bulks (initial load)
+                chunks = [objects[i:i + 100]
+                          for i in range(0, len(objects), 100)]
+                for chunk in chunks:
+                    session.bulk_save_objects(chunk)
+                    session.commit()
+            except Exception:
+                # Or save items one after the other
+                session.rollback()
+                for obj in objects:
+                    merged_obj = session.merge(obj)
+                    session.commit()
+
+
+class ScheduleExtractorDynamo(ScheduleExtractor):
+    """ For dynamo
+    """
+
+    def __init__(self, yyyymmdd, data_folder=None, schedule_url=None, dynamo_table=None, read_on=None, write_on=None, read_off=None, write_off=None):
+
+        ScheduleExtractor.__init__(
+            self, data_folder=data_folder, schedule_url=schedule_url)
+
+        # Check dates formats (list or single entry)
+        if isinstance(yyyymmdd, str) or isinstance(yyyymmdd, int):
+            yyyymmdd = [str(yyyymmdd)]
+        if isinstance(yyyymmdd, list):
+            for yyyymmdd_day in yyyymmdd:
+                try:
+                    datetime.strptime(yyyymmdd_day, "%Y%m%d")
+                except ValueError as e:
+                    raise ValueError(
+                        "Error: date in wrong format, should be yyyymmdd")
+        self.days = yyyymmdd
+
+        # Data to be collected
+        self.services = {}
+        self.trips = {}
+        self.departures = {}
+
+        # Dynamo ORM
+        self.dynamo_departures = {}
+
+        # Dynamo saving status
+        self.dynamo_saved_days = []
+
+        # Dynamo table
+        if not dynamo_table:
+            dynamo_table = dynamo_sched_dep
+        self.dynamo_table = dynamo_table
+
+        # ProvisionedThroughput
+        if not read_on:
+            read_on = shed_read
+        self.read_on = read_on
+
+        if not read_off:
+            read_off = shed_read
+        self.read_off = read_off
+
+        if not write_on:
+            write_on = shed_write_on
+        self.write_on = write_on
+
+        if not write_off:
+            write_off = shed_write_off
+        self.write_off = write_off
+
+        if self.files_present:
+            self.build_all_departures()
+        else:
+            logging.warning(
+                "Files were not present. Please download gtfs files and call build_all_departures method before trying to save schedule in dynamo.")
 
     def _services_of_day(self, yyyymmdd):
         """

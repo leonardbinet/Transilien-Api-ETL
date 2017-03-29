@@ -2,103 +2,107 @@
 Module used to interact with Dynamo databases.
 """
 
-from os import path
 import logging
-import sqlite3
-import psycopg2
+import collections
 import sqlalchemy
-# import asyncio
-# import aiopg
+from sqlalchemy.orm import sessionmaker
 
 from api_etl.utils_secrets import get_secret
-from api_etl.settings import sqlite_path
+from api_etl.models import Model
 
 logger = logging.getLogger(__name__)
 
-POSTGRES_USER = get_secret("POSTGRES_USER")
-POSTGRES_DB_NAME = get_secret("POSTGRES_DB_NAME")
-POSTGRES_PASSWORD = get_secret("POSTGRES_PASSWORD")
-POSTGRES_HOST = get_secret("POSTGRES_HOST") or "localhost"
-POSTGRES_PORT = get_secret("POSTGRES_PORT") or 5432
+RDB_USER = get_secret("RDB_USER")
+RDB_DB_NAME = get_secret("RDB_DB_NAME")
+RDB_PASSWORD = get_secret("RDB_PASSWORD")
+RDB_HOST = get_secret("RDB_HOST") or "localhost"
+RDB_TYPE = get_secret("RDB_TYPE") or "postgresql"
+RDB_PORT = get_secret("RDB_PORT") or 5432
 
 
-def rdb_connection(db="postgres"):
-    uri = build_uri()
-    if db == "sqlite":
-        return sqlite3.connect(sqlite_path)
-    elif db == "postgres":
-        conn = psycopg2.connect(uri)
-        conn.autocommit = True
-        return conn
-    elif db == "postgres_alch":
-        # The return value of create_engine() is our connection object
-        conn = sqlalchemy.create_engine(uri, client_encoding='utf8')
-        # We then bind the connection to MetaData()
-        # meta = sqlalchemy.MetaData(bind=con, reflect=True)
-        return conn
-    else:
-        raise ValueError(
-            "db should be one of these: 'postgres', 'postgres_alch', 'sqlite'")
-
-
-def build_uri(user=POSTGRES_USER, password=POSTGRES_PASSWORD, db=POSTGRES_DB_NAME, host=POSTGRES_HOST, port=POSTGRES_PORT):
+def build_dsn(user=RDB_USER, password=RDB_PASSWORD, db=RDB_DB_NAME, host=RDB_HOST, port=RDB_PORT, db_type=RDB_TYPE):
     # We connect with the help of the PostgreSQL URL
     # postgresql://federer:grandestslam@localhost:5432/tennis
-    uri = 'postgresql://{}:{}@{}:{}/{}'
-    uri = uri.format(user, password, host, port, db)
-    return uri
+    if user and host:
+        dsn = '{}://{}:{}@{}:{}/{}'
+        dsn = dsn.format(db_type, user, password, host, port, db)
+    else:
+        dsn = 'sqlite:///application.db'
+    return dsn
 
 
-"""
-# Not working postgres async for now
+class Provider:
+    """ `SQLAlchemy`_ support provider.
 
-def postgres_async_query_get_trip_ids(items, yyyymmdd_day):
-    dsn = 'dbname=%s user=%s password=%s' % (
-        POSTGRES_DB_NAME, POSTGRES_USER, POSTGRES_PASSWORD)
+    This is built to connect to a single database. If multiple needed I would separate engines and sessions objects.
 
-    async def fetch(item, cursor):
-        try:
-            train_num = item["num"]
-            query = "SELECT trip_id FROM trips_ext WHERE train_num='%s' AND start_date<='%s' AND end_date>='%s';" % (
-                train_num, yyyymmdd_day, yyyymmdd_day)
+    You can:
+    - get engine
+    - get a session
+    - create tables
+    .. _SQLAlchemy: http://www.sqlalchemy.org/
+    """
 
-            await cursor.execute(query)
-            trip_ids = await cursor.fetchone()
+    def __init__(self, dsn=None):
+        self._engine = sqlalchemy.create_engine(dsn or build_dsn())
+        # session maker is a class
+        self._session_class = sessionmaker(bind=self._engine)
 
-            # Check number of results
-            if not trip_ids:
-                logger.warning("No matching trip_id")
-                return "nothing"
-            elif len(trip_ids) == 1:
-                trip_id = trip_ids[0][0]
-                logger.debug("Found trip_id: %s" % trip_ids)
-                item["trip_id"] = trip_id
-                return item
+    def get_engine(self):
+        """ Return an :class:`sqlalchemy.engine.Engine` object.
+        :return: a ready to use :class:`sqlalchemy.engine.Engine` object.
+        """
+        return self._engine
+
+    def get_session(self):
+        """ Return an :class:`sqlalchemy.orm.session.Session` object.
+        :return: a ready to use :class:`sqlalchemy.orm.session.Session` object.
+        """
+        return self._session_class()
+
+    def create_tables(self):
+        """ Creates table if not already present.
+        """
+        Model.metadata.create_all(self._engine)
+
+
+class ResultSerializer():
+
+    def __init__(self, result):
+        if isinstance(result, list):
+            self.results = result
+        else:
+            self.results = [result]
+
+        self.nested_dict = []
+        self._to_nested_dict()
+
+        self.flat_dict = []
+        self._to_flat_dict()
+
+    def _to_nested_dict(self):
+        for el in self.results:
+            mydict = el._asdict()
+            for key, value in mydict.items():
+                try:
+                    mydict[key] = value.__dict__
+                    del mydict[key]["_sa_instance_state"]
+                except:
+                    pass
+            self.nested_dict.append(mydict)
+
+    def _to_flat_dict(self):
+        for el in self.nested_dict:
+            assert isinstance(el, dict)
+            new_el = self._flatten(el)
+            self.flat_dict.append(new_el)
+
+    def _flatten(self, d, parent_key='', sep='_'):
+        items = []
+        for k, v in d.items():
+            new_key = parent_key + sep + k if parent_key else k
+            if isinstance(v, collections.MutableMapping):
+                items.extend(self._flatten(v, new_key, sep=sep).items())
             else:
-                logger.warning("Multiple trip_ids found: %d matches: %s" %
-                               (len(trip_ids), trip_ids))
-                return "lots"
-        except:
-            logger.debug(
-                "Error getting item %s trip_id" % train_num)
-
-    async def run(items):
-        tasks = []
-        async with aiopg.create_pool(dsn) as pool:
-            async with pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    for item in items:
-                        task = asyncio.ensure_future(
-                            fetch(item, cur))
-                        tasks.append(task)
-
-                    responses = await asyncio.gather(*tasks)
-                    # you now have all response bodies in this variable
-                    # print(responses)
-                    return responses
-
-    loop = asyncio.get_event_loop()
-    future = asyncio.ensure_future(run(items))
-    loop.run_until_complete(future)
-    return future.result()
-"""
+                items.append((new_key, v))
+        return dict(items)
