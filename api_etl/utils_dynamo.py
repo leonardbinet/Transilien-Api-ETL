@@ -204,7 +204,9 @@ def dynamo_insert_batches(items_list, table_name):
     # logger.info("Task completed.")
 
 
-def dynamo_submit_batch_getitem_request(items_keys, table_name, max_retry=3, prev_resp=None):
+def dynamo_submit_batch_getitem_request(
+    items_keys, table_name, max_retry=3, prev_resp=None
+):
     # Compute query in batches of 100 items
     batches = [items_keys[i:i + 100]
                for i in range(0, len(items_keys), 100)]
