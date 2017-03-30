@@ -6,13 +6,14 @@ with extract_schedule)
 - save it in databases, Mongo or/and Dynamo (use utils_dynamo, utils_mongo)
 """
 
+import copy
+import logging
 import time
 from datetime import datetime
 import json
+
 import xmltodict
 import pandas as pd
-import copy
-import logging
 
 from api_etl.utils_misc import (
     get_paris_local_datetime_now, DateConverter, StationProvider
@@ -22,16 +23,12 @@ from api_etl.utils_mongo import (
     mongo_async_save_chunks, mongo_async_upsert_items
 )
 from api_etl.utils_dynamo import RealTimeDeparture
-
-from api_etl.settings import (
-    data_path, col_real_dep_unique,
-    dynamo_real_dep
-)
-
-logger = logging.getLogger(__name__)
+from api_etl.settings import col_real_dep_unique
 
 # To avoid some pandas warnings
 pd.options.mode.chained_assignment = None
+
+logger = logging.getLogger(__name__)
 
 
 class ApiExtractor():
@@ -180,15 +177,17 @@ class ApiExtractor():
             inplace=True
         )
 
-        self.json_objects.extend(json.loads(
-            df_trains.to_json(orient='records')
-        ))
+        jsons_to_add = json.loads(df_trains.to_json(orient='records'))
+        self.json_objects.extend(jsons_to_add)
 
-        self.dict_objects.extend(df_trains.to_dict(orient='records'))
+        dicts_to_add = df_trains.to_dict(orient='records')
+        self.dict_objects.extend(dicts_to_add)
 
-        self.dynamo_objects.extend([
-            RealTimeDeparture(**item) for item in self.dict_objects
-        ])
+        dynamo_objects_to_add = [
+            RealTimeDeparture(**item) for item in dicts_to_add
+        ]
+
+        self.dynamo_objects.extend(dynamo_objects_to_add)
 
         if return_df:
             return df_trains
