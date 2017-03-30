@@ -8,10 +8,8 @@
 # all x min = */x
 
 # Every 2 min
-*/2 * * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_01_single_cycle_api.py
+*/2 * * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/tasks/extract_api_once_all_stations.py
 
-# Every day at 11:00PM
-0 23 * * * /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_01_d_sch_dep.py
 
 # Every week on Monday at 5:30 AM
-30 5 * * 1 /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/api_transilien_manager/task_01_w_extract_schedule.py
+30 5 * * 1 /home/ubuntu/tasks/api_transilien/virtualenv/bin/python3 /home/ubuntu/tasks/api_transilien/source/tasks/weekly_gtfs_update.py
