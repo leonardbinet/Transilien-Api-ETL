@@ -10,14 +10,20 @@ import pytz
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
-from api_etl.settings import logs_path, data_path, responding_stations_path
 
-from api_etl.settings import data_path, col_real_dep_unique, responding_stations_path, all_stations_path, dynamo_real_dep, top_stations_path, scheduled_stations_path
+from api_etl.settings import (
+    data_path, responding_stations_path,
+    all_stations_path, top_stations_path,
+    scheduled_stations_path, logs_path
+)
+
+logger = logging.getLogger(__name__)
 
 
 def chunks(l, n):
     """
-    Yield a list in 'n' lists of nearly same size (some can be one more than others).
+    Yield a list in 'n' lists of nearly same size (some can be one more than
+    others).
 
     :param l: list you want to divide in chunks
     :type l: list
@@ -29,9 +35,16 @@ def chunks(l, n):
         yield l[i:i + n]
 
 
+class StationProvider():
+
+    def __init__(self):
+        pass
+
+
 def get_station_ids(stations="all"):
     """
-    Get stations ids either in API format (8 digits), or in GTFS format (7 digits).
+    Get stations ids either in API format (8 digits), or in GTFS format
+    (7 digits).
 
     Beware, this function has to be more tested.
     Beware: two formats:
@@ -56,106 +69,118 @@ def get_station_ids(stations="all"):
 
     else:
         raise ValueError(
-            "stations parameter should be either 'all', 'top', 'scheduled' or 'responding'")
+            "stations parameter should be either 'all', 'top',"
+            + " 'scheduled' or 'responding'")
 
     return list(station_ids)
 
 
-def api_date_to_day_time_corrected(api_date, time_or_day):
+class DateConverter():
+    """Class to convert dates from and to our special format, from and to api
+    date format, and to and from our regular format:
+    \n- api_format: "16/02/2017 01:26"
+    \n- normal date: "20170216"
+    \n- normal time: "01:26:00"
+    \n- special date: "20170215"
+    \n- special time: "25:26:00"
+
+    \nThis class has also methods to compute delays
     """
-    Function that transform dates given by api in usable fields:
-    - expected_passage_day : "20120523" format
-    - expected_passage_time: "12:55:00" format
 
-    Important: dates between 0 and 3 AM are transformed in +24h time format with day as previous day.
+    def __init__(
+        self, api_date=None, normal_date=None, normal_time=None,
+        special_date=None, special_time=None
+    ):
+        """Works in two steps, first try to find real datetime from arguments
+        passed, then computes string representations.
+        """
+        self.api_date = api_date
+        self.normal_date = normal_date
+        self.normal_time = normal_time
+        self.special_date = special_date
+        self.special_time = special_time
+        self.dt = None
 
-    :param api_date: api date you want to transform
-    :type api_date: str
+        if self.api_date:
+            self._api_date_to_dt()
 
-    :param time_or_day: choose either "time" or "day", do you want to get corrected day or time?
-    :type time_or_day: str ("time", or "day")
-    """
-    expected_passage_date = datetime.strptime(api_date, "%d/%m/%Y %H:%M")
+        elif (self.normal_date and self.normal_time):
+            self._normal_datetime_to_dt()
 
-    day_string = expected_passage_date.strftime("%Y%m%d")
-    time_string = expected_passage_date.strftime("%H:%M:00")
+        elif (self.special_time and self.special_date):
+            self._special_datetime_to_dt()
 
-    # For hours between 00:00:00 and 02:59:59: we add 24h and say it
-    # is from the day before
-    if expected_passage_date.hour in (0, 1, 2):
-        # say this train is departed the time before
-        expected_passage_date = expected_passage_date - timedelta(days=1)
-        # overwrite day_string
-        day_string = expected_passage_date.strftime("%Y%m%d")
-        # overwrite time_string with +24: 01:44:00 -> 25:44:00
-        time_string = "%d:%d:00" % (
-            expected_passage_date.hour + 24, expected_passage_date.minute)
+        else:
+            raise ValueError("You need to pass args")
 
-    if time_or_day == "day":
-        return day_string
-    elif time_or_day == "time":
-        return time_string
-    else:
-        raise ValueError("time or day should be 'time' or 'day'")
+        self.api_date = self.dt.strftime("%d/%m/%Y %H:%M")
+        self.normal_date = self.dt.strftime("%Y%m%d")
+        self.normal_time = self.dt.strftime("%H:%M:%S")
+        # Compute special datetime self.special_date and self.special_time
+        self._dt_to_special_datetime()
 
+    def _api_date_to_dt(self):
+        assert self.api_date
+        self.dt = datetime.strptime(self.api_date, "%d/%m/%Y %H:%M")
 
-def compute_delay(scheduled_departure_time, real_departure_time):
-    """
-    Return in seconds the delay:
-    - positive if real_time > schedule time (delayed)
-    - negative if real_time < schedule time (advance)
+    def _normal_datetime_to_dt(self):
+        assert (self.normal_date and self.normal_time)
+        # "2017021601:26:00"
+        full_str_dt = "%s%s" % (self.normal_date, self.normal_time)
+        self.dt = datetime.strptime(full_str_dt, "%Y%m%d%H:%M:%S")
 
-    Return None if one value is not string
+    def _special_datetime_to_dt(self):
+        assert(self.special_date and self.special_time)
+        hour = self.special_time[:2]
+        assert (int(hour) >= 0 and int(hour) < 29)
+        add_day = False
+        if int(hour) in (24, 25, 26, 27):
+            hour = str(int(hour) - 24)
+            add_day = True
+        corr_sp_t = hour + self.special_time[2:]
+        full_str_dt = "%s%s" % (self.special_date, corr_sp_t)
+        dt = datetime.strptime(full_str_dt, "%Y%m%d%H:%M:%S")
+        if add_day:
+            dt = dt + timedelta(days=1)
+        self.dt = dt
 
-    Convert custom hours (after midnight) TODO
-    """
-    # real_departure_date = "01/02/2017 22:12" (api format)
-    # scheduled_departure_time = '22:12:00' (schedules format)
-    # real_departure_time = "22:12:00"
-    # We don't need to take into account time zones
+    def _dt_to_special_datetime(self):
+        """
+        Dates between 0 and 3 AM are transformed in +24h time format with
+        day as previous day.
+        """
+        assert self.dt
+        # For hours between 00:00:00 and 02:59:59: we add 24h and say it
+        # is from the day before
+        if self.dt.hour in (0, 1, 2):
+            # say this train is departed the day before
+            special_dt = self.dt - timedelta(days=1)
+            self.special_date = special_dt.strftime("%Y%m%d")
+            # +24: 01:44:00 -> 25:44:00
+            self.special_time = "%s:%s" % (
+                self.dt.hour + 24, self.dt.strftime("%M:%S"))
 
-    # Accept only string
-    if pd.isnull(scheduled_departure_time) or pd.isnull(real_departure_time):
-        return None
+    def compute_delay_from(
+        self, dc=None, api_date=None, normal_date=None, normal_time=None,
+        special_date=None, special_time=None
+    ):
+        """
+        Create another DateConverter and compares datetimes
+        Return in seconds the delay:
+        - positive if this one > 'from' (delayed)
+        - negative if this one < 'from' (advance)
+        """
+        if dc:
+            assert isinstance(dc, DateConverter)
+            other_dt = dc.dt
+        else:
+            other_dt = DateConverter(
+                api_date=api_date, normal_date=normal_date, normal_time=normal_time,
+                special_date=special_date, special_time=special_time
+            )
+        time_delta = self.dt - other_dt
 
-    try:
-        scheduled_departure_time = str(scheduled_departure_time)
-        real_departure_time = str(real_departure_time)
-    except Exception as e:
-        print(e)
-        return None
-
-    # Take into account 24->29 => 0->5
-    real_hour = int(real_departure_time[:2])
-    if real_hour >= 24:
-        real_hour -= 24
-        real_departure_time = "%s%s" % (
-            str(real_hour), real_departure_time[2:])
-
-    sched_hour = int(scheduled_departure_time[:2])
-    if sched_hour >= 24:
-        sched_hour -= 24
-        scheduled_departure_time = "%s%s" % (
-            str(sched_hour), scheduled_departure_time[2:])
-
-    # Convert into datime objects
-    real_departure_time = datetime.strptime(
-        real_departure_time, "%H:%M:%S")
-
-    scheduled_departure_time = datetime.strptime(
-        scheduled_departure_time, "%H:%M:%S")
-
-    # If late: delay is positive, if in advance, it is negative
-    delay = real_departure_time - scheduled_departure_time
-    # If schedule is 23:59:59 and the real is 00:00:01, bring back to 2 secs
-    # If real is 23:59:59 and the schedule is 00:00:01, bring back to -2 secs
-    secs_in_day = 60 * 60 * 24
-    if abs(delay.seconds) > secs_in_day / 2:
-        real_delay = np.sign(delay.seconds) * (-1) * \
-            abs(secs_in_day - delay.seconds)
-    else:
-        real_delay = delay.seconds
-    return real_delay
+        return time_delta.total_seconds()
 
 
 def get_paris_local_datetime_now():

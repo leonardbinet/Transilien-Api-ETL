@@ -37,8 +37,8 @@ class RdbQuerier():
             .all()
 
         # Get service exceptions
-        # 1 = service (alors que normalement non)
-        # 2 = pas service (alors que normalement oui)
+        # 1 = service (instead of usually not)
+        # 2 = no service (instead of usually yes)
 
         serv_add = self.provider.get_session()\
             .query(CalendarDate.service_id)\

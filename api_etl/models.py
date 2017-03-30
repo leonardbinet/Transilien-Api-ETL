@@ -3,7 +3,10 @@
 
 from sqlalchemy.ext import declarative
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from pynamodb.exceptions import DoesNotExist
 # from sqlalchemy.orm import relationship
+
+from api_etl.utils_dynamo import RealTimeDeparture
 
 Model = declarative.declarative_base()
 
@@ -18,7 +21,8 @@ class Agency(Model):
     agency_lang = Column(String(50))
 
     def __repr__(self):
-        return "<Agency(agency_id='%s', agency_name='%s', agency_url='%s')>" % (self.agency_id, self.agency_name, self.agency_url)
+        return "<Agency(agency_id='%s', agency_name='%s', agency_url='%s')>"\
+            % (self.agency_id, self.agency_name, self.agency_url)
 
 
 class Route(Model):
@@ -57,6 +61,24 @@ class StopTime(Model):
     stop_headsign = Column(String(50))
     pickup_type = Column(String(50))
     drop_off_type = Column(String(50))
+
+    def get_realtime_info(self, yyyymmdd):
+        yyyymmdd = str(yyyymmdd)
+        assert len(yyyymmdd) == 8
+        self.station_id = self.stop_id[12:]
+        self.train_num = self.trip_id[5:11]
+        self.day_train_num = "%s_%s" % (yyyymmdd, self.train_num)
+        try:
+            self.realtime_object = RealTimeDeparture.get(
+                hash_key=self.station_id,
+                range_key=self.day_train_num
+            )
+            self.realtime_found = True
+        except DoesNotExist:
+            self.realtime_found = False
+
+    def _compute_delay(self):
+        pass
 
 
 class Stop(Model):

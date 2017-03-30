@@ -5,7 +5,7 @@ Module used to interact with Dynamo databases.
 import logging
 import boto3
 import pandas as pd
-from pynamodb.models import Model
+from pynamodb.models import Model as DyModel
 from pynamodb.attributes import (
     UnicodeAttribute,
     NumberAttribute,
@@ -24,7 +24,7 @@ AWS_ACCESS_KEY_ID = get_secret("AWS_ACCESS_KEY_ID", env=True)
 AWS_SECRET_ACCESS_KEY = get_secret("AWS_SECRET_ACCESS_KEY", env=True)
 
 
-class RealTimeDeparture(Model):
+class RealTimeDeparture(DyModel):
 
     class Meta:
         table_name = dynamo_real_dep
@@ -38,8 +38,8 @@ class RealTimeDeparture(Model):
     term = UnicodeAttribute()
 
     # Fields added for indexing and identification
-    day_train_num = UnicodeAttribute(hash_key=True)
-    station_id = UnicodeAttribute(range_key=True)
+    day_train_num = UnicodeAttribute(range_key=True)
+    station_id = UnicodeAttribute(hash_key=True)
 
     # Custom time fields
     # Expected passage day and time are 'weird' dates -> to 27h
@@ -50,15 +50,15 @@ class RealTimeDeparture(Model):
     data_freshness = UnicodeAttribute()
 
 
-class ScheduledDeparture(Model):
+class ScheduledDeparture(DyModel):
 
     class Meta:
         table_name = dynamo_sched_dep
         region = AWS_DEFAULT_REGION
 
     # Fields added for indexing and identification
-    day_train_num = UnicodeAttribute(hash_key=True)
-    station_id = UnicodeAttribute(range_key=True)
+    day_train_num = UnicodeAttribute(range_key=True)
+    station_id = UnicodeAttribute(hash_key=True)
     # Train num and trip
 
     # Necessary attributes
