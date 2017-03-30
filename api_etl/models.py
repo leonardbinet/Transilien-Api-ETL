@@ -7,6 +7,7 @@ from pynamodb.exceptions import DoesNotExist
 # from sqlalchemy.orm import relationship
 
 from api_etl.utils_dynamo import RealTimeDeparture
+from api_etl.utils_misc import DateConverter
 
 Model = declarative.declarative_base()
 
@@ -74,10 +75,12 @@ class StopTime(Model):
                 range_key=self.day_train_num
             )
             self.realtime_found = True
+            self._compute_delay()
         except DoesNotExist:
             self.realtime_found = False
 
     def _compute_delay(self):
+        # rt_api_date = self.realtime_object.
         pass
 
 

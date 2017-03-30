@@ -36,43 +36,53 @@ def chunks(l, n):
 
 
 class StationProvider():
+    """ Class to easily get lists of stations in gtfs format (7 digits) or
+    transilien's format (8 digits).
+
+    Warning: data sources have to be checked ("all" is ok, "top" is wrong).
+    """
 
     def __init__(self):
-        pass
+        self._all_stations_path = all_stations_path
+        self._responding_stations_path = responding_stations_path
+        self._top_stations_path = top_stations_path
+        self._scheduled_stations_path = scheduled_stations_path
 
+    def get_station_ids(self, stations="all", gtfs_format=False):
+        """
+        Get stations ids either in API format (8 digits), or in GTFS format
+        (7 digits).
 
-def get_station_ids(stations="all"):
-    """
-    Get stations ids either in API format (8 digits), or in GTFS format
-    (7 digits).
+        Beware, this function has to be more tested.
+        Beware: two formats:
+        - 8 digits format to query api
+        - 7 digits format to query gtfs files
+        """
+        if stations == "all":
+            station_path = self._all_stations_path
 
-    Beware, this function has to be more tested.
-    Beware: two formats:
-    - 8 digits format to query api
-    - 7 digits format to query gtfs files
-    """
-    if stations == "all":
-        station_ids = np.genfromtxt(
-            all_stations_path, delimiter=',', dtype=str)
+        elif stations == "responding":
+            station_path = self._responding_stations_path
 
-    elif stations == "responding":
-        station_ids = np.genfromtxt(
-            responding_stations_path, delimiter=',', dtype=str)
+        elif stations == "top":
+            station_path = self._top_stations_path
 
-    elif stations == "top":
-        station_ids = np.genfromtxt(
-            top_stations_path, delimiter=',', dtype=str)
+        elif stations == "scheduled":
+            station_path = self._scheduled_stations_path
 
-    elif stations == "scheduled":
-        station_ids = np.genfromtxt(
-            scheduled_stations_path, delimiter=",", dtype=str)
+        else:
+            raise ValueError(
+                "stations parameter should be either 'all', 'top',"
+                + " 'scheduled' or 'responding'"
+            )
 
-    else:
-        raise ValueError(
-            "stations parameter should be either 'all', 'top',"
-            + " 'scheduled' or 'responding'")
+        station_ids = np.genfromtxt(station_path, delimiter=",", dtype=str)
 
-    return list(station_ids)
+        if gtfs_format:
+            # Remove last character
+            station_ids = map(lambda x: x[:-1], station_ids)
+
+        return list(station_ids)
 
 
 class DateConverter():
@@ -88,18 +98,18 @@ class DateConverter():
     """
 
     def __init__(
-        self, api_date=None, normal_date=None, normal_time=None,
+        self, dt=None, api_date=None, normal_date=None, normal_time=None,
         special_date=None, special_time=None
     ):
         """Works in two steps, first try to find real datetime from arguments
         passed, then computes string representations.
         """
+        self.dt = dt
         self.api_date = api_date
         self.normal_date = normal_date
         self.normal_time = normal_time
         self.special_date = special_date
         self.special_time = special_time
-        self.dt = None
 
         if self.api_date:
             self._api_date_to_dt()
@@ -111,7 +121,7 @@ class DateConverter():
             self._special_datetime_to_dt()
 
         else:
-            raise ValueError("You need to pass args")
+            assert self.dt
 
         self.api_date = self.dt.strftime("%d/%m/%Y %H:%M")
         self.normal_date = self.dt.strftime("%Y%m%d")
@@ -159,10 +169,13 @@ class DateConverter():
             # +24: 01:44:00 -> 25:44:00
             self.special_time = "%s:%s" % (
                 self.dt.hour + 24, self.dt.strftime("%M:%S"))
+        else:
+            self.special_date = self.dt.strftime("%Y%m%d")
+            self.special_time = self.dt.strftime("%H:%M:%S")
 
     def compute_delay_from(
-        self, dc=None, api_date=None, normal_date=None, normal_time=None,
-        special_date=None, special_time=None
+        self, dc=None, dt=None, api_date=None, normal_date=None,
+        normal_time=None, special_date=None, special_time=None
     ):
         """
         Create another DateConverter and compares datetimes
@@ -175,9 +188,10 @@ class DateConverter():
             other_dt = dc.dt
         else:
             other_dt = DateConverter(
-                api_date=api_date, normal_date=normal_date, normal_time=normal_time,
+                api_date=api_date, normal_date=normal_date,
+                normal_time=normal_time, dt=dt,
                 special_date=special_date, special_time=special_time
-            )
+            ).dt
         time_delta = self.dt - other_dt
 
         return time_delta.total_seconds()
@@ -185,7 +199,8 @@ class DateConverter():
 
 def get_paris_local_datetime_now():
     """
-    Return paris local time (necessary for operations operated on other time zones)
+    Return paris local time (necessary for operations operated on other time
+    zones)
     """
     paris_tz = pytz.timezone('Europe/Paris')
     datetime_paris = datetime.now(tzlocal()).astimezone(paris_tz)
@@ -222,7 +237,9 @@ def set_logging_conf(log_name, level="INFO"):
     handlers = [file_handler, stream_handler]
 
     logging.basicConfig(
-        format='%(asctime)s-- %(name)s -- %(levelname)s -- %(message)s', level=level, handlers=handlers)
+        format='%(asctime)s-- %(name)s -- %(levelname)s -- %(message)s',
+        level=level, handlers=handlers
+    )
 
     # Python crashes or captured as well (beware of ipdb imports)
     def handle_exception(exc_type, exc_value, exc_traceback):
@@ -237,7 +254,10 @@ def set_logging_conf(log_name, level="INFO"):
 
 def get_responding_stations_from_sample(sample_loc=None, write_loc=None):
     """
-    This function's purpose is to write down responding stations from a given "real_departures" sample, and to write it down so it can be used to query only necessary stations (and avoid to spend API credits on unnecessary stations)
+    This function's purpose is to write down responding stations from a given
+    "real_departures" sample, and to write it down so it can be used to query
+    only necessary stations (and avoid to spend API credits on unnecessary
+    stations)
     """
     if not sample_loc:
         sample_loc = path.join(data_path, "20170131_real_departures.csv")
