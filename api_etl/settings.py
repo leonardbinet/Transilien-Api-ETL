@@ -11,15 +11,14 @@ BASE_DIR = os.path.dirname(
 logs_path = os.path.join(BASE_DIR, "..", "logs")
 
 
-#### DATA PATH #####
+# ##### DATA PATH #####
 data_path = os.path.join(BASE_DIR, "data")
 gtfs_path = os.path.join(data_path, "gtfs-lines-last")
 
-gtfs_csv_url = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien-gtfs/download/?format=csv&timezone=Europe/Berlin&use_labels_for_header=true'
+gtfs_csv_url = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien-gtfs/'\
+    + 'download/?format=csv&timezone=Europe/Berlin&use_labels_for_header=true'
 
 # Stations files paths
-# test.tofile("data/all_stations.csv",sep=",",format="%s")
-# np.genfromtxt("etc.csv", delimiter=",", dtype=str)
 responding_stations_path = path.join(data_path, "responding_stations.csv")
 top_stations_path = path.join(data_path, "most_used_stations.csv")
 scheduled_stations_path = path.join(
@@ -27,7 +26,7 @@ scheduled_stations_path = path.join(
 all_stations_path = path.join(data_path, "all_stations.csv")
 
 
-#### DATABASES ####
+# ##### DATABASES #####
 
 # Sqlite
 sqlite_path = os.path.join(BASE_DIR, "schedules.db")
