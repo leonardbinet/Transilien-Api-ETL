@@ -6,12 +6,7 @@ import logging
 import boto3
 import pandas as pd
 from pynamodb.models import Model as DyModel
-from pynamodb.attributes import (
-    UnicodeAttribute,
-    NumberAttribute,
-    UnicodeSetAttribute,
-    UTCDateTimeAttribute
-)
+from pynamodb.attributes import UnicodeAttribute
 
 # from boto3.dynamodb.types import TypeDeserializer  # TypeSerializer
 from api_etl.settings import dynamo_real_dep, dynamo_sched_dep
@@ -34,8 +29,9 @@ class RealTimeDeparture(DyModel):
     date = UnicodeAttribute()
     station_8d = UnicodeAttribute()
     train_num = UnicodeAttribute()
-    miss = UnicodeAttribute()
+    miss = UnicodeAttribute(null=True)
     term = UnicodeAttribute()
+    etat = UnicodeAttribute(null=True)
 
     # Fields added for indexing and identification
     day_train_num = UnicodeAttribute(range_key=True)
@@ -94,9 +90,13 @@ def dynamo_get_client():
     return boto3.client("dynamodb")
 
 
-def dynamo_create_real_departures_table(table_name, read=5, write=5, hash_key="day_station", range_key="expected_passage_day"):
+def dynamo_create_real_departures_table(
+    table_name, read=5, write=5,
+    hash_key="day_station", range_key="expected_passage_day"
+):
     """
-    Creates a table in Dynamo with given hash and range keys, with provisioned throughput given in parameters.
+    Creates a table in Dynamo with given hash and range keys, with provisioned
+    throughput given in parameters.
 
     :param table_name: table name
     :type table_name: str
@@ -139,7 +139,8 @@ def dynamo_create_real_departures_table(table_name, read=5, write=5, hash_key="d
 
 def dynamo_get_table_provisionned_capacity(table_name):
     """
-    This function returns a given table provisioned throughput. Returns (read, write)
+    This function returns a given table provisioned throughput. Returns (read,
+    write)
 
     :param table_name: table name
     :type table_name: str
