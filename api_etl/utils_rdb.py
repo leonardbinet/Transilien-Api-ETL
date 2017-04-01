@@ -8,7 +8,8 @@ from sqlalchemy.orm import sessionmaker
 
 
 from api_etl.utils_secrets import get_secret
-from api_etl.models import Model
+from api_etl.models import RdbModel
+from api_etl.utils_misc import build_uri
 
 logger = logging.getLogger(__name__)
 
@@ -20,24 +21,11 @@ RDB_TYPE = get_secret("RDB_TYPE") or "postgresql"
 RDB_PORT = get_secret("RDB_PORT") or 5432
 
 
-def build_dsn(
-    user=RDB_USER, password=RDB_PASSWORD, db=RDB_DB_NAME,
-    host=RDB_HOST, port=RDB_PORT, db_type=RDB_TYPE
-):
-    # We connect with the help of the PostgreSQL URL
-    # postgresql://federer:grandestslam@localhost:5432/tennis
-    if user and host:
-        dsn = '{}://{}:{}@{}:{}/{}'
-        dsn = dsn.format(db_type, user, password, host, port, db)
-    else:
-        dsn = 'sqlite:///application.db'
-    return dsn
-
-
-class Provider:
+class RdbProvider:
     """ `SQLAlchemy`_ support provider.
 
-    This is built to connect to a single database. If multiple needed I would separate engines and sessions objects.
+    This is built to connect to a single database. If multiple needed I would
+    separate engines and sessions objects.
 
     You can:
     - get engine
@@ -47,7 +35,17 @@ class Provider:
     """
 
     def __init__(self, dsn=None):
-        self._engine = sqlalchemy.create_engine(dsn or build_dsn())
+        self._engine = sqlalchemy.create_engine(
+            dsn or
+            build_uri(
+                user=RDB_USER,
+                password=RDB_PASSWORD,
+                database=RDB_DB_NAME,
+                host=RDB_HOST,
+                port=RDB_PORT,
+                db_type=RDB_TYPE
+            )
+        )
         # session maker is a class
         self._session_class = sessionmaker(bind=self._engine)
 
@@ -66,4 +64,4 @@ class Provider:
     def create_tables(self):
         """ Creates table if not already present.
         """
-        Model.metadata.create_all(self._engine)
+        RdbModel.metadata.create_all(self._engine)

@@ -4,15 +4,17 @@ Module used to query schedule data contained in relational databases.
 
 import logging
 import collections
+from datetime import datetime
 
 import pandas as pd
 
 from api_etl.utils_misc import get_paris_local_datetime_now
-from api_etl.utils_rdb import Provider
+from api_etl.utils_rdb import RdbProvider
+from api_etl.utils_mongo import mongo_async_upsert_items
 from api_etl.models import (
-    Calendar, CalendarDate, Trip, StopTime, Stop, Agency, Route
+    Calendar, CalendarDate, Trip, StopTime, Stop, Agency, Route,
+    RealTimeDeparture
 )
-from api_etl.utils_dynamo import RealTimeDeparture
 
 
 logger = logging.getLogger(__name__)
@@ -146,6 +148,7 @@ class ResultSetSerializer():
 
         self.yyyymmdd = yyyymmdd
         self.results = list(map(ResultSerializer, self._raws))
+        self.mongo_collection = "flat_stop_times"
 
     def _index_stoptime_results(self, yyyymmdd):
         """ Index elements containing a StopTime object.
@@ -182,29 +185,50 @@ class ResultSetSerializer():
         # 5: make results available
         self.results = [value for key, value in self._indexed_results.items()]
 
+    def save_in_mongo(self, collection=None, objects=None):
+        index_fields = ["StopTime_trip_id", "Stop_stop_id"]
+        collection = collection or self.mongo_collection
+        objects = objects or self.get_flat_dicts()
+        assert objects
+        mongo_async_upsert_items(
+            item_list=objects, collection=collection,
+            index_fields=index_fields)
+
 
 class DBQuerier():
     """ This class allows you to easily query information available in
     databases: both RDB containing schedules, and Dynamo DB containing
     real-time data.
     \nThe possible methods are:
-    \n-services_of_day
-    \n-trip_stops: gives trips stops for a given trip_id. It will first get
-    schedule and then query real-time data. Given the fact that a trip_id can
-    pass on different days, you have to provide the day for which you want to
-    get real-time information with 'yyyymmdd' parameter (default today).
-    \n-station_trip_stops: gives trips stops for a given station_id (in gtfs format:7 digits)
+    \n -services_of_day: returns a list of strings.
+    \n -trip_stops: gives trips stops for a given trip_id.
+    \n -station_trip_stops: gives trips stops for a given station_id (in gtfs
+    format:7 digits).
     """
 
-    def __init__(self):
-        self.provider = Provider()
-
-    def services_of_day(self, yyyymmdd=None):
+    def __init__(self, yyyymmdd=None):
+        self.provider = RdbProvider()
         if not yyyymmdd:
             yyyymmdd = get_paris_local_datetime_now().strftime("%Y%m%d")
+        else:
+            # Will raise an error if wrong format
+            datetime.strptime(yyyymmdd, "%Y%m%d")
+        self.yyyymmdd = yyyymmdd
 
-        yyyymmdd = str(yyyymmdd)
-        assert len(yyyymmdd) == 8
+    def set_date(self, yyyymmdd):
+        """Sets date that will define default date for requests.
+        """
+        # Will raise error if wrong format
+        datetime.strptime(yyyymmdd, "%Y%m%d")
+        self.yyyymmdd = yyyymmdd
+
+    def services_of_day(self, yyyymmdd=None):
+        """Return all service_id's for a given day.
+        """
+        yyyymmdd = yyyymmdd or self.yyyymmdd
+        # Will raise error if wrong format
+        datetime.strptime(yyyymmdd, "%Y%m%d")
+
         all_services = self.provider.get_session()\
             .query(Calendar.service_id)\
             .filter(Calendar.start_date <= yyyymmdd)\
@@ -236,27 +260,13 @@ class DBQuerier():
         return serv_on_day
 
     def trip_stops(self, trip_id, yyyymmdd=None):
-        results = self.provider.get_session()\
-            .query(StopTime, Trip, Stop, Route, Agency)\
-            .filter(Trip.trip_id == StopTime.trip_id)\
-            .filter(Stop.stop_id == StopTime.stop_id)\
-            .filter(Trip.route_id == Route.route_id)\
-            .filter(Agency.agency_id == Route.agency_id)\
-            .filter(Trip.trip_id == trip_id)\
-            .all()
-        return ResultSetSerializer(results, yyyymmdd=yyyymmdd)
-
-    def station_trips_stops(self, station_id, yyyymmdd=None):
-        """ station_id should be in 7 digits gtfs format
+        """Return all stops of a given trip, on a given day.
+        \nInitially the returned object contains only schedule information.
+        \nThen, it can be updated with realtime information.
         """
-        station_id = str(station_id)
-        assert len(station_id) == 7
-
-        if not yyyymmdd:
-            yyyymmdd = get_paris_local_datetime_now().strftime("%Y%m%d")
-        else:
-            yyyymmdd = str(yyyymmdd)
-            assert len(yyyymmdd) == 8
+        yyyymmdd = yyyymmdd or self.yyyymmdd
+        # Will raise error if wrong format
+        datetime.strptime(yyyymmdd, "%Y%m%d")
 
         results = self.provider.get_session()\
             .query(StopTime, Trip, Stop, Route, Agency, Calendar)\
@@ -264,17 +274,36 @@ class DBQuerier():
             .filter(Stop.stop_id == StopTime.stop_id)\
             .filter(Trip.route_id == Route.route_id)\
             .filter(Agency.agency_id == Route.agency_id)\
-            .filter(StopTime.stop_id.match(station_id))\
+            .filter(Calendar.service_id == Trip.service_id)\
+            .filter(Trip.trip_id == trip_id)\
+            .all()
+        return ResultSetSerializer(results, yyyymmdd=yyyymmdd)
+
+    def station_trips_stops(self, station_id, yyyymmdd=None):
+        """Return all trip stops of a given station, on a given day.
+        \n -station_id should be in 7 digits gtfs format
+        \n -day is in yyyymmdd format
+        \n
+        \nInitially the returned object contains only schedule information.
+        \nThen, it can be updated with realtime information.
+        """
+        yyyymmdd = yyyymmdd or self.yyyymmdd
+        # Will raise error if wrong format
+        datetime.strptime(yyyymmdd, "%Y%m%d")
+
+        station_id = str(station_id)
+        assert len(station_id) == 7
+
+        results = self.provider.get_session()\
+            .query(StopTime, Trip, Stop, Route, Agency, Calendar)\
+            .filter(Trip.trip_id == StopTime.trip_id)\
+            .filter(Stop.stop_id == StopTime.stop_id)\
+            .filter(Trip.route_id == Route.route_id)\
+            .filter(Agency.agency_id == Route.agency_id)\
+            .filter(StopTime.stop_id.like("%" + station_id))\
             .filter(Calendar.service_id == Trip.service_id)\
             .filter(Calendar.service_id.in_(self.services_of_day(yyyymmdd)))\
             .all()
 
-        results = self.provider.get_session()\
-            .query(StopTime, Trip, Stop)\
-            .filter(Trip.trip_id == StopTime.trip_id)\
-            .filter(Stop.stop_id == StopTime.stop_id)\
-            .filter(StopTime.stop_id.like("%" + station_id))\
-            .filter(Trip.service_id.in_(self.services_of_day(yyyymmdd)))\
-            .all()
-
-        return ResultSetSerializer(results, yyyymmdd=yyyymmdd)
+        self.resultset = ResultSetSerializer(results, yyyymmdd=yyyymmdd)
+        return self.resultset

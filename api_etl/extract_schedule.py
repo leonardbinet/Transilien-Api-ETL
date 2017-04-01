@@ -12,14 +12,9 @@ from datetime import datetime
 import calendar
 
 
-from api_etl.settings import (
-    data_path, gtfs_csv_url, dynamo_sched_dep,
-    shed_read, shed_write_on, shed_write_off
-)
-from api_etl.utils_dynamo import (
-    dynamo_update_provisionned_capacity, ScheduledDeparture
-)
-from api_etl.utils_rdb import Provider
+from api_etl.settings import data_path, gtfs_csv_url, dynamo_schedule
+from api_etl.utils_dynamo import dynamo_update_provisionned_capacity
+from api_etl.utils_rdb import RdbProvider
 from api_etl.models import (
     Agency,
     Route,
@@ -27,7 +22,8 @@ from api_etl.models import (
     StopTime,
     Stop,
     Calendar,
-    CalendarDate
+    CalendarDate,
+    ScheduledDeparture
 )
 
 logger = logging.getLogger(__name__)
@@ -202,24 +198,25 @@ class ScheduleExtractorDynamo(ScheduleExtractor):
 
         # Dynamo table
         if not dynamo_table:
-            dynamo_table = dynamo_sched_dep
+            dynamo_table = dynamo_schedule["name"]
         self.dynamo_table = dynamo_table
 
         # ProvisionedThroughput
         if not read_on:
-            read_on = shed_read
+            read_on = dynamo_schedule["provisioned_throughput"]["on"]["read"]
         self.read_on = read_on
 
         if not read_off:
-            read_off = shed_read
+            read_off = dynamo_schedule["provisioned_throughput"]["off"]["read"]
         self.read_off = read_off
 
         if not write_on:
-            write_on = shed_write_on
+            write_on = dynamo_schedule["provisioned_throughput"]["on"]["write"]
         self.write_on = write_on
 
         if not write_off:
-            write_off = shed_write_off
+            write_off = dynamo_schedule[
+                "provisioned_throughput"]["off"]["write"]
         self.write_off = write_off
 
         if self.files_present:

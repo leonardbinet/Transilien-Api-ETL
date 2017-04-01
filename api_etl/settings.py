@@ -28,21 +28,40 @@ all_stations_path = path.join(data_path, "all_stations.csv")
 
 # ##### DATABASES #####
 
-# Sqlite
-sqlite_path = os.path.join(BASE_DIR, "schedules.db")
-
+# MONGO
 # Mongo DB collections:
-col_real_dep_unique = "real_departures_2"
+mongo_realtime_unique = {
+    "name": "real_departures_2",
+    "unique_index": ["request_day", "station", "train_num"]
+}
 
+mongo_realtime_all = {
+    "name": "departures"
+}
+
+# DYNAMO
 # Dynamo DB tables:
-dynamo_real_dep = "real_departures_2"
-dynamo_sched_dep = "scheduled_departures"
-dynamo_sched_dep_all = "scheduled_departures_all"
+dynamo_realtime = {
+    "name": "real_departures_2",
+    "provisioned_throughput": {
+        "read": 50,
+        "write": 80
+    }
+}
 
-# Dynamo provisioned_throughput for tables
-real_read = 50
-real_write = 80
-# 'on' is for when we update, 'off' rest of the time
-shed_read = 100
-shed_write_off = 1
-shed_write_on = 100
+# Deprecated
+# Dynamo was previously used for saving schedule: no more, now in realtional
+# database.
+dynamo_schedule = {
+    "name": "scheduled_departures",
+    "provisioned_throughput": {
+        "on": {
+            "read": 100,
+            "write": 100
+        },
+        "off": {
+            "read": 100,
+            "write": 1
+        }
+    }
+}

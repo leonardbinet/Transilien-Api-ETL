@@ -1,5 +1,5 @@
-"""
-This module contains a function to extract secrets from environment or a secret file.
+""" This module contains a function to extract secrets from environment or a
+secret file.
 """
 
 import os

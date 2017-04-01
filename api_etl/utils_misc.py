@@ -1,5 +1,6 @@
 """
-Module containing some useful functions that might be used by all other modules.
+Module containing some useful functions that might be used by all other
+modules.
 """
 
 from os import sys, path
@@ -8,6 +9,8 @@ from logging.handlers import RotatingFileHandler
 from dateutil.tz import tzlocal
 import pytz
 from datetime import datetime, timedelta
+from urllib.parse import quote_plus
+
 import numpy as np
 import pandas as pd
 
@@ -18,6 +21,21 @@ from api_etl.settings import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def build_uri(
+    db_type, host, user=None, password=None,
+    port=None, database=None
+):
+    uri = "%s://" % db_type
+    if user and password:
+        uri += "%s:%s@" % (quote_plus(user), quote_plus(password))
+    uri += host
+    if port:
+        uri += ":" + str(port)
+    if database:
+        uri += "/%s" % quote_plus(database)
+    return uri
 
 
 def chunks(l, n):

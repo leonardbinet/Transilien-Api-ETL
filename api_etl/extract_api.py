@@ -20,10 +20,10 @@ from api_etl.utils_misc import (
 )
 from api_etl.utils_api_client import ApiClient
 from api_etl.utils_mongo import (
-    mongo_async_save_chunks, mongo_async_upsert_items
+    mongo_async_save_items, mongo_async_upsert_items
 )
-from api_etl.utils_dynamo import RealTimeDeparture
-from api_etl.settings import col_real_dep_unique
+from api_etl.models import RealTimeDeparture
+from api_etl.settings import mongo_realtime_unique, mongo_realtime_all
 
 # To avoid some pandas warnings
 pd.options.mode.chained_assignment = None
@@ -224,21 +224,18 @@ class ApiExtractor():
             # Save items in collection without compound primary key
             logger.info("Saving  %d items in Mongo departures collection",
                         len(items_list2))
-            # Save in chunks of 100
-            chunk_l = [items_list2[i:i + 100]
-                       for i in range(0, len(items_list2), 100)]
-            mongo_async_save_chunks("departures", chunk_l)
+            mongo_async_save_items(mongo_realtime_all["name"], items_list2)
 
         if mongo_unique:
             # Save items in collection with compound primary key
-            index_fields = ["request_day", "station", "train_num"]
+            index_fields = mongo_realtime_unique["unique_index"]
             logger.info(
                 "Upsert of %d items of json data in Mongo %s collection",
                 len(items_list3),
-                col_real_dep_unique
+                mongo_realtime_unique["name"]
             )
             mongo_async_upsert_items(
-                col_real_dep_unique, items_list3, index_fields)
+                mongo_realtime_unique["name"], items_list3, index_fields)
 
 
 def operate_one_cycle(

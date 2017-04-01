@@ -5,80 +5,15 @@ Module used to interact with Dynamo databases.
 import logging
 import boto3
 import pandas as pd
-from pynamodb.models import Model as DyModel
-from pynamodb.attributes import UnicodeAttribute
 
-# from boto3.dynamodb.types import TypeDeserializer  # TypeSerializer
-from api_etl.settings import dynamo_real_dep, dynamo_sched_dep
 from api_etl.utils_secrets import get_secret
 
-logger = logging.getLogger(__name__)
-
+# Set as environment variable: boto takes it directly
 AWS_DEFAULT_REGION = get_secret("AWS_DEFAULT_REGION", env=True)
 AWS_ACCESS_KEY_ID = get_secret("AWS_ACCESS_KEY_ID", env=True)
 AWS_SECRET_ACCESS_KEY = get_secret("AWS_SECRET_ACCESS_KEY", env=True)
 
-
-class RealTimeDeparture(DyModel):
-
-    class Meta:
-        table_name = dynamo_real_dep
-        region = AWS_DEFAULT_REGION
-
-    # Raw data from API
-    date = UnicodeAttribute()
-    station_8d = UnicodeAttribute()
-    train_num = UnicodeAttribute()
-    miss = UnicodeAttribute(null=True)
-    term = UnicodeAttribute()
-    etat = UnicodeAttribute(null=True)
-
-    # Fields added for indexing and identification
-    day_train_num = UnicodeAttribute(range_key=True)
-    station_id = UnicodeAttribute(hash_key=True)
-
-    # Custom time fields
-    # Expected passage day and time are 'weird' dates -> to 27h
-    expected_passage_day = UnicodeAttribute()
-    expected_passage_time = UnicodeAttribute()
-    request_day = UnicodeAttribute()
-    request_time = UnicodeAttribute()
-    data_freshness = UnicodeAttribute()
-
-
-class ScheduledDeparture(DyModel):
-
-    class Meta:
-        table_name = dynamo_sched_dep
-        region = AWS_DEFAULT_REGION
-
-    # Fields added for indexing and identification
-    day_train_num = UnicodeAttribute(range_key=True)
-    station_id = UnicodeAttribute(hash_key=True)
-    # Train num and trip
-
-    # Necessary attributes
-    trip_id = UnicodeAttribute()
-    train_num = UnicodeAttribute()
-    stop_sequence = UnicodeAttribute()
-    # These dates are in 'weird' format -> 27h
-    scheduled_departure_time = UnicodeAttribute()
-    scheduled_departure_day = UnicodeAttribute()
-
-    route_id = UnicodeAttribute()
-    service_id = UnicodeAttribute()
-
-    # Optional attributes
-    pickup_type = UnicodeAttribute(null=True)
-    stop_id = UnicodeAttribute(null=True)
-    arrival_time = UnicodeAttribute(null=True)
-    route_short_name = UnicodeAttribute(null=True)
-    stop_headsign = UnicodeAttribute(null=True)
-    block_id = UnicodeAttribute(null=True)
-    drop_off_type = UnicodeAttribute(null=True)
-    trip_headsign = UnicodeAttribute(null=True)
-    direction_id = UnicodeAttribute(null=True)
-
+logger = logging.getLogger(__name__)
 
 dynamodb = boto3.resource('dynamodb')
 

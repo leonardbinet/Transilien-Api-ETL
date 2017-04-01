@@ -20,3 +20,4 @@ django-filter
 Sphinx
 sphinx_rtd_theme
 pynamodb
+mongoengine
