@@ -1,5 +1,5 @@
 """
-Module used to interact with Dynamo databases.
+Module used to interact with realtional databases.
 """
 
 import logging
