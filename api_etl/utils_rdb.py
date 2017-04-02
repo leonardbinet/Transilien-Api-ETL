@@ -1,5 +1,5 @@
 """
-Module used to interact with realtional databases.
+Module used to interact with relational databases.
 """
 
 import logging
