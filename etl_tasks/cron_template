@@ -13,3 +13,10 @@
 
 # Every week on Monday at 5:30 AM
 30 5 * * 1 /home/ubuntu/application/SNCF_project/virtualenv/bin/python3 /home/ubuntu/application/SNCF_project/source/etl_tasks/weekly_gtfs_update.py
+
+
+#### TROUBLESHOOTING
+# if pymongo not updated
+/home/ubuntu/application/SNCF_project/virtualenv/bin/python3 -m pip install "pymongo>=3.4,<4"
+
+/home/ubuntu/application/SNCF_project/virtualenv/bin/celery -A etl_tasks.celery_app beat
