@@ -21,3 +21,5 @@ Sphinx
 sphinx_rtd_theme
 pynamodb
 mongoengine
+celery
+flower
