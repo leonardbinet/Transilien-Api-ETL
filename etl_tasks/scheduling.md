@@ -3,12 +3,14 @@ http://docs.celeryproject.org/en/latest/getting-started/first-steps-with-celery.
 
 Requirements:
 
-- a broker to send messages: RabbitMQ
-`sudo apt-get install rabbitmq-server`
+- a broker to send messages: RabbitMQ, server must be running:
+command:
+`rabbitmq-server`
+- Celery installed through pip, app launched:
+`celery -A etl_tasks.celery_app worker -l info`
+celery -A proj worker -l info
 
-- Celery installed:
-`pip install celery`
-
+celery -A etl_tasks.celery_app beat
 
 ## Components:
 
@@ -34,6 +36,8 @@ def add(x, y):
 We need then a worker to launch the app.
 `celery -A tasks worker --loglevel=info`
 
+Kill workers:
+`pkill -f "celery worker"``
 
 ### Set backend for traceability
 Database

@@ -20,6 +20,15 @@ RDB_HOST = get_secret("RDB_HOST") or "localhost"
 RDB_TYPE = get_secret("RDB_TYPE") or "postgresql"
 RDB_PORT = get_secret("RDB_PORT") or 5432
 
+uri = build_uri(
+    user=RDB_USER,
+    password=RDB_PASSWORD,
+    database=RDB_DB_NAME,
+    host=RDB_HOST,
+    port=RDB_PORT,
+    db_type=RDB_TYPE
+)
+
 
 class RdbProvider:
     """ `SQLAlchemy`_ support provider.
@@ -36,15 +45,7 @@ class RdbProvider:
 
     def __init__(self, dsn=None):
         self._engine = sqlalchemy.create_engine(
-            dsn or
-            build_uri(
-                user=RDB_USER,
-                password=RDB_PASSWORD,
-                database=RDB_DB_NAME,
-                host=RDB_HOST,
-                port=RDB_PORT,
-                db_type=RDB_TYPE
-            )
+            dsn or uri
         )
         # session maker is a class
         self._session_class = sessionmaker(bind=self._engine)

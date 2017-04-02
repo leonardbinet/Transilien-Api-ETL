@@ -8,8 +8,8 @@
 # all x min = */x
 
 # Every 2 min
-*/2 * * * * /home/ubuntu/application/SNCF_project/virtualenv/bin/python3 /home/ubuntu/application/SNCF_project/source/tasks/extract_api_once_all_stations.py
+*/2 * * * * /home/ubuntu/application/SNCF_project/virtualenv/bin/python3 /home/ubuntu/application/SNCF_project/source/etl_tasks/extract_api_once_all_stations.py
 
 
 # Every week on Monday at 5:30 AM
-30 5 * * 1 /home/ubuntu/application/SNCF_project/virtualenv/bin/python3 /home/ubuntu/application/SNCF_project/source/tasks/weekly_gtfs_update.py
+30 5 * * 1 /home/ubuntu/application/SNCF_project/virtualenv/bin/python3 /home/ubuntu/application/SNCF_project/source/etl_tasks/weekly_gtfs_update.py

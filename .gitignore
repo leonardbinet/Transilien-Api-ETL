@@ -43,3 +43,9 @@ docs/*
 !docs/index.rst
 !docs/make.bat
 !docs/Makefile
+
+# Logs
+*.log
+
+# Pids
+*.pid
