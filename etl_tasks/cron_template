@@ -20,3 +20,7 @@
 /home/ubuntu/application/SNCF_project/virtualenv/bin/python3 -m pip install "pymongo>=3.4,<4"
 
 /home/ubuntu/application/SNCF_project/virtualenv/bin/celery -A etl_tasks.celery_app beat
+
+/home/ubuntu/application/SNCF_project/virtualenv/bin/flower -A etl_tasks.celery_app --port=5555
+
+rabbitmq-plugins enable rabbitmq_management
