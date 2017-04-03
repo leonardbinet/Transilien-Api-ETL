@@ -98,8 +98,8 @@ class ApiExtractor():
                 station = response[1]
                 self._parse_response(xml_string, station)
             except Exception as e:
-                logger.warning("Cannot parse station %s: %s" %
-                               (response[1], e))
+                logger.debug("Cannot parse station %s: %s" %
+                             (response[1], e))
                 continue
 
     def _parse_response(self, xml_string, station, return_df=False):
