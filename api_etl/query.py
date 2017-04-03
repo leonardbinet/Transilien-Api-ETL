@@ -59,11 +59,11 @@ class ResultSerializer():
             # No StopTime present
             return None
 
-        if not hasattr(self._raw.StopTime, "realtime_found"):
+        if not hasattr(self._raw.StopTime, "_realtime_found"):
             # StopTime object present, but request not made
             return None
 
-        return self._raw.StopTime.realtime_found
+        return self._raw.StopTime._realtime_found
 
     def _clean_extend_dict(self, odict):
         ndict = {}
@@ -121,8 +121,8 @@ class ResultSerializer():
 
         try:
             nested_dict["RealTime"] = self._raw.StopTime._realtime_dict
-            nested_dict["Delay"] = self._raw.StopTime.delay
-            nested_dict["Passed"] = self._raw.StopTime.passed
+            nested_dict["Delay"] = self._raw.StopTime._delay
+            nested_dict["Passed"] = self._raw.StopTime._passed
 
         except (KeyError, AttributeError):
             nested_dict["RealTime"] = {}

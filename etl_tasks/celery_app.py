@@ -2,16 +2,20 @@
 """
 
 from os import sys, path
+from datetime import timedelta
 
 from celery import Celery
 from celery.schedules import crontab
 from celery.utils.log import get_task_logger
+from celery import group
 
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
 from api_etl.utils_rdb import uri
 from api_etl.extract_api import operate_one_cycle
 from api_etl.extract_schedule import ScheduleExtractorRDB
+from api_etl.query import DBQuerier
+from api_etl.utils_misc import StationProvider, get_paris_local_datetime_now
 
 logger = get_task_logger(__name__)
 
@@ -35,6 +39,11 @@ app.conf.beat_schedule = {
     'extract_schedule_weekly': {
         'task': 'etl_tasks.celery_app.extract_schedule',
         'schedule': crontab(hour=7, minute=30, day_of_week=1),
+    },
+    # Executes every Monday morning at 7:30 a.m.
+    'save_flat_mongo_day': {
+        'task': 'etl_tasks.celery_app.mongo_save_all_stop_times_from_yesterday',
+        'schedule': crontab(hour=4, minute=30),
     },
 }
 
@@ -62,3 +71,36 @@ def extract_schedule():
     logger.info("Save in database.")
     schex.save_in_rdb()
     return True
+
+
+@app.task
+def mongo_save_flat_stop_times_for_station_day(station_id, yyyymmdd):
+    # station_id is in 7 digits gtfs format
+    logger.info("Station %s, on day %s." % (station_id, yyyymmdd))
+    querier = DBQuerier()
+    result = querier.station_trips_stops(
+        station_id=station_id,
+        yyyymmdd=yyyymmdd
+    )
+    result.batch_realtime_query(yyyymmdd=yyyymmdd)
+    result.get_flat_dicts(realtime_only=False, normalize=True)
+    logger.info("Save in Mongo")
+    result.save_in_mongo()
+    logger.info("Task finished")
+    return len(result.get_flat_dicts(realtime_only=False, normalize=True))
+
+
+@app.task
+def mongo_save_all_stop_times_from_yesterday():
+    yesterday_dt = get_paris_local_datetime_now() - timedelta(days=1)
+    yyyymmdd = yesterday_dt.strftime("%Y%m%d")
+    logger.info("Save all stations on day %s in Mongo." % yyyymmdd)
+
+    sp = StationProvider()
+    stations = sp.get_station_ids(gtfs_format=True)
+
+    signatures = [mongo_save_flat_stop_times_for_station_day.s(
+        station, yyyymmdd) for station in stations]
+
+    t_group = group(signatures)
+    t_group()

@@ -138,26 +138,26 @@ class StopTime(RdbModel):
     drop_off_type = Column(String(50))
 
     def get_partial_index(self):
-        self.station_id = self.stop_id[-7:]
-        self.train_num = self.trip_id[5:11]
-        return (self.station_id, self.train_num)
+        self._station_id = self.stop_id[-7:]
+        self._train_num = self.trip_id[5:11]
+        return (self._station_id, self._train_num)
 
     def get_realtime_index(self, yyyymmdd):
         self.get_partial_index()
-        self.yyyymmdd = yyyymmdd
-        self.day_train_num = "%s_%s" % (yyyymmdd, self.train_num)
-        return (self.station_id, self.day_train_num)
+        self._yyyymmdd = yyyymmdd
+        self._day_train_num = "%s_%s" % (yyyymmdd, self._train_num)
+        return (self._station_id, self._day_train_num)
 
     def set_realtime(self, realtime_object=None):
         assert isinstance(realtime_object, RealTimeDeparture)
         if realtime_object:
             self._realtime_object = realtime_object
             self._realtime_dict = self._realtime_object.attribute_values
-            self.realtime_found = True
+            self._realtime_found = True
             self._compute_delay()
             self._has_passed()
         else:
-            self.realtime_found = False
+            self._realtime_found = False
 
     def get_realtime_info(self, yyyymmdd, ignore_error=True):
         self.get_realtime_index(yyyymmdd)
@@ -165,15 +165,15 @@ class StopTime(RdbModel):
         # Try to get it from dynamo
         try:
             realtime_object = RealTimeDeparture.get(
-                hash_key=self.station_id,
-                range_key=self.day_train_num
+                hash_key=self._station_id,
+                range_key=self._day_train_num
             )
             self.set_realtime(realtime_object=realtime_object)
 
         except DoesNotExist:
             self.set_realtime(realtime_object=False)
             logger.info("Realtime not found for %s, %s" %
-                        (self.station_id, self.day_train_num))
+                        (self._station_id, self._day_train_num))
             if not ignore_error:
                 raise DoesNotExist
 
@@ -182,12 +182,12 @@ class StopTime(RdbModel):
         departure time.
         """
         sdt = self.departure_time
-        sdd = self.yyyymmdd
+        sdd = self._yyyymmdd
         rtdt = self._realtime_object.expected_passage_time
         rtdd = self._realtime_object.expected_passage_day
-        self.delay = DateConverter(normal_date=rtdd, normal_time=rtdt)\
+        self._delay = DateConverter(special_date=rtdd, special_time=rtdt)\
             .compute_delay_from(special_date=sdd, special_time=sdt)
-        return self.delay
+        return self._delay
 
     def _has_passed(self):
         """ Checks if train expected passage time has passed
@@ -196,8 +196,9 @@ class StopTime(RdbModel):
         rtdd = self._realtime_object.expected_passage_day
         cdt = get_paris_local_datetime_now().replace(tzinfo=None)
         timepastdep = DateConverter(dt=cdt)\
-            .compute_delay_from(normal_date=rtdd, normal_time=rtdt)
-        self.passed = (timepastdep >= 0)
+            .compute_delay_from(special_date=rtdd, special_time=rtdt)
+        self._passed = (timepastdep >= 0)
+        return self._passed
 
 
 class Stop(RdbModel):
