@@ -28,12 +28,12 @@ app.conf.update(
 app.conf.beat_schedule = {
     # Executes every two minutes
     'extract_api_two_minutes': {
-        'task': 'tasks.etl_tasks.celery_app.extract_api_once_all_stations',
+        'task': 'etl_tasks.celery_app.extract_api_once_all_stations',
         'schedule': crontab(minute='*/2'),
     },
     # Executes every Monday morning at 7:30 a.m.
     'extract_schedule_weekly': {
-        'task': 'tasks.etl_tasks.celery_app.extract_schedule',
+        'task': 'etl_tasks.celery_app.extract_schedule',
         'schedule': crontab(hour=7, minute=30, day_of_week=1),
     },
 }
