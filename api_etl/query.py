@@ -7,6 +7,8 @@ import collections
 from datetime import datetime
 
 import pandas as pd
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql import func
 
 from api_etl.utils_misc import get_paris_local_datetime_now
 from api_etl.utils_rdb import RdbProvider
@@ -21,22 +23,47 @@ logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
 
 
+class DummyResult():
+    """This class is just an object used to simulate a result in cas we try
+    to serialize a raw StopTime instance.
+    """
+
+    def __init__(self, stoptime):
+        assert isinstance(stoptime, StopTime)
+        self.StopTime = stoptime
+
+
 class ResultSerializer():
     """ This class transforms a sqlalchemy result in an easy to manipulate
     object.
+    The result can be:
+    - an object containing rdb models for instance: (StopTime,Trip,Calendar)
+    - a model instance: StopTime
+    - anything else (list, dict), but not much added value
+
     \nIt will:
     \n-set result as a nested dict
     \n-set result as flat dict
-    \n-if a StopTime is present, it will request RealTime to dynamo database,
+    \n-if a StopTime is present, it can request RealTime to dynamo database,
     for the day given as parameter (today if none provided)
     """
 
     def __init__(self, raw_result):
+        if isinstance(raw_result, StopTime):
+            raw_result = DummyResult(raw_result)
         self._raw = raw_result
 
     def get_nested_dict(self, realtime=True):
-        # Sqlalchemy results have a _asdict() method.
-        nested_dict = self._clean_extend_dict(self._raw._asdict())
+        try:
+            # Sqlalchemy composed results have a _asdict() method.
+            nested_dict = self._clean_extend_dict(self._raw._asdict())
+        except AttributeError:
+            # if simple object (for instance Trip)
+            nested_dict = self._clean_extend_dict(self._raw.__dict__)
+        except AttributeError:
+            # simple obj:
+            return self._raw
+
         if realtime:
             return self._extend_dict_with_realtime(nested_dict)
         else:
@@ -46,6 +73,8 @@ class ResultSerializer():
         return self._flatten(self.get_nested_dict(realtime=realtime))
 
     def has_stoptime(self):
+        """Necessary to know if we should compute realtime requests.
+        """
         return hasattr(self._raw, "StopTime")
 
     def has_realtime(self):
@@ -182,8 +211,10 @@ class ResultSetSerializer():
         for item in RealTimeDeparture.batch_get(item_keys):
             index = (item.station_id, item.day_train_num)
             self._indexed_results[index].set_realtime(item)
-        # 5: make results available
-        self.results = [value for key, value in self._indexed_results.items()]
+        # 5: make results available (aren't they already updated?)
+        # TODO
+        self.up_results = [value for key,
+                           value in self._indexed_results.items()]
 
     def save_in_mongo(self, collection=None, objects=None):
         index_fields = ["StopTime_trip_id", "Stop_stop_id"]
@@ -259,6 +290,33 @@ class DBQuerier():
 
         return serv_on_day
 
+    def trips_of_day(self, yyyymmdd, has_begun_at_hour=None):
+        if has_begun_at_hour:
+            results = self.provider.get_session()\
+                .query(Trip.trip_id)\
+                .filter(Trip.service_id == Calendar.service_id)\
+                .filter(Trip.service_id.in_(self.services_of_day(yyyymmdd)))\
+                .filter(StopTime.trip_id == Trip.trip_id)\
+                .filter(StopTime.stop_sequence == "0")\
+                .filter(StopTime.departure_time <= has_begun_at_hour)\
+                .all()
+            return list(map(lambda x: x[0], results))
+        else:
+            results = self.provider.get_session()\
+                .query(Trip.trip_id)\
+                .filter(Trip.service_id == Calendar.service_id)\
+                .filter(Trip.service_id.in_(self.services_of_day(yyyymmdd)))\
+                .filter(StopTime.trip_id == Trip.trip_id)\
+                .all()
+            return list(map(lambda x: x[0], results))
+
+    def stops_of_day(self, yyyymmdd):
+        results = self.provider.get_session()\
+            .query(StopTime)\
+            .filter(StopTime.trip_id.in_(self.trips_of_day(yyyymmdd)))\
+            .all()
+        return ResultSetSerializer(results, yyyymmdd=yyyymmdd)
+
     def trip_stops(self, trip_id, yyyymmdd=None):
         """Return all stops of a given trip, on a given day.
         \nInitially the returned object contains only schedule information.
@@ -307,3 +365,28 @@ class DBQuerier():
 
         self.resultset = ResultSetSerializer(results, yyyymmdd=yyyymmdd)
         return self.resultset
+
+
+# Build features matrix:
+
+# Step 1 : list all predictions to make: schedule only
+# - get all scheduled trips of the day
+# - get all scheduled stop times of day
+# - get real passage time
+# => Result should be:
+#    - list of indexes (train_num, station_id) not passed yet that we could
+#             predict
+#    - list of objects containing information about passed trips, or scheduled
+#             ones
+# output: -> list of tuples to predict (trip_id, station_id), for a given time
+
+# Step 2 : build features
+# - direct features: line, day of week, hour of day
+# Computed feature:
+#  - predicted train last observed delay:
+#           - find last scheduled station for this trip,
+#           - and compute its delay
+#  - predicted station last observed delay:
+#           -
+#  - scheduled time between last observed station, and predicted station
+#

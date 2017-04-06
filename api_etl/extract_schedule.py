@@ -125,7 +125,7 @@ class ScheduleExtractorRDB(ScheduleExtractor):
             self, data_folder=data_folder, schedule_url=schedule_url)
 
         self.dsn = dsn
-        self.rdb_provider = Provider(self.dsn)
+        self.rdb_provider = RdbProvider(self.dsn)
 
     def save_in_rdb(self, tables=None):
         assert self.files_present
