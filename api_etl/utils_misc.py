@@ -215,14 +215,17 @@ class DateConverter():
         return time_delta.total_seconds()
 
 
-def get_paris_local_datetime_now():
+def get_paris_local_datetime_now(tz_naive=True):
     """
     Return paris local time (necessary for operations operated on other time
     zones)
     """
     paris_tz = pytz.timezone('Europe/Paris')
     datetime_paris = datetime.now(tzlocal()).astimezone(paris_tz)
-    return datetime_paris
+    if tz_naive:
+        return datetime_paris.replace(tzinfo=None)
+    else:
+        return datetime_paris
 
 
 def set_logging_conf(log_name, level="INFO"):
