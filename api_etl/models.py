@@ -176,10 +176,6 @@ class StopTime(RdbModel):
         if not at_datetime:
             at_datetime = get_paris_local_datetime_now().replace(tzinfo=None)
 
-        if False:
-            dt = self._realtime_object.expected_passage_time
-            dd = self._realtime_object.expected_passage_day
-
         dt = self.departure_time
         dd = self._yyyymmdd
 
