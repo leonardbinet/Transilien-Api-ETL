@@ -1,6 +1,8 @@
 """Module containing class to build feature matrices for prediction.
 """
 import logging
+import logging.config
+
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -8,7 +10,9 @@ import pandas as pd
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
 from api_etl.query import DBQuerier
 
-logger = logging.getLogger(__name__)
+logging.config.fileConfig('logging.conf')
+logger = logging.getLogger('root')
+
 pd.options.mode.chained_assignment = None
 
 
@@ -43,42 +47,87 @@ class DayMatrixBuilder():
     def __init__(self, day=None, time=None, df=None):
         """ Must provide day and time, else it will be set to now.
 
-        Still "beta" functionality: provide df directly:
-        You can provide directly a df instead of performing all queries, but
-        be aware that the TripState will be based on time given when computing
-        trip state (and not time used in this __init__).
+        Still "beta" functionality: provide df directly.
         """
         # Conf
         # Number of past seconds considered for station median delay
         self.secs = 1200
+        # For time debugging:
+        self._time_debug_cols = [
+            "TripState_passed_realtime", "TripState_passed_schedule",
+            "TripState_real_passage_vs_prediction_time_diff",
+            "StopTime_departure_time", "RealTime_expected_passage_time"
+        ]
+        # Features columns
+        self._feature_cols = [
+            "Route_route_short_name",
+            "last_observed_delay",
+            "line_station_median_delay",
+            "line_median_delay",
+            "sequence_diff",
+            "stations_scheduled_trip_time",
+            "rolling_trips_on_line",
+            "stoptime_scheduled_hour",
+            "business_day"
+        ]
+        # Core identification columns
+        self._id_cols = [
+            "TripState_at_datetime",
+            "Trip_trip_id",
+            "Stop_stop_id",
+        ]
+        # Label column
+        self._label_col = ["label"]
 
+        # Other useful columns
+        self._other_useful_cols = [
+            "StopTime_departure_time",
+            "StopTime_stop_sequence",
+            "Stop_stop_name",
+            "RealTime_expected_passage_time",
+            "RealTime_data_freshness",
+        ]
+
+        # Arguments validation and parsing
         if day and time:
+            # TODO raise error if future is asked
             full_str_dt = "%s%s" % (day, time)
+            # will raise error if wrong format
             self.datetime = datetime.strptime(full_str_dt, "%Y%m%d%H:%M:%S")
-            self.day = day
+            self.day = str(day)
             self.time = time
+            self.retro_active = True
+
         else:
             self.datetime = get_paris_local_datetime_now()
             self.day = self.datetime.strftime("%Y%m%d")
             self.time = self.datetime.strftime("%H:%M:%S")
+            self.retro_active = False
+
+        if self.retro_active:
+            self.paris_datetime_now = get_paris_local_datetime_now()
+        else:
+            self.paris_datetime_now = self.datetime
+
+        logger.info("Building Matrix for day %s and time %s (retroactive: %s)" % (
+            self.day, self.time, self.retro_active))
 
         if isinstance(df, pd.DataFrame):
             self.df = df
         else:
+            logger.info("Launched schedule request.")
             self.querier = DBQuerier(yyyymmdd=self.day)
             # Get schedule
             self.stops_results = self.querier.stops_of_day(self.day)
             logger.info("Schedule queried.")
-            # Perform realtime queries and compute states
+            # Perform realtime queries
             self.stops_results.batch_realtime_query(self.day)
             logger.info("RealTime queried.")
             # Export flat dict as dataframe
-            self._initial_df = pd\
-                .DataFrame(self.stops_results.get_flat_dicts())
-            self.df = self._initial_df.copy()
+            self.df = pd.DataFrame(self.stops_results.get_flat_dicts())
             logger.info("Initial dataframe created.")
 
-        # Compute rest
+        # Computing
         self._clean_initial_df()
         logger.info("Initial dataframe cleaned.")
         self._compute_trip_state()
@@ -87,21 +136,26 @@ class DayMatrixBuilder():
         logger.info("Trip level computations performed.")
         self._line_level()
         logger.info("Line level computations performed.")
-
-        # For debugging:
-        self._time_debug_cols = [
-            "TripState_passed_realtime", "TripState_passed_schedule",
-            "TripState_real_passage_vs_prediction_time_diff",
-            "StopTime_departure_time", "RealTime_expected_passage_time"
-        ]
+        # Will add labels if information is available
+        self._compute_labels()
+        logger.info("Labels assigned.")
 
     def _clean_initial_df(self):
+        # Replace Unknown by Nan
         self.df.replace("Unknown", np.nan, inplace=True)
-
-        cols_to_num = ["StopTime_stop_sequence"]
-
+        # Convert to numeric
+        cols_to_num = ["StopTime_stop_sequence", "RealTime_data_freshness"]
         for col in cols_to_num:
             self.df[col] = pd.to_numeric(self.df[col], errors="coerce")
+        # Detect stoptime hour
+        self.df["stoptime_scheduled_hour"] = self.df.StopTime_departure_time\
+            .apply(lambda x: DateConverter(
+                special_time=x,
+                special_date=self.day
+            ).dt.hour
+        )
+        # Detect if working day
+        self.df["business_day"] = bool(len(pd.bdate_range(self.day, self.day)))
 
     def _compute_trip_state(self):
         """Computes:
@@ -125,12 +179,11 @@ class DayMatrixBuilder():
                     special_time=x["StopTime_departure_time"]
             ),
                 axis=1
-        )\
-            .apply(lambda x: (x >= 0))
+        ).apply(lambda x: (x >= 0))
 
         # Time between observed datetime (for which we compute the prediction
         # features matrix), and stop times observed passages (only for observed
-        # passages). <0 means passed, >0 means not passed yet
+        # passages). <0 means passed, >0 means not passed yet at the given time
         self.df["TripState_real_passage_vs_prediction_time_diff"] = self\
             .df[self.df.RealTime_expected_passage_time.notnull()]\
             .apply(lambda x: DateConverter(
@@ -166,7 +219,7 @@ class DayMatrixBuilder():
 
         # TripState_expected_delay
         self.df["TripState_expected_delay"] = self\
-            .df[self.df.TripState_passed_realtime != True][self.df.RealTime_expected_passage_time.notnull()]\
+            .df.query("(TripState_passed_realtime != True) & (RealTime_expected_passage_time.notnull())")\
             .apply(
                 lambda x: DateConverter(
                     special_date=x["RealTime_expected_passage_day"],
@@ -291,6 +344,28 @@ class DayMatrixBuilder():
             self.rolling_trips_on_line,
             on="Route_route_short_name")
 
+    def _compute_labels(self):
+        # adds labels if information of passage is available now (the real now)
+        self.df["_time_to_now"] = self\
+            .df[self.df.RealTime_expected_passage_time.notnull()]\
+            .apply(lambda x: DateConverter(
+                dt=self.paris_datetime_now
+            )
+                .compute_delay_from(
+                special_date=x["RealTime_expected_passage_day"],
+                special_time=x["RealTime_expected_passage_time"]
+            ),
+                axis=1
+        )
+        self.df["_really_passed_now"] = self\
+            .df[self.df._time_to_now.notnull()]\
+            ._time_to_now.apply(lambda x: (x >= 0))
+
+        # if stop time really occured, then expected delay (extracted from api)
+        # is real one
+        self.df["label"] = self.df[self.df._really_passed_now == True]\
+            .TripState_expected_delay
+
     def get_rolling_trips(self, status=True):
         r = self\
             .trips_status[(self.trips_status > 0) & (self.trips_status < 1)]
@@ -301,6 +376,8 @@ class DayMatrixBuilder():
 
     def stats(self):
         message = """
+        SUMMARY FOR DAY %(day)s AT TIME %(time)s (RETROACTIVE: %(retroactive)s)
+
         TRIPS
         Number of trips today: %(trips_today)s
         Number of trips currently rolling: %(trips_now)s (these are the trips for which we will try to make predictions)
@@ -328,9 +405,15 @@ class DayMatrixBuilder():
         Number of stop times for which we want to make a prediction (not passed yet): %(stoptimes_now_not_passed)s
         Number of trips currently rolling for wich we observed at least one stop: %(trips_now_observed)s
         Representing %(stoptimes_predictable)s stop times for which we can provide a prediction.
+
+        LABELED
+        Given that retroactive is %(retroactive)s, we have %(stoptimes_predictable_labeled)s labeled predictable stoptimes for training.
         """
 
         self.summary = {
+            "day": self.day,
+            "time": self.time,
+            "retroactive": self.retro_active,
             "trips_today": len(self.df.Trip_trip_id.unique()),
             "trips_now": self.df
             .query("(trip_status > 0) & (trip_status < 1)")
@@ -363,10 +446,13 @@ class DayMatrixBuilder():
             "stoptimes_predictable": self.df
             .query("(trip_status > 0) & (trip_status < 1) &(TripState_passed_schedule==False) & (sequence_diff.notnull())")
             .Trip_trip_id.count(),
+            "stoptimes_predictable_labeled": self.df
+            .query("(trip_status > 0) & (trip_status < 1) &(TripState_passed_schedule==False) & (sequence_diff.notnull()) &(label.notnull())")
+            .Trip_trip_id.count(),
         }
         print(message % self.summary)
 
-    def get_predictable(self, strict=False, col_filter=True):
+    def get_predictable(self, all_features=True, labeled_only=False, col_filter_level=2):
         """Return predictable stop times.
         """
         # Basic Conditions:
@@ -378,47 +464,40 @@ class DayMatrixBuilder():
             "trip_status < 1 & trip_status > 0 & TripState_passed_schedule !=\
             True & TripState_passed_realtime != True")
 
-        if strict:
-            # Strict Conditions: have all features
-            self._features = [
-                "last_observed_delay",
-                "line_station_median_delay",
-                "line_median_delay",
-                "sequence_diff",
-                "stations_scheduled_trip_time",
-                "rolling_trips_on_line",
-            ]
-            for feature in self._features:
+        if all_features:
+            # Only elements that have all features
+            for feature in self._feature_cols:
                 rdf = rdf.query("%s.notnull()" % feature)
 
-        self._filtered_cols = [
-            # Identification basics
-            "Trip_trip_id",
-            "Stop_stop_id",
-            # Identification names
-            "Route_route_short_name",
-            "Stop_stop_name",
-            # Features
-            "last_observed_delay",
-            "line_station_median_delay",
-            "line_median_delay",
-            "sequence_diff",
-            "stations_scheduled_trip_time",
-            "rolling_trips_on_line",
-            # Checking if alright
-            "StopTime_departure_time",
-            "RealTime_expected_passage_time",
-            "RealTime_data_freshness",
-            "TripState_passed_realtime",
-            "TripState_observed_delay",
-            "TripState_expected_delay",
-            # If passed_realtime is False (not nan), delay is predicted delay
-        ]
+        if labeled_only:
+            rdf = rdf.query("label.notnull()")
 
-        if col_filter:
-            rdf = rdf[self._filtered_cols]
+        if col_filter_level == 0:
+            # no filter, all columns
+            return rdf
+        elif col_filter_level == 1:
+            # medium filter
+            filtered_cols = self._feature_cols\
+                + self._id_cols\
+                + self._label_col\
+                + self._other_useful_cols
+            return rdf[filtered_cols]
+        elif col_filter_level == 2:
+            # high filter: only necessary
+            filtered_cols = self._feature_cols\
+                + self._id_cols\
+                + self._label_col
+            return rdf[filtered_cols]
+        elif col_filter_level == 3:
+            # returns X and y values ready for ML
+            rdf = rdf.set_index(self._id_cols)
+            res = {
+                "X": rdf[self._feature_cols],
+                "y_real": rdf[self._label_col],
+                "y_naive_pred": rdf["last_observed_delay"]
 
-        return rdf
+            }
+            return res
 
     def missing_data_per(self, per="Stop_stop_name"):
         # per can be also "Stop_stop_id", "Route_route_short_name"
