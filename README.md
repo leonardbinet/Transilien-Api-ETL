@@ -118,8 +118,18 @@ Then setup secret file `secret.json`:
 
 Enjoy matrix:
 ```
+# launch ipython
+=> ipython
+Python 3.6.0 |Continuum Analytics, Inc.| (default, Dec 23 2016, 13:19:00)
+Type "copyright", "credits" or "license" for more information.
+
+IPython 5.1.0 -- An enhanced Interactive Python.
+?         -> Introduction and overview of IPython's features.
+%quickref -> Quick reference.
+help      -> Python's own help system.
+object?   -> Details about 'object', use 'object??' for extra details.
+
 In [1]: run api_etl/prediction.py
-MONGO_PORT not found.
 
 In [2]: dmb = DayMatrixBuilder(day="20170406", time="16:20:00")
 # This will take between 5 and 10 minutes
