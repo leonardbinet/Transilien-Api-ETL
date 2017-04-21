@@ -48,6 +48,9 @@ class DayMatrixBuilder():
         be aware that the TripState will be based on time given when computing
         trip state (and not time used in this __init__).
         """
+        # Conf
+        # Number of past seconds considered for station median delay
+        self.secs = 1200
 
         if day and time:
             full_str_dt = "%s%s" % (day, time)
@@ -73,13 +76,24 @@ class DayMatrixBuilder():
             self._initial_df = pd\
                 .DataFrame(self.stops_results.get_flat_dicts())
             self.df = self._initial_df.copy()
+            logger.info("Initial dataframe created.")
 
         # Compute rest
-        logger.info("Performing matrix features computations.")
         self._clean_initial_df()
+        logger.info("Initial dataframe cleaned.")
         self._compute_trip_state()
+        logger.info("TripState computed.")
         self._trip_level()
+        logger.info("Trip level computations performed.")
         self._line_level()
+        logger.info("Line level computations performed.")
+
+        # For debugging:
+        self._time_debug_cols = [
+            "TripState_passed_realtime", "TripState_passed_schedule",
+            "TripState_real_passage_vs_prediction_time_diff",
+            "StopTime_departure_time", "RealTime_expected_passage_time"
+        ]
 
     def _clean_initial_df(self):
         self.df.replace("Unknown", np.nan, inplace=True)
@@ -104,24 +118,28 @@ class DayMatrixBuilder():
 
         self.df["TripState_passed_schedule"] = self.df\
             .apply(lambda x: DateConverter(
-                special_date=self.day,
-                special_time=x["StopTime_departure_time"]
+                dt=self.datetime
             )
-                .compute_delay_from(dt=self.datetime),
+                .compute_delay_from(
+                    special_date=self.day,
+                    special_time=x["StopTime_departure_time"]
+            ),
                 axis=1
         )\
             .apply(lambda x: (x >= 0))
 
         # Time between observed datetime (for which we compute the prediction
         # features matrix), and stop times observed passages (only for observed
-        # passages).
+        # passages). <0 means passed, >0 means not passed yet
         self.df["TripState_real_passage_vs_prediction_time_diff"] = self\
             .df[self.df.RealTime_expected_passage_time.notnull()]\
             .apply(lambda x: DateConverter(
+                dt=self.datetime
+            )
+                .compute_delay_from(
                 special_date=x["RealTime_expected_passage_day"],
                 special_time=x["RealTime_expected_passage_time"]
-            )
-                .compute_delay_from(dt=self.datetime),
+            ),
                 axis=1
         )
 
@@ -239,13 +257,11 @@ class DayMatrixBuilder():
 
         Requires time to now (_add_time_to_now_col).
         """
-        # Compute delays on last n seconds
-        secs = 600
+        # Compute delays on last n seconds (defined in init self.secs)
 
         # Line aggregation
         self.line_median_delay = self\
-            .df[(self.df.TripState_real_passage_vs_prediction_time_diff > -secs) &
-                self.df.TripState_real_passage_vs_prediction_time_diff <= 0]\
+            .df[(self.df.TripState_real_passage_vs_prediction_time_diff < self.secs) & (self.df.TripState_real_passage_vs_prediction_time_diff >= 0)]\
             .groupby("Route_route_short_name").TripState_observed_delay.median()
         self.line_median_delay.name = "line_median_delay"
         self.df = self.df.join(
@@ -256,8 +272,8 @@ class DayMatrixBuilder():
         # same station can have different values given on which lines it
         # is located.
         self.line_station_median_delay = self\
-            .df[(self.df.TripState_real_passage_vs_prediction_time_diff > -secs) &
-                self.df.TripState_real_passage_vs_prediction_time_diff <= 0]\
+            .df[(self.df.TripState_real_passage_vs_prediction_time_diff < self.secs) &
+                self.df.TripState_real_passage_vs_prediction_time_diff >= 0]\
             .groupby(["Route_route_short_name", "Stop_stop_id"])\
             .TripState_observed_delay.median()
         self.line_station_median_delay.name = "line_station_median_delay"
@@ -284,55 +300,71 @@ class DayMatrixBuilder():
             return r.index
 
     def stats(self):
-        # StopTimes
-        # - number of stop times scheduled
-        # - number of stop times passed schedule
-        # - number of stop times passed realtime
-        # - number of stop times found not passed realtime
-        #        (currently on boards)
-        #
-        # Trips
-        # - schedule: number of trips: not begun, rolling, finished
-        # - realtime: number of trips with at least one stop observed
-        #
-        print("\nTRIPS")
-        print("Based on schedule:")
-        print("Number of trips on day: %s" %
-              len(self.df.Trip_trip_id.unique()))
-        print("Number of trips currently rolling: %s" %
-              self.df.query(
-                  "(trip_status > 0) & (trip_status < 1)")
-              .Trip_trip_id.unique().shape[0])
+        message = """
+        TRIPS
+        Number of trips today: %(trips_today)s
+        Number of trips currently rolling: %(trips_now)s (these are the trips for which we will try to make predictions)
+        Number of trips currently rolling for wich we observed at least one stop: %(trips_now_observed)s
 
-        print("\nSTOPTIMES")
-        print("Number of stop times scheduled: %s" %
-              self.df.Trip_trip_id.count())
-        print("Number of stop times that passed based on schedule: %s" %
-              self.df.TripState_passed_schedule.sum())
-        print("Number of stop times that passed based on observations: %s" %
-              self.df.TripState_passed_realtime.sum())
-        print("Number of stop times observed but not passed yet (still on boards): %s" %
-              (self.df.TripState_passed_realtime == False).sum())
+        STOPTIMES
+        Number of stop times that day: %(stoptimes_today)s
+        - Passed:
+            - scheduled: %(stoptimes_passed)s
+            - observed: %(stoptimes_passed_observed)s
+        - Not passed yet:
+            - scheduled: %(stoptimes_not_passed)s
+            - observed (predictions on boards) %(stoptimes_not_passed_observed)s
 
-        print("\nPREDICTABLE STOPTIMES")
-        print("Total number of stops for rolling trips (based on schedule): %s" %
-              self.df
-              .query("(trip_status > 0) & (trip_status < 1)")
-              .Trip_trip_id.count())
+        STOPTIMES FOR ROLLING TRIPS
+        Total number of stops for rolling trips: %(stoptimes_now)s
+        - Passed: those we will use to make our prediction
+            - scheduled: %(stoptimes_now_passed)s
+            - observed: %(stoptimes_now_passed_observed)s
+        - Not passed yet: those for which we want to make a prediction
+            - scheduled: %(stoptimes_now_not_passed)s
+            - already observed on boards (prediction): %(stoptimes_now_not_passed_observed)s
 
-        print("Rolling-trips' stops not passed yet (based on schedule), those for which we could make a prediction if we found information about precedent stops: %s" %
-              self.df
-              .query("(trip_status > 0) & (trip_status < 1) &(TripState_passed_schedule==False)")
-              .Trip_trip_id.count()
-              )
+        PREDICTIONS
+        Number of stop times for which we want to make a prediction (not passed yet): %(stoptimes_now_not_passed)s
+        Number of trips currently rolling for wich we observed at least one stop: %(trips_now_observed)s
+        Representing %(stoptimes_predictable)s stop times for which we can provide a prediction.
+        """
 
-        print("Rolling-trips' stops already passed (based on schedule), which is the information on which we should rely for our predictions for rolling trips: %s" % self.df
-              .query("(trip_status > 0) & (trip_status < 1) &(TripState_passed_schedule==True)")
-              .Trip_trip_id.count())
-
-        print("For these, how many we observed through api: %s" % self.df
-              .query("(trip_status > 0) & (trip_status < 1) &(TripState_passed_realtime==True)")
-              .Trip_trip_id.count())
+        self.summary = {
+            "trips_today": len(self.df.Trip_trip_id.unique()),
+            "trips_now": self.df
+            .query("(trip_status > 0) & (trip_status < 1)")
+            .Trip_trip_id.unique().shape[0],
+            "trips_now_observed": self.df
+            .query("(trip_status > 0) & (trip_status < 1) & (sequence_diff.notnull())")
+            .Trip_trip_id.unique().shape[0],
+            "stoptimes_today": self.df.Trip_trip_id.count(),
+            "stoptimes_passed": self.df.TripState_passed_schedule.sum(),
+            "stoptimes_passed_observed": self
+            .df.TripState_passed_realtime.sum(),
+            "stoptimes_not_passed": (~self.df.TripState_passed_schedule).sum(),
+            "stoptimes_not_passed_observed": (self
+                                              .df.TripState_passed_realtime == False).sum(),
+            "stoptimes_now": self.df
+            .query("(trip_status > 0) & (trip_status < 1)")
+            .Trip_trip_id.count(),
+            "stoptimes_now_passed": self.df
+            .query("(trip_status > 0) & (trip_status < 1) &(TripState_passed_schedule==True)")
+            .Trip_trip_id.count(),
+            "stoptimes_now_passed_observed": self.df
+            .query("(trip_status > 0) & (trip_status < 1) &(TripState_passed_realtime==True)")
+            .Trip_trip_id.count(),
+            "stoptimes_now_not_passed": self.df
+            .query("(trip_status > 0) & (trip_status < 1) &(TripState_passed_schedule==False)")
+            .Trip_trip_id.count(),
+            "stoptimes_now_not_passed_observed": self.df
+            .query("(trip_status > 0) & (trip_status < 1) &(TripState_passed_realtime==False)")
+            .Trip_trip_id.count(),
+            "stoptimes_predictable": self.df
+            .query("(trip_status > 0) & (trip_status < 1) &(TripState_passed_schedule==False) & (sequence_diff.notnull())")
+            .Trip_trip_id.count(),
+        }
+        print(message % self.summary)
 
     def get_predictable(self, strict=False, col_filter=True):
         """Return predictable stop times.
@@ -347,15 +379,19 @@ class DayMatrixBuilder():
             True & TripState_passed_realtime != True")
 
         if strict:
-            # Strict Conditions:
-            # - found last_observed_delay
-            # - found line_station_delay
+            # Strict Conditions: have all features
+            self._features = [
+                "last_observed_delay",
+                "line_station_median_delay",
+                "line_median_delay",
+                "sequence_diff",
+                "stations_scheduled_trip_time",
+                "rolling_trips_on_line",
+            ]
+            for feature in self._features:
+                rdf = rdf.query("%s.notnull()" % feature)
 
-            rdf = rdf.query(
-                "last_observed_delay.notnull() &\
-                line_station_median_delay.notnull()")
-
-        self.filtered_cols = [
+        self._filtered_cols = [
             # Identification basics
             "Trip_trip_id",
             "Stop_stop_id",
@@ -380,7 +416,7 @@ class DayMatrixBuilder():
         ]
 
         if col_filter:
-            rdf = rdf[self.filtered_cols]
+            rdf = rdf[self._filtered_cols]
 
         return rdf
 

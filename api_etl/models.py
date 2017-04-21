@@ -4,12 +4,11 @@ import logging
 
 from pynamodb.models import Model as DyModel
 from pynamodb.attributes import UnicodeAttribute
-from pynamodb.exceptions import DoesNotExist
 
 from sqlalchemy.ext import declarative
 from sqlalchemy import Column, String, ForeignKey
 
-from mongoengine import DynamicDocument, StringField, IntField, BooleanField
+from mongoengine import DynamicDocument, StringField
 
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
 from api_etl.utils_secrets import get_secret
