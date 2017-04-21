@@ -498,6 +498,8 @@ class DayMatrixBuilder():
 
             }
             return res
+        else:
+            raise ValueError("col_filter_level must be 0, 1, 2, or 3.")
 
     def missing_data_per(self, per="Stop_stop_name"):
         # per can be also "Stop_stop_id", "Route_route_short_name"

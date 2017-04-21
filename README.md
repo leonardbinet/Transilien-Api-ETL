@@ -63,6 +63,123 @@ You have to create a JSON file in the root directory (same level as main.py):
 ```
 
 
+## Documentation
+To generate documentation:
+
+First activate your virtualenv (you should have Sphinx and sphinx_rtd_theme installed), from root directory:
+```
+# create structure
+sphinx-apidoc --separate -f -o docs api_etl
+
+# generate html
+cd docs
+make html
+```
+You will find documentation in `docs/_build` directory
+
+*Warning*: beware of secrets. If your secrets are set in the secret.json file, they might be exposed through `get_secret` function parameters in documentation.
+
+## How to get prediction matrices:
+
+```
+git clone https://github.com/leonardbinet/Transilien-Api-ETL.git
+```
+
+Then create virtual env:
+```
+conda create -n api_transilien python=3
+source activate api_transilien
+pip install -r requirements.txt
+pip install ipython
+# because of pull-request not yet accepted for bug correction:
+pip install -e git+git://github.com/leonardbinet/PynamoDB.git@master#egg=pynamodb
+```
+
+Then setup secret file `secret.json`:
+```
+{
+    "AWS_ACCESS_KEY_ID":"***",
+    "AWS_SECRET_ACCESS_KEY":"***",
+    "AWS_DEFAULT_REGION":"eu-west-1",
+
+    "RDB_TYPE": "****",
+    "RDB_USER": "****",
+    "RDB_DB_NAME": "****",
+    "RDB_PASSWORD":"****",
+    "RDB_HOST":"****",
+    "RDB_PORT":"****",
+
+    "MONGO_HOST":"****",
+    "MONGO_USER":"****",
+    "MONGO_DB_NAME":"****",
+    "MONGO_PASSWORD":"****"
+}
+```
+
+Enjoy matrix:
+```
+In [1]: run api_etl/prediction.py
+MONGO_PORT not found.
+
+In [2]: dmb = DayMatrixBuilder(day="20170406", time="16:20:00")
+# This will take between 5 and 10 minutes
+# Here we the prediction matrices will be computed based on situation
+# at time 20170406-16:20:00:
+2017-04-21 16:55:20,361 - root - INFO - Building Matrix for day 20170406 and time 16:20:00 (retroactive: True)
+2017-04-21 16:55:20,361 - root - INFO - Launched schedule request.
+2017-04-21 16:58:04,411 - root - INFO - Schedule queried.
+2017-04-21 16:59:38,486 - root - INFO - RealTime queried.
+2017-04-21 17:00:18,382 - root - INFO - Initial dataframe created.
+2017-04-21 17:00:26,307 - root - INFO - Initial dataframe cleaned.
+2017-04-21 17:01:01,827 - root - INFO - TripState computed.
+2017-04-21 17:01:05,173 - root - INFO - Trip level computations performed.
+2017-04-21 17:01:06,745 - root - INFO - Line level computations performed.
+2017-04-21 17:01:14,632 - root - INFO - Labels assigned.
+
+In [3]: dmb.stats()
+# Summary of collected data
+
+        SUMMARY FOR DAY 20170406 AT TIME 16:20:00 (RETROACTIVE: True)
+
+        TRIPS
+        Number of trips today: 9297
+        Number of trips currently rolling: 431 (these are the trips for which we will try to make predictions)
+        Number of trips currently rolling for which we observed at least one stop: 178
+
+        STOPTIMES
+        Number of stop times that day: 129024
+        - Passed:
+            - scheduled: 75553
+            - observed: 24791
+        - Not passed yet:
+            - scheduled: 53471
+            - observed (predictions on boards) 17053
+
+        STOPTIMES FOR ROLLING TRIPS
+        Total number of stops for rolling trips: 7658
+        - Passed: those we will use to make our prediction
+            - scheduled: 3572
+            - observed: 1203
+        - Not passed yet: those for which we want to make a prediction
+            - scheduled: 4086
+            - already observed on boards (prediction): 1173
+
+        PREDICTIONS
+        Number of stop times for which we want to make a prediction (not passed yet): 4086
+        Number of trips currently rolling for which we observed at least one stop: 178
+        Representing 1768 stop times for which we can provide a prediction.
+
+        LABELED
+        Given that retroactive is True, we have 1096 labeled predictable stoptimes for training.
+
+In [4]: d = dmb.get_predictable(col_filter_level=3,labeled_only=True)
+# Get matrices in a dictionary ("X","y_real","y_naive_pred")
+
+In [5]: d.keys()
+Out[5]: dict_keys(['X', 'y_real', 'y_naive_pred'])
+# Naive pred is delay from last observed station.
+```
+
 ## Debug
 
 ```
@@ -85,20 +202,3 @@ To kill: brutal(replace number by id from last command)
 ```
 sudo pkill -9 5513
 ```
-
-
-## Documentation
-To generate documentation:
-
-First activate your virtualenv (you should have Sphinx and sphinx_rtd_theme installed), from root directory:
-```
-# create structure
-sphinx-apidoc --separate -f -o docs api_etl
-
-# generate html
-cd docs
-make html
-```
-You will find documentation in `docs/_build` directory
-
-*Warning*: beware of secrets. If your secrets are set in the secret.json file, they might be exposed through `get_secret` function parameters in documentation.
