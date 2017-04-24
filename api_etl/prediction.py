@@ -17,91 +17,106 @@ pd.options.mode.chained_assignment = None
 
 
 class DayMatrixBuilder():
-    """ Build the X matrix.
+    """Build features and label matrices from data available from schedule
+    and from realtime info.
 
-    For each trip:
-    - determine status: pending, rolling, finished. We will
-    only consider rolling trips. 0 (pending) -> 1 (finished).
-    - compute last observed delay (for those rolling 0<x<1)
+    1st step (init): get all information from day (schedule+realtime):
+    needs day parameter (else set to today).
+    2nd step: build matrices using only data available at given time: needs
+    time parameter (else set to time now).
 
-    For each line:
-    - compute current line status: median delays over last 10 min
-    - compute number of currently rolling trains OR number of train stops
-    during last 15 min (easier)
-    - for each station: compute current status on this line:
-        - last observed delay, to begin (or median of last 10 min)
-
-    Select all stop-times (day_train_num/station_id):
-    - filter those not passed yet
-    - filter those that are part of rolling trips
-    For each stop-time: add following features:
-    - compute difference of sequence between last observed stop and this one
-    - compute difference of scheduled time between last observed stop and this
-    one.
-    - add last observed delay of trip
-    - add last observed delay of station
-    # - add api-predicted delay in comparison to schedule (after)
-
+    Still "beta" functionality: provide df directly.
     """
 
-    def __init__(self, day=None, time=None, df=None):
-        """ Must provide day and time, else it will be set to now.
+    # CONFIGURATION
+    # Number of past seconds considered for station median delay
+    secs = 1200
+    # For time debugging:
+    _time_debug_cols = [
+        "TripState_passed_realtime", "TripState_passed_schedule",
+        "TripState_real_passage_vs_prediction_time_diff",
+        "StopTime_departure_time", "RealTime_expected_passage_time"
+    ]
+    # Features columns
+    _feature_cols = [
+        "Route_route_short_name",
+        "last_observed_delay",
+        "line_station_median_delay",
+        "line_median_delay",
+        "sequence_diff",
+        "stations_scheduled_trip_time",
+        "rolling_trips_on_line",
+        "stoptime_scheduled_hour",
+        "business_day"
+    ]
+    # Core identification columns
+    _id_cols = [
+        "TripState_at_datetime",
+        "Trip_trip_id",
+        "Stop_stop_id",
+    ]
+    # Label column
+    _label_col = ["label"]
 
-        Still "beta" functionality: provide df directly.
-        """
-        # Conf
-        # Number of past seconds considered for station median delay
-        self.secs = 1200
-        # For time debugging:
-        self._time_debug_cols = [
-            "TripState_passed_realtime", "TripState_passed_schedule",
-            "TripState_real_passage_vs_prediction_time_diff",
-            "StopTime_departure_time", "RealTime_expected_passage_time"
-        ]
-        # Features columns
-        self._feature_cols = [
-            "Route_route_short_name",
-            "last_observed_delay",
-            "line_station_median_delay",
-            "line_median_delay",
-            "sequence_diff",
-            "stations_scheduled_trip_time",
-            "rolling_trips_on_line",
-            "stoptime_scheduled_hour",
-            "business_day"
-        ]
-        # Core identification columns
-        self._id_cols = [
-            "TripState_at_datetime",
-            "Trip_trip_id",
-            "Stop_stop_id",
-        ]
-        # Label column
-        self._label_col = ["label"]
+    # Other useful columns
+    _other_useful_cols = [
+        "StopTime_departure_time",
+        "StopTime_stop_sequence",
+        "Stop_stop_name",
+        "RealTime_expected_passage_time",
+        "RealTime_data_freshness",
+    ]
 
-        # Other useful columns
-        self._other_useful_cols = [
-            "StopTime_departure_time",
-            "StopTime_stop_sequence",
-            "Stop_stop_name",
-            "RealTime_expected_passage_time",
-            "RealTime_data_freshness",
-        ]
+    def __init__(self, day=None, df=None):
 
         # Arguments validation and parsing
-        if day and time:
-            # TODO raise error if future is asked
-            full_str_dt = "%s%s" % (day, time)
+        if day:
+            # will raise error if wrong format
+            datetime.strptime(day, "%Y%m%d")
+            self.day = str(day)
+        else:
+            dt_today = get_paris_local_datetime_now()
+            self.day = dt_today.strftime("%Y%m%d")
+
+        logger.info("Day considered: %s" % self.day)
+
+        if isinstance(df, pd.DataFrame):
+            self.df = df
+            logger.info("Dataframe provided for day %s" % self.day)
+        else:
+            logger.info("Requesting data for day %s" % self.day)
+            self.querier = DBQuerier(yyyymmdd=self.day)
+            # Get schedule
+            self.stops_results = self.querier.stops_of_day(self.day)
+            logger.info("Schedule queried.")
+            # Perform realtime queries
+            self.stops_results.batch_realtime_query(self.day)
+            logger.info("RealTime queried.")
+            # Export flat dict as dataframe
+            self._initial_df = pd\
+                .DataFrame(self.stops_results.get_flat_dicts())
+            logger.info("Initial dataframe created.")
+
+    def compute_for_time(self, time=None):
+        """Given the data obtained from schedule and realtime, this method will
+        compute network state at a given time, and provide prediction and label
+        matrices.
+        """
+
+        # Parameters parsing
+        if time:
+            full_str_dt = "%s%s" % (self.day, time)
             # will raise error if wrong format
             self.datetime = datetime.strptime(full_str_dt, "%Y%m%d%H:%M:%S")
-            self.day = str(day)
             self.time = time
             self.retro_active = True
 
         else:
-            self.datetime = get_paris_local_datetime_now()
-            self.day = self.datetime.strftime("%Y%m%d")
-            self.time = self.datetime.strftime("%H:%M:%S")
+            # Keeps day, but provide time now
+            dt_now = get_paris_local_datetime_now()
+            self.time = dt_now.strftime("%H:%M:%S")
+            full_str_dt = "%s%s" % (self.day, self.time)
+            self.datetime = datetime.strptime(full_str_dt, "%Y%m%d%H:%M:%S")
             self.retro_active = False
 
         if self.retro_active:
@@ -112,20 +127,8 @@ class DayMatrixBuilder():
         logger.info("Building Matrix for day %s and time %s (retroactive: %s)" % (
             self.day, self.time, self.retro_active))
 
-        if isinstance(df, pd.DataFrame):
-            self.df = df
-        else:
-            logger.info("Launched schedule request.")
-            self.querier = DBQuerier(yyyymmdd=self.day)
-            # Get schedule
-            self.stops_results = self.querier.stops_of_day(self.day)
-            logger.info("Schedule queried.")
-            # Perform realtime queries
-            self.stops_results.batch_realtime_query(self.day)
-            logger.info("RealTime queried.")
-            # Export flat dict as dataframe
-            self.df = pd.DataFrame(self.stops_results.get_flat_dicts())
-            logger.info("Initial dataframe created.")
+        # Recreate dataframe from initial one (deletes changes)
+        self.df = self._initial_df.copy()
 
         # Computing
         self._clean_initial_df()
