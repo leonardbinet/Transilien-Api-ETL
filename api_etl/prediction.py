@@ -3,7 +3,7 @@
 import logging
 import logging.config
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
@@ -54,6 +54,7 @@ class DayMatrixBuilder():
         "TripState_at_datetime",
         "Trip_trip_id",
         "Stop_stop_id",
+        "sequence_diff"
     ]
     # Label column
     _label_col = ["label"]
@@ -68,7 +69,11 @@ class DayMatrixBuilder():
     ]
 
     def __init__(self, day=None, df=None):
+        """ Given a day, will query schedule and realtime information to
+        provide a dataframe containing all stops.
+        """
 
+        self._realtime_computed = False
         # Arguments validation and parsing
         if day:
             # will raise error if wrong format
@@ -142,6 +147,7 @@ class DayMatrixBuilder():
         # Will add labels if information is available
         self._compute_labels()
         logger.info("Labels assigned.")
+        self._realtime_computed = True
 
     def _clean_initial_df(self):
         # Replace Unknown by Nan
@@ -378,6 +384,8 @@ class DayMatrixBuilder():
             return r.index
 
     def stats(self):
+        assert self._realtime_computed
+
         message = """
         SUMMARY FOR DAY %(day)s AT TIME %(time)s (RETROACTIVE: %(retroactive)s)
 
@@ -455,19 +463,26 @@ class DayMatrixBuilder():
         }
         print(message % self.summary)
 
-    def get_predictable(self, all_features=True, labeled_only=False, col_filter_level=2):
+    def get_predictable(self, all_features_required=True, labeled_only=True, col_filter_level=2, split_datasets=False, set_index=True, provided_df=None):
         """Return predictable stop times.
         """
+        assert self._realtime_computed
+
+        if isinstance(provided_df, pd.DataFrame):
+            rdf = provided_df
+        else:
+            rdf = self.df
+
+        # Filter running trips, stations not passed yet
         # Basic Conditions:
         # - trip_status stricly between 0 and 1,
         # - has not passed yet schedule (not True)
         # - has not passed yet realtime (not True, it can be Nan or False)
-
-        rdf = self.df.query(
+        rdf = rdf.query(
             "trip_status < 1 & trip_status > 0 & TripState_passed_schedule !=\
             True & TripState_passed_realtime != True")
 
-        if all_features:
+        if all_features_required:
             # Only elements that have all features
             for feature in self._feature_cols:
                 rdf = rdf.query("%s.notnull()" % feature)
@@ -475,34 +490,88 @@ class DayMatrixBuilder():
         if labeled_only:
             rdf = rdf.query("label.notnull()")
 
-        if col_filter_level == 0:
-            # no filter, all columns
-            return rdf
-        elif col_filter_level == 1:
-            # medium filter
-            filtered_cols = self._feature_cols\
-                + self._id_cols\
-                + self._label_col\
-                + self._other_useful_cols
-            return rdf[filtered_cols]
-        elif col_filter_level == 2:
-            # high filter: only necessary
-            filtered_cols = self._feature_cols\
-                + self._id_cols\
-                + self._label_col
-            return rdf[filtered_cols]
-        elif col_filter_level == 3:
-            # returns X and y values ready for ML
-            rdf = rdf.set_index(self._id_cols)
-            res = {
-                "X": rdf[self._feature_cols],
-                "y_real": rdf[self._label_col],
-                "y_naive_pred": rdf["last_observed_delay"]
+        if set_index:
+            rdf = self._df_set_index(rdf)
 
-            }
-            return res
+        if col_filter_level:
+            # no filter, all columns
+            rdf = self._df_filter_cols(rdf, col_filter_level=col_filter_level)
+
+        if split_datasets:
+            # return dict
+            rdf = self._split_datasets(rdf)
+
+        return rdf
+
+    def _df_filter_cols(self, rdf, col_filter_level):
+        # We need at least: index, features, and label
+        filtered_cols = self._feature_cols\
+            + self._id_cols\
+            + self._label_col
+
+        if col_filter_level == 2:
+            # high filter: only necessary fields
+            return rdf[filtered_cols]
+
+        elif col_filter_level == 1:
+            # medium filter: add some useful cols
+            filtered_cols += self._other_useful_cols
+            return rdf[filtered_cols]
+
         else:
-            raise ValueError("col_filter_level must be 0, 1, 2, or 3.")
+            raise ValueError("col_filter_level must be 0, 1 or 2")
+
+    def _df_set_index(self, rdf):
+        # copy columns so that it is available as value or index
+        # value columns are then filtered
+        assert isinstance(rdf, pd.DataFrame)
+        index_suffix = "_ix"
+        rdf.reset_index()
+        for col in self._id_cols:
+            rdf[col + index_suffix] = rdf[col]
+        new_ix = list(map(lambda x: x + index_suffix, self._id_cols))
+        rdf.set_index(new_ix, inplace=True)
+        return rdf
+
+    def _split_datasets(self, rdf):
+        res = {
+            "X": rdf[self._feature_cols],
+            "y_real": rdf[self._label_col],
+            "y_naive_pred": rdf["last_observed_delay"]
+        }
+        return res
+
+    def _compute_multiple_times_of_day(self, begin="00:00:00", end="23:45:00", min_diff=60, flush_former=False, **kwargs):
+        assert isinstance(min_diff, int)
+        diff = timedelta(minutes=min_diff)
+
+        # will raise error if wrong format
+        begin_dt = datetime.strptime(begin, "%H:%M:%S")
+        end_dt = datetime.strptime(end, "%H:%M:%S")
+
+        if flush_former:
+            self._flush_result_concat()
+
+        step_dt = begin_dt
+        while (end_dt - step_dt).seconds >= 0:
+            step = step_dt.strftime("%H:%M:%S")
+            self.compute_for_time(step)
+            step_df = self.get_predictable(**kwargs)
+            self._concat_dataframes(step_df)
+
+            step += diff
+
+    def _concat_dataframes(self, df):
+        assert isinstance(df, pd.DataFrame)
+        # if no former result df, create empty df
+        if not hasattr(self, "result_concat"):
+            self.result_concat = pd.DataFrame()
+
+        # concat with previous results
+        self.result_concat = pd.concat([self.result_concat, df])
+
+    def _flush_result_concat(self):
+        self.result_concat = pd.DataFrame()
 
     def missing_data_per(self, per="Stop_stop_name"):
         # per can be also "Stop_stop_id", "Route_route_short_name"
