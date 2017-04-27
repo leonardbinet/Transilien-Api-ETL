@@ -52,12 +52,15 @@ class DayMatrixBuilder():
     # Core identification columns
     _id_cols = [
         "TripState_at_datetime",
+        "Route_route_short_name",
+        "RealTime_miss",
         "Trip_trip_id",
         "Stop_stop_id",
-        "sequence_diff"
+        "sequence_diff",
+        "stations_scheduled_trip_time",
     ]
     # Label column
-    _label_col = ["label"]
+    _label_cols = ["label", "label_ev"]
 
     # Other useful columns
     _other_useful_cols = [
@@ -354,6 +357,11 @@ class DayMatrixBuilder():
             on="Route_route_short_name")
 
     def _compute_labels(self):
+        """Adds two columns:
+        - label: observed delay at stop
+        - label_ev: observed delay evolution (difference between observed
+        delay predicted stop, and delay at last observed stop)
+        """
         # adds labels if information of passage is available now (the real now)
         self.df["_time_to_now"] = self\
             .df[self.df.RealTime_expected_passage_time.notnull()]\
@@ -374,6 +382,10 @@ class DayMatrixBuilder():
         # is real one
         self.df["label"] = self.df[self.df._really_passed_now == True]\
             .TripState_expected_delay
+        # Evolution of delay between last observed station and predicted
+        # station
+        self.df["label_ev"] = self.df[self.df._really_passed_now == True]\
+            .apply(lambda x: x.label - x.last_observed_delay, axis=1)
 
     def get_rolling_trips(self, status=True):
         r = self\
@@ -507,7 +519,7 @@ class DayMatrixBuilder():
         # We need at least: index, features, and label
         filtered_cols = self._feature_cols\
             + self._id_cols\
-            + self._label_col
+            + self._label_cols
 
         if col_filter_level == 2:
             # high filter: only necessary fields
@@ -536,12 +548,15 @@ class DayMatrixBuilder():
     def _split_datasets(self, rdf):
         res = {
             "X": rdf[self._feature_cols],
-            "y_real": rdf[self._label_col],
+            "y_real": rdf[self._label_cols],
             "y_naive_pred": rdf["last_observed_delay"]
         }
         return res
 
-    def _compute_multiple_times_of_day(self, begin="00:00:00", end="23:45:00", min_diff=60, flush_former=False, **kwargs):
+    def compute_multiple_times_of_day(self, begin="05:00:00", end="23:45:00", min_diff=60, flush_former=True, **kwargs):
+        """Compute dataframes for different times of day.
+        Note: for now, from 5AM (if no trip running, might cause problems)
+        """
         assert isinstance(min_diff, int)
         diff = timedelta(minutes=min_diff)
 
@@ -553,13 +568,14 @@ class DayMatrixBuilder():
             self._flush_result_concat()
 
         step_dt = begin_dt
-        while (end_dt - step_dt).seconds >= 0:
+        while (end_dt >= step_dt):
             step = step_dt.strftime("%H:%M:%S")
             self.compute_for_time(step)
             step_df = self.get_predictable(**kwargs)
             self._concat_dataframes(step_df)
 
-            step += diff
+            step_dt += diff
+        return self.result_concat
 
     def _concat_dataframes(self, df):
         assert isinstance(df, pd.DataFrame)
@@ -591,3 +607,8 @@ def save_day_matrices_as_csv(start, end, data_path=None):
     for day in days:
         mat = DayMatrixBuilder(day)
         mat.df.to_csv("%s%s" % (day, ".csv"))
+
+
+# TODO
+# take into account trip direction when computing delays on line
+# handle cases where no realtime information is found (create nan cols)
