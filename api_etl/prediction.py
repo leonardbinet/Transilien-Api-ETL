@@ -31,12 +31,7 @@ class DayMatrixBuilder():
     # CONFIGURATION
     # Number of past seconds considered for station median delay
     secs = 1200
-    # For time debugging:
-    _time_debug_cols = [
-        "TripState_passed_realtime", "TripState_passed_schedule",
-        "TripState_real_passage_vs_prediction_time_diff",
-        "StopTime_departure_time", "RealTime_expected_passage_time"
-    ]
+
     # Features columns
     _feature_cols = [
         "Route_route_short_name",
@@ -67,6 +62,10 @@ class DayMatrixBuilder():
     # Scoring columns
     _scoring_cols = ["naive_pred_mae", "naive_pred_mse"]
 
+    # Api prediction column when retro_active is False
+    # (when matrix is built for right now)
+    _prediction_cols = ["api_pred", "api_pred_ev", "naive_pred"]
+
     # Other useful columns
     _other_useful_cols = [
         "StopTime_departure_time",
@@ -74,6 +73,13 @@ class DayMatrixBuilder():
         "Stop_stop_name",
         "RealTime_expected_passage_time",
         "RealTime_data_freshness",
+    ]
+
+    # For time debugging:
+    _time_debug_cols = [
+        "TripState_passed_realtime", "TripState_passed_schedule",
+        "TripState_real_passage_vs_prediction_time_diff",
+        "StopTime_departure_time", "RealTime_expected_passage_time"
     ]
 
     def __init__(self, day=None, df=None):
@@ -153,8 +159,11 @@ class DayMatrixBuilder():
         self._line_level()
         logger.info("Line level computations performed.")
         # Will add labels if information is available
+        self._check_real_stop_status()
         self._compute_labels()
         logger.info("Labels assigned.")
+        self._compute_api_pred()
+        logger.info("Api and naive predictions assigned.")
         self._compute_pred_scores()
         logger.info("Naive predictions scored.")
         self._realtime_computed = True
@@ -365,12 +374,8 @@ class DayMatrixBuilder():
             self.rolling_trips_on_line,
             on="Route_route_short_name")
 
-    def _compute_labels(self):
-        """Adds two columns:
-        - label: observed delay at stop
-        - label_ev: observed delay evolution (difference between observed
-        delay predicted stop, and delay at last observed stop)
-        """
+    def _check_real_stop_status(self):
+        # Check in which state we are: retroactive or not (for each row)
         # adds labels if information of passage is available now (the real now)
         self.df.loc[:, "_time_to_now"] = self\
             .df[self.df.RealTime_expected_passage_time.notnull()]\
@@ -387,17 +392,57 @@ class DayMatrixBuilder():
             .df[self.df._time_to_now.notnull()]\
             ._time_to_now.apply(lambda x: (x >= 0))
 
+    def _compute_labels(self):
+        """Two main logics:
+        - either retroactive: then TripState_expected_delay is real one: label.
+        - either realtime (not retroactive): then we don't have real label, but
+        we have a api prediction.
+
+        Retroactive:
+        Adds two columns:
+        - label: observed delay at stop: real one.
+        - label_ev: observed delay evolution (difference between observed
+        delay predicted stop, and delay at last observed stop)
+
+        Not retroactive: realtime:
+        Adds two columns:
+        - api_pred: predicted delay from api.
+        - api_pred_ev: predicted evolution (from api) of delay.
+        """
         # if stop time really occured, then expected delay (extracted from api)
         # is real one
         self.df.loc[:, "label"] = self.df[self.df._really_passed_now == True]\
             .TripState_expected_delay
+
         # Evolution of delay between last observed station and predicted
         # station
         self.df.loc[:, "label_ev"] = self.df[self.df._really_passed_now == True]\
             .apply(lambda x: x.label - x.last_observed_delay, axis=1)
 
+    def _compute_api_pred(self):
+        """This method provides two predictions if possible:
+        - naive pred: delay translation (last observed delay)
+        - api prediction
+        """
+        # if not passed: it is the api-prediction
+        self.df.loc[:, "api_pred"] = self\
+            .df[self.df._really_passed_now != True]\
+            .TripState_expected_delay
+        # api delay evolution prediction
+        self.df.loc[:, "api_pred_ev"] = self\
+            .df[self.df._really_passed_now != True]\
+            .apply(lambda x: x.label - x.last_observed_delay, axis=1)
+
+        self.df.loc[:, "naive_pred"] = self.df.last_observed_delay
+
     def _compute_pred_scores(self):
-        """NAIVE PREDICTION:
+        """
+        We can compute score only for stoptimes for which we have real
+        information.
+        At no point we will be able to have both real information and api pred,
+        so we only compute score for naive prediction.
+
+        NAIVE PREDICTION:
         Naive prediction assumes that delay does not evolve:
         - evolution of delay = 0
         - delay predicted = last_observed_delay
@@ -408,10 +453,6 @@ class DayMatrixBuilder():
         Scores for navie prediction for delay can be:
         - naive_pred_mae: mean absolute error: |label_ev|
         - naive_pred_mse: mean square error: (label_ev)**2
-
-        API PREDICTION:
-        We will be also able to compute scores for API predictions (when)
-        retroactive is False.
         """
         self.df.loc[:, "naive_pred_mae"] = self.df["label_ev"].abs()
         self.df.loc[:, "naive_pred_mse"] = self.df["label_ev"]**2
@@ -551,6 +592,7 @@ class DayMatrixBuilder():
         filtered_cols = self._feature_cols\
             + self._id_cols\
             + self._label_cols\
+            + self._prediction_cols\
             + self._scoring_cols
 
         if col_filter_level == 2:
@@ -581,7 +623,8 @@ class DayMatrixBuilder():
         res = {
             "X": rdf[self._feature_cols],
             "y_real": rdf[self._label_cols],
-            "y_naive_pred": rdf["last_observed_delay"]
+            "y_pred": rdf[self._prediction_cols],
+            "y_score": rdf[self._scoring_cols]
         }
         return res
 
@@ -643,7 +686,7 @@ def save_day_matrices_as_csv(start, end, data_path=None):
 
 # TODO
 # A - take into account trip direction when computing delays on line
-# B - handle cases where no realtime information is found (create nan cols)
+#'B' - handle cases where no realtime information is found: DONE
 # C - when retroactive is False, give api prediction as feature
 # D - ability to save results in mongodb
 # E - investigate missing values/stations
