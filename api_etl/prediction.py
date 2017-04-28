@@ -43,10 +43,12 @@ class DayMatrixBuilder():
         "last_observed_delay",
         "line_station_median_delay",
         "line_median_delay",
+        "Trip_direction_id",
         "sequence_diff",
         "stations_scheduled_trip_time",
         "rolling_trips_on_line",
         "stoptime_scheduled_hour",
+        "RealTime_miss",
         "business_day"
     ]
     # Core identification columns
@@ -59,8 +61,11 @@ class DayMatrixBuilder():
         "sequence_diff",
         "stations_scheduled_trip_time",
     ]
-    # Label column
+    # Label columns
     _label_cols = ["label", "label_ev"]
+
+    # Scoring columns
+    _scoring_cols = ["naive_pred_mae", "naive_pred_mse"]
 
     # Other useful columns
     _other_useful_cols = [
@@ -89,7 +94,7 @@ class DayMatrixBuilder():
         logger.info("Day considered: %s" % self.day)
 
         if isinstance(df, pd.DataFrame):
-            self.df = df
+            self._initial_df = df
             logger.info("Dataframe provided for day %s" % self.day)
         else:
             logger.info("Requesting data for day %s" % self.day)
@@ -150,6 +155,8 @@ class DayMatrixBuilder():
         # Will add labels if information is available
         self._compute_labels()
         logger.info("Labels assigned.")
+        self._compute_pred_scores()
+        logger.info("Naive predictions scored.")
         self._realtime_computed = True
 
     def _clean_initial_df(self):
@@ -158,9 +165,11 @@ class DayMatrixBuilder():
         # Convert to numeric
         cols_to_num = ["StopTime_stop_sequence", "RealTime_data_freshness"]
         for col in cols_to_num:
-            self.df[col] = pd.to_numeric(self.df[col], errors="coerce")
+            self.df.loc[:, col] = pd\
+                .to_numeric(self.df.loc[:, col], errors="coerce")
         # Detect stoptime hour
-        self.df["stoptime_scheduled_hour"] = self.df.StopTime_departure_time\
+        self.df.loc[:, "stoptime_scheduled_hour"] = self.df\
+            .StopTime_departure_time\
             .apply(lambda x: DateConverter(
                 special_time=x,
                 special_date=self.day
@@ -179,10 +188,10 @@ class DayMatrixBuilder():
         - TripState_expected_delay: int (seconds)
         """
 
-        self.df["TripState_at_datetime"] = self.datetime.strftime(
-            "%Y%m%d-%H:%M:%S")
+        self.df.loc[:, "TripState_at_datetime"] = self.datetime\
+            .strftime("%Y%m%d-%H:%M:%S")
 
-        self.df["TripState_passed_schedule"] = self.df\
+        self.df.loc[:, "TripState_passed_schedule"] = self.df\
             .apply(lambda x: DateConverter(
                 dt=self.datetime
             )
@@ -196,7 +205,7 @@ class DayMatrixBuilder():
         # Time between observed datetime (for which we compute the prediction
         # features matrix), and stop times observed passages (only for observed
         # passages). <0 means passed, >0 means not passed yet at the given time
-        self.df["TripState_real_passage_vs_prediction_time_diff"] = self\
+        self.df.loc[:, "TripState_real_passage_vs_prediction_time_diff"] = self\
             .df[self.df.RealTime_expected_passage_time.notnull()]\
             .apply(lambda x: DateConverter(
                 dt=self.datetime
@@ -208,14 +217,14 @@ class DayMatrixBuilder():
                 axis=1
         )
 
-        self.df["TripState_passed_realtime"] = self\
+        self.df.loc[:, "TripState_passed_realtime"] = self\
             .df[self.df.TripState_real_passage_vs_prediction_time_diff
                 .notnull()]\
             .TripState_real_passage_vs_prediction_time_diff\
             .apply(lambda x: (x >= 0))
 
         # TripState_observed_delay
-        self.df["TripState_observed_delay"] = self\
+        self.df.loc[:, "TripState_observed_delay"] = self\
             .df[self.df.TripState_passed_realtime == True]\
             .apply(
                 lambda x: DateConverter(
@@ -230,7 +239,7 @@ class DayMatrixBuilder():
         )
 
         # TripState_expected_delay
-        self.df["TripState_expected_delay"] = self\
+        self.df.loc[:, "TripState_expected_delay"] = self\
             .df.query("(TripState_passed_realtime != True) & (RealTime_expected_passage_time.notnull())")\
             .apply(
                 lambda x: DateConverter(
@@ -276,7 +285,7 @@ class DayMatrixBuilder():
 
         # Compute number of stops between last observed station and predicted
         # station.
-        self.df["sequence_diff"] = self.df.StopTime_stop_sequence - \
+        self.df.loc[:, "sequence_diff"] = self.df.StopTime_stop_sequence - \
             self.df.last_sequence_number
 
         # Trips last observed delay
@@ -301,7 +310,7 @@ class DayMatrixBuilder():
 
         # Compute number of seconds between last observed passed trip scheduled
         # departure time, and departure time of predited station
-        self.df["stations_scheduled_trip_time"] = self\
+        self.df.loc[:, "stations_scheduled_trip_time"] = self\
             .df[self.df.last_observed_scheduled_dep_time.notnull()]\
             .apply(lambda x: DateConverter(
                 special_date=self.day,
@@ -363,7 +372,7 @@ class DayMatrixBuilder():
         delay predicted stop, and delay at last observed stop)
         """
         # adds labels if information of passage is available now (the real now)
-        self.df["_time_to_now"] = self\
+        self.df.loc[:, "_time_to_now"] = self\
             .df[self.df.RealTime_expected_passage_time.notnull()]\
             .apply(lambda x: DateConverter(
                 dt=self.paris_datetime_now
@@ -374,18 +383,38 @@ class DayMatrixBuilder():
             ),
                 axis=1
         )
-        self.df["_really_passed_now"] = self\
+        self.df.loc[:, "_really_passed_now"] = self\
             .df[self.df._time_to_now.notnull()]\
             ._time_to_now.apply(lambda x: (x >= 0))
 
         # if stop time really occured, then expected delay (extracted from api)
         # is real one
-        self.df["label"] = self.df[self.df._really_passed_now == True]\
+        self.df.loc[:, "label"] = self.df[self.df._really_passed_now == True]\
             .TripState_expected_delay
         # Evolution of delay between last observed station and predicted
         # station
-        self.df["label_ev"] = self.df[self.df._really_passed_now == True]\
+        self.df.loc[:, "label_ev"] = self.df[self.df._really_passed_now == True]\
             .apply(lambda x: x.label - x.last_observed_delay, axis=1)
+
+    def _compute_pred_scores(self):
+        """NAIVE PREDICTION:
+        Naive prediction assumes that delay does not evolve:
+        - evolution of delay = 0
+        - delay predicted = last_observed_delay
+        => error = real_delay - naive_pred
+                 = label - last_observed_delay
+                 = label_ev
+
+        Scores for navie prediction for delay can be:
+        - naive_pred_mae: mean absolute error: |label_ev|
+        - naive_pred_mse: mean square error: (label_ev)**2
+
+        API PREDICTION:
+        We will be also able to compute scores for API predictions (when)
+        retroactive is False.
+        """
+        self.df.loc[:, "naive_pred_mae"] = self.df["label_ev"].abs()
+        self.df.loc[:, "naive_pred_mse"] = self.df["label_ev"]**2
 
     def get_rolling_trips(self, status=True):
         r = self\
@@ -513,13 +542,16 @@ class DayMatrixBuilder():
             # return dict
             rdf = self._split_datasets(rdf)
 
+        logger.info("Predictable with labeled_only=%s, has a total of %s rows." % (labeled_only, len(rdf))
+                    )
         return rdf
 
     def _df_filter_cols(self, rdf, col_filter_level):
         # We need at least: index, features, and label
         filtered_cols = self._feature_cols\
             + self._id_cols\
-            + self._label_cols
+            + self._label_cols\
+            + self._scoring_cols
 
         if col_filter_level == 2:
             # high filter: only necessary fields
@@ -610,5 +642,11 @@ def save_day_matrices_as_csv(start, end, data_path=None):
 
 
 # TODO
-# take into account trip direction when computing delays on line
-# handle cases where no realtime information is found (create nan cols)
+# A - take into account trip direction when computing delays on line
+# B - handle cases where no realtime information is found (create nan cols)
+# C - when retroactive is False, give api prediction as feature
+# D - ability to save results in mongodb
+# E - investigate missing values/stations
+# F - perform trip_id train_num comparison on RATP lines
+# G - improve speed by having an option to make computations only on running
+# trains
