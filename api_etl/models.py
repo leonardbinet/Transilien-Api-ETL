@@ -14,8 +14,6 @@ from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
 from api_etl.utils_secrets import get_secret
 from api_etl.settings import dynamo_realtime, dynamo_schedule
 
-logger = logging.getLogger(__name__)
-
 # Set as environment variable: boto takes it directly
 AWS_DEFAULT_REGION = get_secret("AWS_DEFAULT_REGION", env=True)
 AWS_ACCESS_KEY_ID = get_secret("AWS_ACCESS_KEY_ID", env=True)

@@ -13,8 +13,6 @@ AWS_DEFAULT_REGION = get_secret("AWS_DEFAULT_REGION", env=True)
 AWS_ACCESS_KEY_ID = get_secret("AWS_ACCESS_KEY_ID", env=True)
 AWS_SECRET_ACCESS_KEY = get_secret("AWS_SECRET_ACCESS_KEY", env=True)
 
-logger = logging.getLogger(__name__)
-
 dynamodb = boto3.resource('dynamodb')
 
 
@@ -69,7 +67,7 @@ def dynamo_create_real_departures_table(
 
     # Wait until the table exists.
     table.meta.client.get_waiter('table_exists').wait(TableName=table_name)
-    logger.info("Table %s created in DynamoDB", table_name)
+    logging.info("Table %s created in DynamoDB", table_name)
 
 
 def dynamo_get_table_provisionned_capacity(table_name):
@@ -130,13 +128,13 @@ def dynamo_insert_batches(items_list, table_name):
     table = dynamodb.Table(table_name)
 
     # write in batches
-    # logger.info("Begin writing batches in dynamodb")
+    # logging.info("Begin writing batches in dynamodb")
     with table.batch_writer() as batch:
         for item in items_list:
             batch.put_item(
                 Item=item
             )
-    # logger.info("Task completed.")
+    # logging.info("Task completed.")
 
 
 def dynamo_submit_batch_getitem_request(

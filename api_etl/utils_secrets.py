@@ -8,14 +8,12 @@ import json
 import logging
 from api_etl.settings import BASE_DIR
 
-logger = logging.getLogger(__name__)
-
 try:
     with open(path.join(BASE_DIR, 'secret.json')) as secrets_file:
         secrets = json.load(secrets_file)
 except FileNotFoundError:
     secrets = {}
-    logger.info("No file")
+    logging.info("No file")
 
 
 def get_secret(setting, my_secrets=secrets, env=True):
@@ -30,16 +28,16 @@ def get_secret(setting, my_secrets=secrets, env=True):
         value = os.environ[setting]
         return value
     except KeyError:
-        logger.debug("Impossible to get %s from environment" % setting)
+        logging.debug("Impossible to get %s from environment" % setting)
 
     try:
         value = my_secrets[setting]
     except KeyError:
-        logger.debug("Impossible to get %s from file" % setting)
+        logging.debug("Impossible to get %s from file" % setting)
 
     # If value found, set it back as env
     if value and env:
         os.environ[setting] = value
         return value
     else:
-        logger.warning("%s not found." % setting)
+        logging.warning("%s not found." % setting)

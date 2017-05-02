@@ -12,7 +12,6 @@ from mongoengine import connect
 from api_etl.utils_secrets import get_secret
 from api_etl.utils_misc import build_uri
 
-logger = logging.getLogger(__name__)
 
 MONGO_HOST = get_secret("MONGO_HOST")
 MONGO_PORT = get_secret("MONGO_PORT") or 27017
@@ -74,9 +73,9 @@ def mongo_async_save_items(collection, items):
     async def do_insert_many(chunk):
         try:
             await asy_collection.insert_many(chunk)
-            logger.debug("Chunk inserted")
+            logging.debug("Chunk inserted")
         except:
-            logger.error("Could not save chunk")
+            logging.error("Could not save chunk")
 
     async def run(items):
         tasks = []
@@ -113,12 +112,12 @@ def mongo_async_upsert_items(collection, item_list, index_fields):
             result = await asy_collection.replace_one(
                 m_filter, item_to_upsert, upsert=True
             )
-            logger.debug("Item inserted")
+            logging.debug("Item inserted")
             if not result.acknowledged:
-                logger.error("Item %s not inserted" % item_to_upsert)
+                logging.error("Item %s not inserted" % item_to_upsert)
 
         except Exception as e:
-            logger.error("Could not save item, error %s" % e)
+            logging.error("Could not save item, error %s" % e)
 
     async def run(item_list):
         tasks = []
@@ -145,12 +144,12 @@ def mongo_async_update_items(collection, item_query_update_list):
             find_query = item_query_update[0]
             update_query = item_query_update[1]
             result = await asy_collection.update_one(find_query, update_query)
-            logger.debug("Item updated")
+            logging.debug("Item updated")
             if not result.acknowledged:
-                logger.error("Item %s not updated" % item_query_update)
+                logging.error("Item %s not updated" % item_query_update)
 
         except Exception as e:
-            logger.error("Could not update item, error %s" % e)
+            logging.error("Could not update item, error %s" % e)
 
     async def run(item_list):
         tasks = []

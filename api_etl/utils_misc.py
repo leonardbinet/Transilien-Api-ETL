@@ -20,8 +20,6 @@ from api_etl.settings import (
     scheduled_stations_path, logs_path
 )
 
-logger = logging.getLogger(__name__)
-
 
 def build_uri(
     db_type, host, user=None, password=None,

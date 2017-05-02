@@ -12,6 +12,10 @@ from pynamodb.exceptions import DoesNotExist
 # from sqlalchemy.orm import aliased
 # from sqlalchemy.sql import func
 
+if __name__ == '__main__':
+    import logging.config
+    logging.config.fileConfig('logging.conf')
+
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
 from api_etl.utils_rdb import RdbProvider
 from api_etl.utils_mongo import mongo_async_upsert_items
@@ -21,7 +25,6 @@ from api_etl.models import (
 )
 
 
-logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
 
 
@@ -145,8 +148,8 @@ class ResultSerializer():
                 yyyymmdd=yyyymmdd,
                 realtime_object=False
             )
-            logger.info("Realtime not found for %s, %s" %
-                        (station_id, day_train_num))
+            logging.info("Realtime not found for %s, %s" %
+                         (station_id, day_train_num))
             if not ignore_error:
                 raise DoesNotExist
 

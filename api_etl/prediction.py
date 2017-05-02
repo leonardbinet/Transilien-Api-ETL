@@ -1,17 +1,20 @@
 """Module containing class to build feature matrices for prediction.
 """
+
+from os import path
 import logging
-import logging.config
 
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
+if __name__ == '__main__':
+    import logging.config
+    logging.config.fileConfig('logging.conf')
+
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
 from api_etl.query import DBQuerier
 
-logging.config.fileConfig('logging.conf')
-logger = logging.getLogger('root')
 
 pd.options.mode.chained_assignment = None
 
@@ -97,24 +100,28 @@ class DayMatrixBuilder():
             dt_today = get_paris_local_datetime_now()
             self.day = dt_today.strftime("%Y%m%d")
 
-        logger.info("Day considered: %s" % self.day)
+        logging.info("Day considered: %s" % self.day)
 
         if isinstance(df, pd.DataFrame):
             self._initial_df = df
-            logger.info("Dataframe provided for day %s" % self.day)
+            self._builder_realtime_request_time = None
+            logging.info("Dataframe provided for day %s" % self.day)
         else:
-            logger.info("Requesting data for day %s" % self.day)
+            logging.info("Requesting data for day %s" % self.day)
             self.querier = DBQuerier(yyyymmdd=self.day)
             # Get schedule
             self.stops_results = self.querier.stops_of_day(self.day)
-            logger.info("Schedule queried.")
+            logging.info("Schedule queried.")
             # Perform realtime queries
+            dt_realtime_request = get_paris_local_datetime_now()
+            self._builder_realtime_request_time = dt_realtime_request\
+                .strftime("%H:%M:%S")
             self.stops_results.batch_realtime_query(self.day)
-            logger.info("RealTime queried.")
+            logging.info("RealTime queried.")
             # Export flat dict as dataframe
             self._initial_df = pd\
                 .DataFrame(self.stops_results.get_flat_dicts())
-            logger.info("Initial dataframe created.")
+            logging.info("Initial dataframe created.")
 
     def compute_for_time(self, time=None):
         """Given the data obtained from schedule and realtime, this method will
@@ -128,12 +135,12 @@ class DayMatrixBuilder():
             # will raise error if wrong format
             self.datetime = datetime.strptime(full_str_dt, "%Y%m%d%H:%M:%S")
             self.time = time
+            # TODO compute when really retro_active
             self.retro_active = True
 
         else:
-            # Keeps day, but provide time now
-            dt_now = get_paris_local_datetime_now()
-            self.time = dt_now.strftime("%H:%M:%S")
+            # Keeps day, but provides time of builder request
+            self.time = self._builder_realtime_request_time
             full_str_dt = "%s%s" % (self.day, self.time)
             self.datetime = datetime.strptime(full_str_dt, "%Y%m%d%H:%M:%S")
             self.retro_active = False
@@ -143,7 +150,7 @@ class DayMatrixBuilder():
         else:
             self.paris_datetime_now = self.datetime
 
-        logger.info("Building Matrix for day %s and time %s (retroactive: %s)" % (
+        logging.info("Building Matrix for day %s and time %s (retroactive: %s)" % (
             self.day, self.time, self.retro_active))
 
         # Recreate dataframe from initial one (deletes changes)
@@ -151,21 +158,21 @@ class DayMatrixBuilder():
 
         # Computing
         self._clean_initial_df()
-        logger.info("Initial dataframe cleaned.")
+        logging.info("Initial dataframe cleaned.")
         self._compute_trip_state()
-        logger.info("TripState computed.")
+        logging.info("TripState computed.")
         self._trip_level()
-        logger.info("Trip level computations performed.")
+        logging.info("Trip level computations performed.")
         self._line_level()
-        logger.info("Line level computations performed.")
+        logging.info("Line level computations performed.")
         # Will add labels if information is available
-        self._check_real_stop_status()
+        self._check_stop_state_at_request_time()
         self._compute_labels()
-        logger.info("Labels assigned.")
+        logging.info("Labels assigned.")
         self._compute_api_pred()
-        logger.info("Api and naive predictions assigned.")
+        logging.info("Api and naive predictions assigned.")
         self._compute_pred_scores()
-        logger.info("Naive predictions scored.")
+        logging.info("Naive predictions scored.")
         self._realtime_computed = True
 
     def _clean_initial_df(self):
@@ -374,7 +381,7 @@ class DayMatrixBuilder():
             self.rolling_trips_on_line,
             on="Route_route_short_name")
 
-    def _check_real_stop_status(self):
+    def _check_stop_state_at_request_time(self):
         # Check in which state we are: retroactive or not (for each row)
         # adds labels if information of passage is available now (the real now)
         self.df.loc[:, "_time_to_now"] = self\
@@ -583,8 +590,8 @@ class DayMatrixBuilder():
             # return dict
             rdf = self._split_datasets(rdf)
 
-        logger.info("Predictable with labeled_only=%s, has a total of %s rows." % (labeled_only, len(rdf))
-                    )
+        logging.info("Predictable with labeled_only=%s, has a total of %s rows." % (labeled_only, len(rdf))
+                     )
         return rdf
 
     def _df_filter_cols(self, rdf, col_filter_level):
@@ -628,9 +635,10 @@ class DayMatrixBuilder():
         }
         return res
 
-    def compute_multiple_times_of_day(self, begin="05:00:00", end="23:45:00", min_diff=60, flush_former=True, **kwargs):
+    def compute_multiple_times_of_day(self, begin="00:00:00", end="23:59:00", min_diff=60, flush_former=True, **kwargs):
         """Compute dataframes for different times of day.
-        Note: for now, from 5AM (if no trip running, might cause problems)
+        Default: begins at 00:00:00 and ends at 23:59:00 with a step of one
+        hour.
         """
         assert isinstance(min_diff, int)
         diff = timedelta(minutes=min_diff)
@@ -673,7 +681,7 @@ class DayMatrixBuilder():
         return agg
 
 
-def save_day_matrices_as_csv(start, end, data_path=None):
+def build_training_set(start, end, data_path=None, **kwargs):
     """ Sart and end included
     """
     dti = pd.date_range(start=start, end=end, freq="D")
@@ -681,13 +689,19 @@ def save_day_matrices_as_csv(start, end, data_path=None):
 
     for day in days:
         mat = DayMatrixBuilder(day)
-        mat.df.to_csv("%s%s" % (day, ".csv"))
-
+        mat.compute_multiple_times_of_day(**kwargs)
+        if data_path:
+            file_path = path.join(data_path, "%s.pickle" % day)
+        else:
+            # here:
+            file_path = "%s.pickle" % day
+        logging.info("Saving data in %s." % file_path)
+        mat.result_concat.to_pickle(file_path)
 
 # TODO
 # A - take into account trip direction when computing delays on line
 #'B' - handle cases where no realtime information is found: DONE
-# C - when retroactive is False, give api prediction as feature
+#'C' - when retroactive is False, give api prediction as feature: DONE
 # D - ability to save results in mongodb
 # E - investigate missing values/stations
 # F - perform trip_id train_num comparison on RATP lines

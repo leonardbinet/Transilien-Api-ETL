@@ -15,6 +15,10 @@ import json
 import xmltodict
 import pandas as pd
 
+if __name__ == '__main__':
+    import logging.config
+    logging.config.fileConfig('logging.conf')
+
 from api_etl.utils_misc import (
     get_paris_local_datetime_now, DateConverter, StationProvider
 )
@@ -27,8 +31,6 @@ from api_etl.settings import mongo_realtime_unique, mongo_realtime_all
 
 # To avoid some pandas warnings
 pd.options.mode.chained_assignment = None
-
-logger = logging.getLogger(__name__)
 
 
 class ApiExtractor():
@@ -67,7 +69,7 @@ class ApiExtractor():
         response being a tuple (string response, station).
         """
 
-        logger.info("Extraction of %d stations" % len(self.stations))
+        logging.info("Extraction of %d stations" % len(self.stations))
         client = ApiClient()
         self.raw_responses = client.request_stations(self.stations)
 
@@ -91,15 +93,15 @@ class ApiExtractor():
         self.dict_objects = []
         self.dynamo_objects = []
         # Parse responses in JSON format
-        logger.info("Parsing")
+        logging.info("Parsing")
         for response in self.raw_responses:
             try:
                 xml_string = response[0]
                 station = response[1]
                 self._parse_response(xml_string, station)
             except Exception as e:
-                logger.debug("Cannot parse station %s: %s" %
-                             (response[1], e))
+                logging.debug("Cannot parse station %s: %s" %
+                              (response[1], e))
                 continue
 
     def _parse_response(self, xml_string, station, return_df=False):
@@ -196,7 +198,8 @@ class ApiExtractor():
         """
         Saves objects in dynamo database.
         """
-        logger.info("Upsert of %d objects in dynamo", len(self.dynamo_objects))
+        logging.info("Upsert of %d objects in dynamo",
+                     len(self.dynamo_objects))
         with RealTimeDeparture.batch_write() as batch:
             for obj in self.dynamo_objects:
                 batch.save(obj)
@@ -222,14 +225,14 @@ class ApiExtractor():
 
         if mongo_all:
             # Save items in collection without compound primary key
-            logger.info("Saving  %d items in Mongo departures collection",
-                        len(items_list2))
+            logging.info("Saving  %d items in Mongo departures collection",
+                         len(items_list2))
             mongo_async_save_items(mongo_realtime_all["name"], items_list2)
 
         if mongo_unique:
             # Save items in collection with compound primary key
             index_fields = mongo_realtime_unique["unique_index"]
-            logger.info(
+            logging.info(
                 "Upsert of %d items of json data in Mongo %s collection",
                 len(items_list3),
                 mongo_realtime_unique["name"]
@@ -287,11 +290,11 @@ def operate_one_cycle(
             )
 
         time_passed = (datetime.now() - chunk_begin_time).seconds
-        logger.info("Time spent: %d seconds", int(time_passed))
+        logging.info("Time spent: %d seconds", int(time_passed))
 
         # Max per minute: so have to wait
         if time_passed > 60:
-            logger.warning(
+            logging.warning(
                 "Chunk time took more than one minute: %d seconds",
                 time_passed
             )
@@ -325,7 +328,7 @@ def operate_multiple_cycles(
     :type stop_time_sec: int
     """
 
-    logger.info(
+    logging.info(
         "BEGINNING OPERATION WITH LIMIT OF %d SECONDS",
         stop_time_sec
     )
@@ -334,24 +337,24 @@ def operate_multiple_cycles(
     while (datetime.now() - begin_time).seconds < stop_time_sec:
         # Set cycle loop
         loop_begin_time = datetime.now()
-        logger.info("BEGINNING CYCLE OF %d SECONDS", cycle_time_sec)
+        logging.info("BEGINNING CYCLE OF %d SECONDS", cycle_time_sec)
 
         operate_one_cycle(station_filter=station_filter)
 
         # Wait until beginning of next cycle
         time_passed = (datetime.now() - loop_begin_time).seconds
-        logger.info("Time spent on cycle: %d seconds", int(time_passed))
+        logging.info("Time spent on cycle: %d seconds", int(time_passed))
         if time_passed < cycle_time_sec:
             time_to_wait = cycle_time_sec - time_passed
-            logger.info("Waiting %d seconds till next cycle.", time_to_wait)
+            logging.info("Waiting %d seconds till next cycle.", time_to_wait)
             time.sleep(time_to_wait)
         else:
-            logger.warning(
+            logging.warning(
                 "Cycle time took more than expected: %d seconds", time_passed)
 
         # Information about general timing
         time_from_begin = (datetime.now() - begin_time).seconds
-        logger.info(
+        logging.info(
             "Time spent from beginning: %d seconds. (stop at %d seconds)",
             time_from_begin, stop_time_sec
         )
