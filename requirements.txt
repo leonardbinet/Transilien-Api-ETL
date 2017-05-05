@@ -1,6 +1,6 @@
 xmltodict
 defusedxml
-pandas
+pandas==0.19.0
 requests
 xmltodict
 pymongo
@@ -19,7 +19,7 @@ markdown
 django-filter
 Sphinx
 sphinx_rtd_theme
-pynamodb
+-e git://github.com/leonardbinet/PynamoDB.git@master#egg=pynamodb
 mongoengine
 celery
 flower
