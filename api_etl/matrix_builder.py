@@ -1,7 +1,7 @@
 """Module containing class to build feature matrices for prediction.
 """
 
-from os import path
+from os import path, makedirs
 import logging
 
 from datetime import datetime, timedelta
@@ -12,9 +12,11 @@ if __name__ == '__main__':
     import logging.config
     logging.config.fileConfig('logging.conf')
 
-from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
+from api_etl.utils_misc import (
+    get_paris_local_datetime_now, DateConverter, S3Bucket
+)
 from api_etl.query import DBQuerier
-
+from api_etl.settings import data_path, s3_buckets
 
 pd.options.mode.chained_assignment = None
 
@@ -681,28 +683,62 @@ class DayMatrixBuilder():
         return agg
 
 
-def build_training_set(start, end, data_path=None, **kwargs):
-    """ Sart and end included
-    """
-    dti = pd.date_range(start=start, end=end, freq="D")
-    days = dti.map(lambda x: x.strftime("%Y%m%d")).tolist()
+class TrainingSetBuilder():
 
-    for day in days:
+    def __init__(self, start, end, tempo=60):
+        dti = pd.date_range(start=start, end=end, freq="D")
+        self.days = dti.map(lambda x: x.strftime("%Y%m%d")).tolist()
+
+        assert isinstance(tempo, int)
+        self.tempo = tempo
+
+        self.bucket_name = s3_buckets["training-sets"]
+
+        self._bucket_provider = S3Bucket(
+            self.bucket_name,
+            create_if_absent=True
+        )
+
+    def _create_day_training_set(self, day, save_s3, save_in):
         mat = DayMatrixBuilder(day)
-        mat.compute_multiple_times_of_day(**kwargs)
-        if data_path:
-            file_path = path.join(data_path, "%s.pickle" % day)
-        else:
-            # here:
-            file_path = "%s.pickle" % day
-        logging.info("Saving data in %s." % file_path)
-        mat.result_concat.to_pickle(file_path)
+        mat.compute_multiple_times_of_day(min_diff=self.tempo)
+
+        raw_folder_path = path.join(save_in, "raw_days")
+        train_folder_path = path.join(save_in, "training_set-tempo-%s-min" %
+                                      self.tempo)
+
+        if not path.exists(raw_folder_path):
+            makedirs(raw_folder_path)
+
+        if not path.exists(train_folder_path):
+            makedirs(train_folder_path)
+
+        raw_file_path = path.join(raw_folder_path, "raw_%s.pickle" % day)
+        pred_file_path = path.join(train_folder_path, "%s.pickle" % day)
+
+        logging.info("Saving data in %s." % raw_folder_path)
+        mat.df.to_pickle(raw_file_path)
+        mat.result_concat.to_pickle(pred_file_path)
+
+        if save_s3:
+            self._bucket_provider.send_file(file_path=raw_file_path)
+            self._bucket_provider.send_file(file_path=pred_file_path)
+
+    def create_training_sets(self, save_in=None, save_s3=True):
+        save_in = save_in or path.relpath(data_path)
+
+        for day in self.days:
+            self._create_day_training_set(
+                day=day,
+                save_s3=save_s3,
+                save_in=save_in)
+
 
 # TODO
 # A - take into account trip direction when computing delays on line
-#'B' - handle cases where no realtime information is found: DONE
-#'C' - when retroactive is False, give api prediction as feature: DONE
-# D - ability to save results in mongodb
+# DONE: B - handle cases where no realtime information is found
+# DONE: C - when retroactive is False, give api prediction as feature
+# D - ability to save results
 # E - investigate missing values/stations
 # F - perform trip_id train_num comparison on RATP lines
 # G - improve speed by having an option to make computations only on running

@@ -28,7 +28,8 @@ from api_etl.models import (
     CalendarDate,
     ScheduledDeparture
 )
-
+from api_etl.utils_misc import get_paris_local_datetime_now, S3Bucket
+from api_etl.settings import s3_buckets
 
 pd.options.mode.chained_assignment = None
 
@@ -117,6 +118,17 @@ class ScheduleExtractor():
                 logging.error(
                     "The 'gtfs-lines-last' folder has not been found! Schedules will not be updated.")
                 return False
+
+    def save_gtfs_in_s3(self):
+        dt = get_paris_local_datetime_now()
+        day = dt.strftime("%Y%m%d")
+        prefix = "%s-gtfs" % day
+        sb = S3Bucket(s3_buckets["gtfs-files"], create_if_absent=True)
+        new_name = path.join(prefix, path.relpath(self.data_folder))
+        sb.send_folder(
+            folder_path=self.data_folder,
+            folder_name=new_name
+        )
 
 
 class ScheduleExtractorRDB(ScheduleExtractor):

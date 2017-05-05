@@ -11,6 +11,14 @@ BASE_DIR = os.path.dirname(
 logs_path = os.path.join(BASE_DIR, "..", "logs")
 
 
+# ##### S3 BUCKETS #####
+s3_prefix = "transilien-project"
+s3_buckets = {
+    "etl-logs": "%s.etl-logs" % s3_prefix,
+    "gtfs-files": "%s.gtfs-files" % s3_prefix,
+    "training-sets": "%s.training-sets" % s3_prefix,
+}
+
 # ##### DATA PATH #####
 data_path = os.path.join(BASE_DIR, "data")
 gtfs_path = os.path.join(data_path, "gtfs-lines-last")
