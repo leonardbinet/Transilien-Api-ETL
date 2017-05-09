@@ -123,6 +123,7 @@ class DayMatrixBuilder():
             # Export flat dict as dataframe
             self._initial_df = pd\
                 .DataFrame(self.stops_results.get_flat_dicts())
+            self._initial_df.loc[:, "stoptime_day"] = self.day
             logging.info("Initial dataframe created.")
 
     def compute_for_time(self, time=None):
@@ -717,7 +718,7 @@ class TrainingSetBuilder():
         pred_file_path = path.join(train_folder_path, "%s.pickle" % day)
 
         logging.info("Saving data in %s." % raw_folder_path)
-        mat.df.to_pickle(raw_file_path)
+        mat._initial_df.to_pickle(raw_file_path)
         mat.result_concat.to_pickle(pred_file_path)
 
         if save_s3:

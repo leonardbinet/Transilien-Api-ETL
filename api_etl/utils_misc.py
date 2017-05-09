@@ -318,7 +318,8 @@ class S3Bucket():
     def __init__(self, name, create_if_absent=False):
         self._s3 = s3_ressource()
         self.bucket_name = name
-        if create_if_absent and not self._check_if_accessible():
+        self._check_if_accessible()
+        if create_if_absent and not self._accessible:
             self._create_bucket()
 
     def _check_if_accessible(self):
@@ -407,3 +408,9 @@ class S3Bucket():
 
         if delete:
             os.rmdir(folder_path)
+
+    def list_bucket_objects(self):
+        self.bucket_objects = []
+        for obj in self.bucket.objects.all():
+            self.bucket_objects.append(obj.key)
+            print(obj.key)
