@@ -1,4 +1,11 @@
 """ Module made to analyze training sets and provide predictions.
+
+Parameters to chose:
+- lines considered
+- sequence_diff considered (predictions for how many stations ahead)
+
+Then you should compute your own predictions on the test sample and assign it
+to the y_pred variable so that plot and scores are computed.
 """
 from os import path
 from glob import glob
@@ -32,7 +39,7 @@ dfm = dfm.loc[:, ~dfm.columns.duplicated()]
 sel = dfm.copy()
 # By line: selecting only some lines
 # lines = ['C', 'D', 'E', 'H', 'J', 'K', 'L', 'N', 'P', 'R', 'U']
-lines = ["D"]
+lines = ["C", "E"]
 mask = sel.index.get_level_values("Route_route_short_name_ix").isin(lines)
 sel = sel[mask]
 # By sequence: selection only prediction for 1 to 10 stations ahead
@@ -43,19 +50,26 @@ cond2 = (sel.index.get_level_values("sequence_diff_ix") <= max_diff)
 mask = cond1 & cond2
 sel = sel[mask]
 # By scheduled trip time:
-min_trip = 300
-max_trip = 4000
-cond1 = (sel["stations_scheduled_trip_time"] >= min_trip)
-cond2 = (sel["stations_scheduled_trip_time"] <= max_trip)
-mask = cond1 & cond2
-sel = sel[mask]
-# Only those that have a large delay
-min_delay = 180
-max_delay = 3000
-#cond1 = (sel["label"] >= min_delay)
-#cond2 = (sel["label"] >= max_delay)
-#mask = cond1 & cond2
-#sel = sel[mask]
+scheduled_trip_filter = False
+if scheduled_trip_filter:
+    min_trip = 300
+    max_trip = 4000
+    cond1 = (sel["stations_scheduled_trip_time"] >= min_trip)
+    cond2 = (sel["stations_scheduled_trip_time"] <= max_trip)
+    mask = cond1 & cond2
+    sel = sel[mask]
+    # Only those that have a large delay
+    min_delay = 180
+    max_delay = 3000
+# Per delay
+delay_filter = False
+if delay_filter:
+    min_delay = -3000
+    max_delay = 3000
+    cond1 = (sel["label"] >= min_delay)
+    cond2 = (sel["label"] >= max_delay)
+    mask = cond1 & cond2
+    sel = sel[mask]
 
 ###### NAIVE PREDICTION SCORES ANALYSIS #######
 print_naive_scores = False
@@ -181,3 +195,12 @@ plt.show()
 comparison_df.groupby(level=[2, 5]).abs_error.mean().unstack().T.plot()
 plt.title("Prediction mean square error, per sequence_diff and mission code")
 plt.show()
+
+if len(lines) > 1:
+    comparison_df.groupby(level=1).abs_error.mean().plot(kind="bar")
+    plt.title("Prediction mean square error, per line")
+    plt.show()
+
+    comparison_df.groupby(level=[1, 5]).abs_error.mean().unstack().T.plot()
+    plt.title("Prediction mean square error, per line and sequence_diff")
+    plt.show()
