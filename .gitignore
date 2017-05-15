@@ -49,3 +49,6 @@ docs/*
 
 # Pids
 *.pid
+
+# Data
+*.pickle

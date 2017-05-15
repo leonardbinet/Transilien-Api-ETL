@@ -1,13 +1,14 @@
+ipdb
+pytz
 xmltodict
 defusedxml
 pandas==0.19.0
-requests
-xmltodict
-pymongo
-ipdb
+numpy
 motor
+pymongo
+mongoengine
+requests
 asyncio
-pytz
 aiohttp
 psycopg2
 sqlalchemy
@@ -20,6 +21,6 @@ django-filter
 Sphinx
 sphinx_rtd_theme
 -e git://github.com/leonardbinet/PynamoDB.git@master#egg=pynamodb
-mongoengine
 celery
 flower
+sklearn

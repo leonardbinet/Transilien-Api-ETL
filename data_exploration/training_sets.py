@@ -39,7 +39,7 @@ dfm = dfm.loc[:, ~dfm.columns.duplicated()]
 sel = dfm.copy()
 # By line: selecting only some lines
 # lines = ['C', 'D', 'E', 'H', 'J', 'K', 'L', 'N', 'P', 'R', 'U']
-lines = ["C", "E"]
+lines = ["C"]
 mask = sel.index.get_level_values("Route_route_short_name_ix").isin(lines)
 sel = sel[mask]
 # By sequence: selection only prediction for 1 to 10 stations ahead
@@ -62,17 +62,17 @@ if scheduled_trip_filter:
     min_delay = 180
     max_delay = 3000
 # Per delay
-delay_filter = False
+delay_filter = True
 if delay_filter:
-    min_delay = -3000
-    max_delay = 3000
+    min_delay = 600
+    max_delay = 10000
     cond1 = (sel["label"] >= min_delay)
-    cond2 = (sel["label"] >= max_delay)
+    cond2 = (sel["label"] <= max_delay)
     mask = cond1 & cond2
     sel = sel[mask]
 
 ###### NAIVE PREDICTION SCORES ANALYSIS #######
-print_naive_scores = False
+print_naive_scores = True
 
 if print_naive_scores:
     groupbies = [
@@ -136,7 +136,7 @@ X_train_ini = X_train.copy()
 X_test_ini = X_test.copy()
 
 # SCALING
-scale = True
+scale = False
 if scale:
     scaler = preprocessing.StandardScaler().fit(X_train)
     X_train = pd.DataFrame(
