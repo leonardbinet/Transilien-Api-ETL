@@ -123,3 +123,8 @@ df2.groupby([df2.index.hour, df2.index.weekday])[
     "delay"].mean().unstack().plot()
 plt.title("Mean delays per hour and per weekday")
 plt.show()
+
+
+# To show unicity (or not) of stations names
+df2.drop_duplicates(subset=["Stop_stop_name", "Stop_stop_id"]).groupby(
+    "Stop_stop_name").Stop_stop_id.count().describe()

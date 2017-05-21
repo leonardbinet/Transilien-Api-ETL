@@ -33,70 +33,11 @@ class DayMatrixBuilder():
     Still "beta" functionality: provide df directly.
     """
 
-    # CONFIGURATION
-    # Number of past seconds considered for station median delay
-    secs = 1200
-
-    # Features columns
-    _feature_cols = [
-        "Route_route_short_name",
-        "TS_last_observed_delay",
-        "TS_line_station_median_delay",
-        "TS_line_median_delay",
-        "Trip_direction_id",
-        "TS_sequence_diff",
-        "TS_stations_scheduled_trip_time",
-        "TS_rolling_trips_on_line",
-        "RealTime_miss",
-        "D_business_day"
-    ]
-    # Core identification columns
-    _id_cols = [
-        "TS_matrix_datetime",
-        "Route_route_short_name",
-        "RealTime_miss",
-        "Trip_trip_id",
-        "Stop_stop_id",
-        "TS_sequence_diff",
-        "TS_stations_scheduled_trip_time",
-    ]
-    # Label columns
-    _label_cols = ["label", "label_ev"]
-
-    # Scoring columns
-    _scoring_cols = ["naive_pred_mae", "naive_pred_mse"]
-
-    # Api prediction column when retro_active is False
-    # (when matrix is built for right now)
-    _prediction_cols = ["api_pred", "api_pred_ev", "naive_pred"]
-
-    # Other useful columns
-    _other_useful_cols = [
-        "StopTime_departure_time",
-        "StopTime_stop_sequence",
-        "Stop_stop_name",
-        "RealTime_expected_passage_time",
-        "RealTime_data_freshness",
-    ]
-
-    # For time debugging:
-    _time_debug_cols = [
-        "StopTime_departure_time", "RealTime_expected_passage_time",
-        'D_stop_special_day', 'D_stop_scheduled_datetime',
-        'D_trip_passed_scheduled_stop', 'D_stop_observed_datetime',
-        'D_trip_time_to_observed_stop', 'D_trip_passed_observed_stop',
-        'D_trip_delay', 'TS_matrix_datetime',
-        'TS_trip_passed_scheduled_stop', 'TS_observed_vs_matrix_datetime',
-        'TS_trip_passed_observed_stop', 'TS_observed_delay',
-        'TS_expected_delay', 'TS_trip_status'
-    ]
-
     def __init__(self, day=None, df=None):
         """ Given a day, will query schedule and realtime information to
         provide a dataframe containing all stops.
         """
 
-        self._realtime_computed = False
         # Arguments validation and parsing
         if day:
             # will raise error if wrong format
@@ -162,11 +103,13 @@ class DayMatrixBuilder():
         self._initial_df.loc[:, "D_stop_special_day"] = self.day
 
         # Scheduled stop datetime
+        # TODO: here error!! we don't have special date..
         self._initial_df.loc[:, "D_stop_scheduled_datetime"] = self._initial_df\
             .StopTime_departure_time\
             .apply(lambda x: DateConverter(
                 special_time=x,
-                special_date=self.day
+                special_date=self.day,
+                force_regular_date=True
             ).dt
         )
 
@@ -217,32 +160,139 @@ class DayMatrixBuilder():
         self._initial_df = self._initial_df\
             .join(trips_total_number_stations, on="Trip_trip_id")
 
-    def compute_for_time(self, time=None):
+    def stats(self):
+
+        message = """
+        SUMMARY FOR DAY %(day)s: based on information available and requested
+        at time %(request_time)s, and trips passage being evaluated given time
+        %(date_now)s
+
+        TRIPS
+        Number of trips today: %(trips_today)s
+
+        STOPTIMES
+        Number of stop times that day: %(stoptimes_today)s
+        - Passed:
+            - scheduled: %(stoptimes_passed)s
+            - observed: %(stoptimes_passed_observed)s
+        - Not passed yet:
+            - scheduled: %(stoptimes_not_passed)s
+            - observed (predictions on boards) %(stoptimes_not_passed_observed)s
+        """
+
+        self.summary = {
+            "day": self.day,
+            "request_time": self._builder_realtime_request_time,
+            "date_now": self.paris_datetime_now,
+            "trips_today": len(self._initial_df.Trip_trip_id.unique()),
+            "stoptimes_today": self._initial_df.Trip_trip_id.count(),
+            "stoptimes_passed": self._initial_df
+            .D_trip_passed_scheduled_stop.sum(),
+            "stoptimes_passed_observed": self._initial_df.
+            D_trip_passed_observed_stop.sum(),
+            "stoptimes_not_passed": (~self._initial_df.D_trip_passed_scheduled_stop).sum(),
+            "stoptimes_not_passed_observed":
+            (self._initial_df.D_trip_passed_observed_stop == False).sum(),
+        }
+        print(message % self.summary)
+
+    def missing_data_per(self, per="Route_route_short_name"):
+        # per can be also "Stop_stop_id", "Route_route_short_name"
+        md = self._initial_df.copy()
+        md.loc[:, "observed"] = md\
+            .loc[:, "RealTime_day_train_num"]\
+            .notnull().apply(int)
+
+        group = md.groupby(per)["observed"]
+
+        agg_observed = group.sum()
+        agg_scheduled = group.count()
+        agg_ratio = group.mean()
+        agg = pd.concat([agg_observed, agg_scheduled, agg_ratio], axis=1)
+        agg.columns = ["Observed", "Scheduled", "Ratio"]
+        return agg
+
+
+class DirectPredictionMatrix(DayMatrixBuilder):
+
+    # CONFIGURATION
+    # Number of past seconds considered for station median delay
+    _secs = 1200
+
+    # Features columns
+    _feature_cols = [
+        "Route_route_short_name",
+        "TS_last_observed_delay",
+        "TS_line_station_median_delay",
+        "TS_line_median_delay",
+        "Trip_direction_id",
+        "TS_sequence_diff",
+        "TS_stations_scheduled_trip_time",
+        "TS_rolling_trips_on_line",
+        "RealTime_miss",
+        "D_business_day"
+    ]
+    # Core identification columns
+    _id_cols = [
+        "TS_matrix_datetime",
+        "Route_route_short_name",
+        "RealTime_miss",
+        "Trip_trip_id",
+        "Stop_stop_id",
+        "TS_sequence_diff",
+        "TS_stations_scheduled_trip_time",
+    ]
+    # Label columns
+    _label_cols = ["label", "label_ev"]
+
+    # Scoring columns
+    _scoring_cols = ["S_naive_pred_mae", "S_naive_pred_mse"]
+
+    # Prediction columns
+    _prediction_cols = ["P_api_pred", "P_api_pred_ev", "P_naive_pred"]
+
+    # Other useful columns
+    _other_useful_cols = [
+        "StopTime_departure_time",
+        "StopTime_stop_sequence",
+        "Stop_stop_name",
+        "RealTime_expected_passage_time",
+        "RealTime_data_freshness",
+    ]
+
+    # For time debugging:
+    _time_debug_cols = [
+        "StopTime_departure_time", "RealTime_expected_passage_time",
+        'D_stop_special_day', 'D_stop_scheduled_datetime',
+        'D_trip_passed_scheduled_stop', 'D_stop_observed_datetime',
+        'D_trip_time_to_observed_stop', 'D_trip_passed_observed_stop',
+        'D_trip_delay', 'TS_matrix_datetime',
+        'TS_trip_passed_scheduled_stop', 'TS_observed_vs_matrix_datetime',
+        'TS_trip_passed_observed_stop', 'TS_observed_delay',
+        'TS_expected_delay', 'TS_trip_status'
+    ]
+
+    def __init__(self, day=None, df=None):
+        DayMatrixBuilder.__init__(self, day=day, df=df)
+        self._state_at_time_computed = False
+
+    def direct_compute_for_time(self, time="12:00:00"):
         """Given the data obtained from schedule and realtime, this method will
         compute network state at a given time, and provide prediction and label
         matrices.
         """
 
         # Parameters parsing
-        if time:
-            full_str_dt = "%s%s" % (self.day, time)
-            # will raise error if wrong format
-            self.state_at_datetime = datetime\
-                .strptime(full_str_dt, "%Y%m%d%H:%M:%S")
-            self.time = time
-            # TODO compute when really retro_active
-            self.retro_active = True
+        full_str_dt = "%s%s" % (self.day, time)
+        # will raise error if wrong format
+        self.state_at_datetime = datetime\
+            .strptime(full_str_dt, "%Y%m%d%H:%M:%S")
+        self.time = time
 
-        else:
-            # Keeps day, but provides time of builder request
-            self.time = self._builder_realtime_request_time
-            full_str_dt = "%s%s" % (self.day, self.time)
-            self.state_at_datetime = datetime.strptime(
-                full_str_dt, "%Y%m%d%H:%M:%S")
-            self.retro_active = False
-
-        logging.info("Building Matrix for day %s and time %s (retroactive: %s)" % (self.day, self.time, self.retro_active)
-                     )
+        logging.info(
+            "Building Matrix for day %s and time %s" % (
+                self.day, self.time)
+        )
 
         # Recreate dataframe from initial one (deletes changes)
         self.df = self._initial_df.copy()
@@ -261,7 +311,6 @@ class DayMatrixBuilder():
         logging.info("Api and naive predictions assigned.")
         self._compute_pred_scores()
         logging.info("Naive predictions scored.")
-        self._realtime_computed = True
 
     def _compute_trip_state(self):
         """Computes:
@@ -373,7 +422,8 @@ class DayMatrixBuilder():
                    DateConverter(dt=x["D_stop_scheduled_datetime"])
                    .compute_delay_from(
                        special_date=self.day,
-                       special_time=x["TS_last_observed_scheduled_dep_time"]
+                       special_time=x["TS_last_observed_scheduled_dep_time"],
+                       force_regular_date=True
                    ),
                    axis=1
                    )
@@ -386,11 +436,11 @@ class DayMatrixBuilder():
 
         Requires time to now (_add_time_to_now_col).
         """
-        # Compute delays on last n seconds (defined in init self.secs)
+        # Compute delays on last n seconds (defined in init self._secs)
 
         # Line aggregation
         line_median_delay = self.df\
-            .query("(TS_observed_vs_matrix_datetime<%s) & (TS_observed_vs_matrix_datetime>=0) " % self.secs)\
+            .query("(TS_observed_vs_matrix_datetime<%s) & (TS_observed_vs_matrix_datetime>=0) " % self._secs)\
             .groupby("Route_route_short_name")\
             .TS_observed_delay.median()
         line_median_delay.name = "TS_line_median_delay"
@@ -402,7 +452,7 @@ class DayMatrixBuilder():
         # same station can have different values given on which lines it
         # is located.
         line_station_median_delay = self.df\
-            .query("(TS_observed_vs_matrix_datetime < %s) & (TS_observed_vs_matrix_datetime>=0) " % self.secs)\
+            .query("(TS_observed_vs_matrix_datetime < %s) & (TS_observed_vs_matrix_datetime>=0) " % self._secs)\
             .groupby(["Route_route_short_name", "Stop_stop_id"])\
             .TS_observed_delay.median()
         line_station_median_delay.name = "TS_line_station_median_delay"
@@ -435,8 +485,8 @@ class DayMatrixBuilder():
 
         Not retroactive: realtime:
         Adds two columns:
-        - api_pred: predicted delay from api.
-        - api_pred_ev: predicted evolution (from api) of delay.
+        - P_api_pred: predicted delay from api.
+        - P_api_pred_ev: predicted evolution (from api) of delay.
         """
         # if stop time really occured, then expected delay (extracted from api)
         # is real one
@@ -456,15 +506,16 @@ class DayMatrixBuilder():
         - api prediction
         """
         # if not passed: it is the api-prediction
-        self.df.loc[:, "api_pred"] = self.df\
+        self.df.loc[:, "P_api_pred"] = self.df\
             .query("D_trip_passed_observed_stop != True")\
             .TS_expected_delay
         # api delay evolution prediction
-        self.df.loc[:, "api_pred_ev"] = self.df\
+        self.df.loc[:, "P_api_pred_ev"] = self.df\
             .query("D_trip_passed_observed_stop != True")\
             .apply(lambda x: x.label - x["TS_last_observed_delay"], axis=1)
 
-        self.df.loc[:, "naive_pred"] = self.df.loc[:, "TS_last_observed_delay"]
+        self.df.loc[:, "P_naive_pred"] = self.df.loc[
+            :, "TS_last_observed_delay"]
 
     def _compute_pred_scores(self):
         """
@@ -485,14 +536,18 @@ class DayMatrixBuilder():
         - naive_pred_mae: mean absolute error: |label_ev|
         - naive_pred_mse: mean square error: (label_ev)**2
         """
-        self.df.loc[:, "naive_pred_mae"] = self.df["label_ev"].abs()
-        self.df.loc[:, "naive_pred_mse"] = self.df["label_ev"]**2
+        self.df.loc[:, "S_naive_pred_mae"] = self.df["label_ev"].abs()
+        self.df.loc[:, "S_naive_pred_mse"] = self.df["label_ev"]**2
 
     def stats(self):
-        assert self._realtime_computed
+
+        DayMatrixBuilder.stats(self)
+
+        if not self._state_at_time_computed:
+            return None
 
         message = """
-        SUMMARY FOR DAY %(day)s AT TIME %(time)s (RETROACTIVE: %(retroactive)s)
+        SUMMARY FOR DAY %(day)s AT TIME %(time)s
 
         TRIPS
         Number of trips today: %(trips_today)s
@@ -529,7 +584,6 @@ class DayMatrixBuilder():
         self.summary = {
             "day": self.day,
             "time": self.time,
-            "retroactive": self.retro_active,
             "trips_today": len(self.df.Trip_trip_id.unique()),
             "trips_now": self.df
             .query("(TS_trip_status > 0) & (TS_trip_status < 1)")
@@ -554,7 +608,7 @@ class DayMatrixBuilder():
             .query("(TS_trip_status > 0) & (TS_trip_status < 1) &(TS_trip_passed_observed_stop==True)")
             .Trip_trip_id.count(),
             "stoptimes_now_not_passed": self.df
-            .query("(TS_trip_status > 0) & (TS_trip_status < 1) &(TS_trip_passed_observed_stop==False)")
+            .query("(TS_trip_status > 0) & (TS_trip_status < 1) &(TS_trip_passed_scheduled_stop==False)")
             .Trip_trip_id.count(),
             "stoptimes_now_not_passed_observed": self.df
             .query("(TS_trip_status > 0) & (TS_trip_status < 1) &(TS_trip_passed_observed_stop==False)")
@@ -571,7 +625,7 @@ class DayMatrixBuilder():
     def get_predictable(self, all_features_required=True, labeled_only=True, col_filter_level=2, split_datasets=False, set_index=True, provided_df=None):
         """Return predictable stop times.
         """
-        assert self._realtime_computed
+        assert self._state_at_time_computed
 
         if isinstance(provided_df, pd.DataFrame):
             rdf = provided_df
@@ -669,7 +723,7 @@ class DayMatrixBuilder():
         step_dt = begin_dt
         while (end_dt >= step_dt):
             step = step_dt.strftime("%H:%M:%S")
-            self.compute_for_time(step)
+            self.direct_compute_for_time(step)
             step_df = self.get_predictable(**kwargs)
             self._concat_dataframes(step_df)
 
@@ -688,13 +742,77 @@ class DayMatrixBuilder():
     def _flush_result_concat(self):
         self.result_concat = pd.DataFrame()
 
-    def missing_data_per(self, per="Stop_stop_name"):
-        # per can be also "Stop_stop_id", "Route_route_short_name"
-        md = self.df.copy(deep=True)
-        md["rt"] = ~md["RealTime_day_train_num"].isnull()
-        md["rt"] = md.rt.apply(int)
-        agg = md.groupby(per)["rt"].mean()
-        return agg
+
+class RecursivePredictionMatrix(DayMatrixBuilder):
+
+    def __init__(self, day=None, df=None):
+        DayMatrixBuilder.__init__(self, day=day, df=df)
+
+    def compute_all_possibles_sets(self):
+        """Given the data obtained from schedule and realtime, this method will
+        compute data sets for recursive prediction.
+
+        Recursive predictions (to the contrary of direct predictions) are
+        relatively time agnostic. They primarily depend on previous stops.
+
+        The elements to be computed are:
+        - R_trip_previous_station_delay: the train previous stop delay:
+            -- will only accept previous stop
+        - R_previous_trip_last_station_delay: the forward train last estimated stop delay: difficult to compute?
+            -- RS_data_freshness
+        - R_: make a score of route section blocking potential
+        """
+        self.df = self._initial_df.copy()
+
+        self._trip_previous_station()
+
+    def _trip_previous_station(self):
+        self.df.loc[:, "R_previous_station_sequence"] = self.df\
+            .query("StopTime_stop_sequence>0")\
+            .StopTime_stop_sequence - 1
+
+        previous_station = self.df\
+            .set_index(["Trip_trip_id", "StopTime_stop_sequence"])\
+            .loc[:, ["D_trip_delay", "StopTime_departure_time"]]\
+            .dropna()
+
+        self.df = self.df\
+            .join(
+                previous_station,
+                on=["Trip_trip_id", "R_previous_station_sequence"],
+                how="left", rsuffix="_previous_station"
+            )
+
+    def _route_section_blocking_potential(self):
+        """ First: find previous trip.
+        Supposing multiple
+        """
+        pass
+
+    def _route_section_traffic(self):
+        pass
+
+
+class TripVizBuilder(DayMatrixBuilder):
+
+    def __init__(self, day=None, df=None):
+        DayMatrixBuilder.__init__(self, day=day, df=df)
+
+    def annote_for_route_section(self, passes_by_all=None, passes_by_one=None):
+        """
+        Adds a column: stop custom sequence. It represents the station sequence
+        on the given route, on the given section.
+
+        Trip directions will be separated.
+
+        Filters trips passing by chosen stations.
+
+        To compute custom route sequence, we have to assign to each relevant
+        stop_id a sequence number.
+
+        Ideally we would like to select by stop_name, but they are not unique.
+        """
+        pass
 
 
 class TrainingSetBuilder():
@@ -714,7 +832,7 @@ class TrainingSetBuilder():
         )
 
     def _create_day_training_set(self, day, save_s3, save_in):
-        mat = DayMatrixBuilder(day)
+        mat = DirectPredictionMatrix(day)
         mat.compute_multiple_times_of_day(min_diff=self.tempo)
 
         raw_folder_path = path.join(save_in, "raw_days")

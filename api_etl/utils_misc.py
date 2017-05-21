@@ -130,7 +130,7 @@ class DateConverter():
 
     def __init__(
         self, dt=None, api_date=None, normal_date=None, normal_time=None,
-        special_date=None, special_time=None
+        special_date=None, special_time=None, force_regular_date=False
     ):
         """Works in two steps, first try to find real datetime from arguments
         passed, then computes string representations.
@@ -149,7 +149,7 @@ class DateConverter():
             self._normal_datetime_to_dt()
 
         elif (self.special_time and self.special_date):
-            self._special_datetime_to_dt()
+            self._special_datetime_to_dt(force_regular_date)
 
         else:
             assert self.dt
@@ -170,7 +170,7 @@ class DateConverter():
         full_str_dt = "%s%s" % (self.normal_date, self.normal_time)
         self.dt = datetime.strptime(full_str_dt, "%Y%m%d%H:%M:%S")
 
-    def _special_datetime_to_dt(self):
+    def _special_datetime_to_dt(self, force_regular_date):
         assert(self.special_date and self.special_time)
         hour = self.special_time[:2]
         assert (int(hour) >= 0 and int(hour) < 29)
@@ -181,7 +181,7 @@ class DateConverter():
         corr_sp_t = hour + self.special_time[2:]
         full_str_dt = "%s%s" % (self.special_date, corr_sp_t)
         dt = datetime.strptime(full_str_dt, "%Y%m%d%H:%M:%S")
-        if add_day:
+        if add_day and not force_regular_date:
             dt = dt + timedelta(days=1)
         self.dt = dt
 
@@ -206,7 +206,8 @@ class DateConverter():
 
     def compute_delay_from(
         self, dc=None, dt=None, api_date=None, normal_date=None,
-        normal_time=None, special_date=None, special_time=None
+        normal_time=None, special_date=None, special_time=None,
+        force_regular_date=False
     ):
         """
         Create another DateConverter and compares datetimes
@@ -221,7 +222,7 @@ class DateConverter():
             other_dt = DateConverter(
                 api_date=api_date, normal_date=normal_date,
                 normal_time=normal_time, dt=dt,
-                special_date=special_date, special_time=special_time
+                special_date=special_date, special_time=special_time, force_regular_date=force_regular_date
             ).dt
         time_delta = self.dt - other_dt
 
