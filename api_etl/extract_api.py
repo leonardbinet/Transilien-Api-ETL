@@ -266,7 +266,7 @@ def operate_one_cycle(
     :type mongo_all: boolean
     """
     if not station_filter:
-        station_list = StationProvider().get_station_ids("all")
+        station_list = StationProvider().get_stations_per_line()
     else:
         station_list = station_filter
 

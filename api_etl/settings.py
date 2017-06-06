@@ -32,7 +32,7 @@ top_stations_path = path.join(data_path, "most_used_stations.csv")
 scheduled_stations_path = path.join(
     data_path, "scheduled_station_20170215.csv")
 all_stations_path = path.join(data_path, "all_stations.csv")
-
+stations_per_line_path = path.join(data_path, "sncf-lignes-par-gares-idf.csv")
 
 # ##### DATABASES #####
 

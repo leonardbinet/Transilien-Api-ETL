@@ -25,7 +25,8 @@ if __name__ == '__main__':
 from api_etl.settings import (
     data_path, responding_stations_path,
     all_stations_path, top_stations_path,
-    scheduled_stations_path, logs_path
+    scheduled_stations_path, logs_path,
+    stations_per_line_path
 )
 
 from api_etl.utils_secrets import get_secret
@@ -78,6 +79,29 @@ class StationProvider():
         self._responding_stations_path = responding_stations_path
         self._top_stations_path = top_stations_path
         self._scheduled_stations_path = scheduled_stations_path
+        self._stations_per_line_path = stations_per_line_path
+
+    def get_stations_per_line(self, lines=None, UIC7=False, full_df=False):
+        """
+        Get stations of given line (multiple lines possible)
+        """
+        if lines:
+            assert isinstance(lines, list)
+
+        lines = lines or ['C', 'D', 'E', 'H', 'J', 'K', 'N', 'P', 'U']
+        # all but 'A', 'Aéroport C', 'B', 'T4', 'L', 'R'
+        station_path = self._stations_per_line_path
+        df = pd.read_csv(station_path, sep=";")
+        matching_stop_times = df.dropna(axis=0, how="all", subset=lines)
+
+        if full_df:
+            return matching_stop_times
+
+        stations = matching_stop_times.Code_UIC.apply(str).tolist()
+        if not UIC7:
+            return stations
+
+        return list(map(lambda x: x[0: -1], stations))
 
     def get_station_ids(self, stations="all", gtfs_format=False):
         """

@@ -19,6 +19,7 @@ data/*
 !data/most_used_stations.csv
 !data/scheduled_station_20170215.csv
 !data/all_stations.csv
+!data/sncf-lignes-par-gares-idf.csv
 
 # Zip files
 *.zip
