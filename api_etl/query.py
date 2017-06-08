@@ -11,8 +11,7 @@ from sqlalchemy.sql import func
 from api_etl.utils_misc import get_paris_local_datetime_now
 from api_etl.utils_rdb import RdbProvider
 from api_etl.models import (
-    Calendar, CalendarDate, Trip, StopTime, Stop, Agency, Route,
-    RealTimeDeparture
+    Calendar, CalendarDate, Trip, StopTime, Stop, Agency, Route
 )
 
 
@@ -43,14 +42,20 @@ class DBQuerier():
         datetime.strptime(yyyymmdd, "%Y%m%d")
         self.yyyymmdd = yyyymmdd
 
-    def routes(self):
-        results = self.provider.get_session()\
-            .query(Route)\
-            .distinct(Route.route_short_name)\
+    def routes(self, distinct_short_name=True, ids_only=True):
+        """ Multiple options available.
+        """
+        session = self.provider.get_session()
+        results = session\
+            .query(Route.route_id if ids_only else Route)\
+            .distinct(
+                Route.route_short_name if distinct_short_name
+                else Route.route_id
+            )\
             .all()
-        return ResultSetSerializer(results)
+        return results
 
-    def stations(self, on_route_short_name=None):
+    def stations(self, on_route_short_name=None, ids_only=True):
         """
         Return list of stations.
         You can specify filter on given route.
@@ -60,8 +65,8 @@ class DBQuerier():
         if on_route_short_name:
             on_route_short_name = str(on_route_short_name)
 
-        results = self.provider.get_session()\
-            .query(Stop)
+        session = self.provider.get_session()
+        results = session.query(Stop.stop_id if ids_only else Stop)
 
         if on_route_short_name:
             results = results\
@@ -78,58 +83,74 @@ class DBQuerier():
 
         return results
 
-    def services_of_day(self, yyyymmdd=None):
+    def services(self, of_day=None, ids_only=True):
         """Return all service_id's for a given day.
         """
-        yyyymmdd = yyyymmdd or self.yyyymmdd
-        # Will raise error if wrong format
-        datetime.strptime(yyyymmdd, "%Y%m%d")
+        # Args parsing of of_day
+        if of_day is True:
+            of_day = self.yyyymmdd
+        if of_day:
+            # Will raise error if wrong format
+            datetime.strptime(of_day, "%Y%m%d")
 
-        all_services = self.provider.get_session()\
-            .query(Calendar.service_id)\
-            .filter(Calendar.start_date <= yyyymmdd)\
-            .filter(Calendar.end_date >= yyyymmdd)\
-            .all()
+        # ids_only
+        entity = Calendar.service_id if ids_only else Calendar
+
+        # Session init
+        session = self.provider.get_session()
+
+        # Query if no day filter
+        if not of_day:
+            result = session\
+                .query(entity)\
+                .all()
+            return result
+
+        # Query if day filter
+        serv_regular = session\
+            .query(entity)\
+            .filter(Calendar.start_date <= of_day)\
+            .filter(Calendar.end_date >= of_day)
 
         # Get service exceptions
         # 1 = service (instead of usually not)
         # 2 = no service (instead of usually yes)
 
-        serv_add = self.provider.get_session()\
-            .query(CalendarDate.service_id)\
-            .filter(CalendarDate.date == yyyymmdd)\
-            .filter(CalendarDate.exception_type == "1")\
-            .all()
+        serv_add = session\
+            .query(entity)\
+            .filter(CalendarDate.service_id == Calendar.service_id)\
+            .filter(CalendarDate.date == of_day)\
+            .filter(CalendarDate.exception_type == "1")
 
-        serv_rem = self.provider.get_session()\
-            .query(CalendarDate.service_id)\
-            .filter(CalendarDate.date == yyyymmdd)\
-            .filter(CalendarDate.exception_type == "2")\
-            .all()
+        serv_rem = session\
+            .query(entity)\
+            .filter(CalendarDate.service_id == Calendar.service_id)\
+            .filter(CalendarDate.date == of_day)\
+            .filter(CalendarDate.exception_type == "2")
 
-        serv_on_day = set(all_services)
-        serv_on_day.update(serv_add)
-        serv_on_day = serv_on_day - set(serv_rem)
-        serv_on_day = list(map(lambda x: x[0], serv_on_day))
-
+        serv_on_day = serv_regular.union(serv_add).except_(serv_rem).all()
         return serv_on_day
 
-    def trips_of_day(
-        self, yyyymmdd=None, active_at_time=None, has_begun_at_time=None, not_yet_arrived_at_time=None, trip_id_only=True
+    def trips(
+        self, of_day=None, active_at_time=None, has_begun_at_time=None,
+        not_yet_arrived_at_time=None, ids_only=True
     ):
         """Returns list of strings (trip_ids).
         Day is either specified or today.
 
         Possible filters:
-        - active_at_time: "hh:mm:ss" (if set only to boolean True, "now")
+        - active_at_time: "hh:mm:ss" (if set only to boolean True, time "now")
         - has_begun_at_time
         - not_yet_arrived_at_time
         """
+        # ARGS PARSING
+        # of_day:
+        if of_day is True:
+            of_day = self.yyyymmdd
 
-        # Args parsing:
-        yyyymmdd = yyyymmdd or self.yyyymmdd
-        # Will raise error if wrong format
-        datetime.strptime(yyyymmdd, "%Y%m%d")
+        if of_day:
+            # Will raise error if wrong format
+            datetime.strptime(of_day, "%Y%m%d")
 
         # if active_at_time is set to boolean True, takes now
         if active_at_time is True:
@@ -140,131 +161,133 @@ class DBQuerier():
         has_begun_at_time = has_begun_at_time or active_at_time
         not_yet_arrived_at_time = not_yet_arrived_at_time or active_at_time
 
+        # ids_only
+        entities = Trip.trip_id if ids_only else Trip
+
+        # QUERY
         # session init
         session = self.provider.get_session()
 
-        if not has_begun_at_time and not not_yet_arrived_at_time:
-            # Case where no constraint
-            results = session\
-                .query(Trip.trip_id if trip_id_only else Trip)\
-                .filter(Trip.service_id.in_(self.services_of_day(yyyymmdd)))\
-                .all()
-            return list(map(lambda x: x[0], results))
+        # All trips
+        results = session.query(entities)
+
+        # If constraint on day: filter on them
+        if of_day:
+            results = results\
+                .filter(Trip.service_id.in_(self.services(of_day=of_day)))
 
         if has_begun_at_time:
             # Begin constraint: "hh:mm:ss" up to 26 hours
             # trips having begun at time:
             # => first stop departure_time must be < time
-            results = session\
-                .query(Trip.trip_id)\
-                .filter(Trip.service_id.in_(self.services_of_day(yyyymmdd)))\
+            begin_results = session\
+                .query(entities)\
                 .filter(StopTime.trip_id == Trip.trip_id)\
                 .filter(StopTime.stop_sequence == "0")\
                 .filter(StopTime.departure_time <= has_begun_at_time)\
-                .all()
-            begin_results = list(map(lambda x: x[0], results))
 
+            results = results.intersect(begin_results)
+
+        # Else
         if not_yet_arrived_at_time:
             # End constraint: trips not arrived at time
             # => last stop departure_time must be > time
-            results = session\
-                .query(Trip.trip_id)\
-                .filter(Trip.service_id == Calendar.service_id)\
-                .filter(Trip.service_id.in_(self.services_of_day(yyyymmdd)))\
+            end_results = session\
+                .query(entities)\
                 .filter(StopTime.trip_id == Trip.trip_id)\
                 .filter(
                     StopTime.stop_sequence == session
                     .query(func.max(StopTime.stop_sequence))
                     .correlate(Trip)
                 )\
-                .filter(StopTime.departure_time >= not_yet_arrived_at_time)\
-                .all()
-            end_results = list(map(lambda x: x[0], results))
+                .filter(StopTime.departure_time >= not_yet_arrived_at_time)
 
-        if not_yet_arrived_at_time and has_begun_at_time:
-            trip_ids_result = list(
-                set(begin_results).intersection(end_results))
+            results = results.intersect(end_results)
 
-        elif has_begun_at_time:
-            trip_ids_result = begin_results
+        return results.all()
 
-        elif not_yet_arrived_at_time:
-            trip_ids_result = end_results
+    def stoptimes(
+        self, of_day=None, level=0, trip_id_filter=None, uic_filter=None,
+        trip_active_at_time=None
+    ):
+        """ Returns stoptimes
 
-        if trip_id_only:
-            return trip_ids_result
-        else:
-            result = session\
-                .query(Trip)\
-                .filter(Trip.trip_id.in_(trip_ids_result))\
-                .all()
-            return result
+        Uic filter accepts both 7 and 8 digits, but only one station.
 
-    def stoptimes_of_day(self, yyyymmdd, stops_only=False):
-        if stops_only:
-            results = self.provider.get_session()\
-                .query(StopTime)\
-                .filter(StopTime.trip_id.in_(self.trips_of_day(yyyymmdd)))\
-                .all()
-            return results
-        else:
-            results = self.provider.get_session()\
-                .query(StopTime, Trip, Stop, Route, Agency, Calendar)\
-                .filter(Trip.trip_id == StopTime.trip_id)\
-                .filter(Stop.stop_id == StopTime.stop_id)\
-                .filter(Trip.route_id == Route.route_id)\
-                .filter(Agency.agency_id == Route.agency_id)\
-                .filter(Calendar.service_id == Trip.service_id)\
-                .filter(StopTime.trip_id.in_(self.trips_of_day(yyyymmdd)))\
-                .all()
-            return results
-
-    def trip_stoptimes(self, trip_id, yyyymmdd=None):
-        """Return all stops of a given trip, on a given day.
-        \nInitially the returned object contains only schedule information.
-        \nThen, it can be updated with realtime information.
+        Entity levels:
+        - 0: only ids
+        - 1: only stoptimes
+        - 2: stoptimes, trips
+        - 3: stoptimes, trips, stops
+        - 4: stoptimes, trips, stops, routes, calendar
         """
-        yyyymmdd = yyyymmdd or self.yyyymmdd
-        # Will raise error if wrong format
-        datetime.strptime(yyyymmdd, "%Y%m%d")
+        # ARGS PARSING
+        # of_day
+        if of_day is True:
+            of_day = self.yyyymmdd
+        if of_day:
+            # Will raise error if wrong format
+            datetime.strptime(of_day, "%Y%m%d")
 
-        results = self.provider.get_session()\
-            .query(StopTime, Trip, Stop, Route, Agency, Calendar)\
-            .filter(Trip.trip_id == StopTime.trip_id)\
+        # uic_filter
+        if uic_filter:
+            uic_filter = str(uic_filter)
+            if len(uic_filter) == 8:
+                uic_filter = uic_filter[:-1]
+            elif len(uic_filter) == 7:
+                pass
+            else:
+                raise ValueError("uic_filter length must be 7 or 8")
+
+        # entities
+        if level == 0:
+            entities = [StopTime.stop_id]
+        elif level == 1:
+            entities = [StopTime]
+        elif level == 2:
+            entities = [StopTime, Trip]
+        elif level == 3:
+            entities = [StopTime, Trip, Stop]
+        elif level == 4:
+            entities = [StopTime, Trip, Stop, Route, Calendar]
+        else:
+            entities = [StopTime.stop_id]
+
+        # Session init
+        session = self.provider.get_session()
+
+        # Filters for joins (no effect if level is lower)
+        results = session\
+            .query(*entities)\
             .filter(Stop.stop_id == StopTime.stop_id)\
-            .filter(Trip.route_id == Route.route_id)\
-            .filter(Agency.agency_id == Route.agency_id)\
-            .filter(Calendar.service_id == Trip.service_id)\
-            .filter(Trip.trip_id == trip_id)\
-            .all()
-        return results
-
-    def station_stoptimes(self, uic_code, yyyymmdd=None):
-        """Return all trip stops of a given station, on a given day.
-        \n -uic_code should be in 7 or 8 digits gtfs format
-        \n -day is in yyyymmdd format
-        \n
-        \nInitially the returned object contains only schedule information.
-        \nThen, it can be updated with realtime information.
-        """
-        yyyymmdd = yyyymmdd or self.yyyymmdd
-        # Will raise error if wrong format
-        datetime.strptime(yyyymmdd, "%Y%m%d")
-
-        uic_code = str(uic_code)
-        assert ((len(uic_code) == 7) or (len(uic_code) == 8))
-        if len(uic_code) == 8:
-            uic_code = uic_code[:-1]
-
-        results = self.provider.get_session()\
-            .query(StopTime, Trip, Stop, Route, Agency, Calendar)\
             .filter(Trip.trip_id == StopTime.trip_id)\
-            .filter(Stop.stop_id == StopTime.stop_id)\
-            .filter(Trip.route_id == Route.route_id)\
-            .filter(Agency.agency_id == Route.agency_id)\
-            .filter(StopTime.stop_id.like("%" + uic_code))\
             .filter(Calendar.service_id == Trip.service_id)\
-            .filter(Calendar.service_id.in_(self.services_of_day(yyyymmdd)))\
-            .all()
+            .filter(Route.route_id == Trip.route_id)\
+            .filter(Agency.agency_id == Route.agency_id)
 
-        return results
+        if of_day:
+            results = results\
+                .filter(Trip.service_id.in_(self.services(of_day=of_day)))
+
+        if trip_active_at_time:
+            results = results\
+                .filter(Trip.trip_id.in_(
+                    self.trips(
+                        of_day=of_day,
+                        active_at_time=trip_active_at_time
+                    )
+                ))
+
+        if trip_id_filter:
+            # accepts list or single element
+            if not isinstance(trip_id_filter):
+                trip_id_filter = [trip_id_filter]
+            # filter
+            results = results\
+                .filter(Trip.trip_id.in_(trip_id_filter))
+
+        if uic_filter:
+            results = results\
+                .filter(Stop.stop_id.like("%"))\
+
+        return results.all()

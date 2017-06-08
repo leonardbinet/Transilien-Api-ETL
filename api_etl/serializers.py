@@ -298,7 +298,8 @@ class ResultSetSerializer():
         else:
             return [x.get_flat_dict() for x in self.results]
 
-    def batch_realtime_query(self, yyyymmdd):
+    def batch_realtime_query(self, yyyymmdd=None):
+        yyyymmdd = yyyymmdd or self.yyyymmdd
         # 1: get all elements that have StopTime
         # 2: build all indexes (station_id, day_train_num)
         self._index_stoptime_results(yyyymmdd)
