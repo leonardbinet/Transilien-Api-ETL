@@ -16,6 +16,7 @@ from api_etl.utils_misc import (
     get_paris_local_datetime_now, DateConverter, S3Bucket
 )
 from api_etl.query import DBQuerier
+from api_etl.serializers import ResultSetSerializer
 from api_etl.settings import data_path, s3_buckets
 
 pd.options.mode.chained_assignment = None
@@ -57,17 +58,18 @@ class DayMatrixBuilder():
             logging.info("Requesting data for day %s" % self.day)
             self.querier = DBQuerier(yyyymmdd=self.day)
             # Get schedule
-            self.stops_results = self.querier.stops_of_day(self.day)
+            self.stops_results = self.querier.stoptimes_of_day(self.day)
+            self.serialized_stoptimes = ResultSetSerializer(self.stops_results)
             logging.info("Schedule queried.")
             # Perform realtime queries
             dt_realtime_request = get_paris_local_datetime_now()
             self._builder_realtime_request_time = dt_realtime_request\
                 .strftime("%H:%M:%S")
-            self.stops_results.batch_realtime_query(self.day)
+            self.serialized_stoptimes.batch_realtime_query(self.day)
             logging.info("RealTime queried.")
             # Export flat dict as dataframe
             self._initial_df = pd\
-                .DataFrame(self.stops_results.get_flat_dicts())
+                .DataFrame(self.serialized_stoptimes.get_flat_dicts())
             logging.info("Initial dataframe created.")
             # Datetime considered as now
             self.paris_datetime_now = get_paris_local_datetime_now()
