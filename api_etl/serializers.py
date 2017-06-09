@@ -46,7 +46,10 @@ def ModelToSerializerFactory(class_name, ExtractedClass):
         # for all non-hidden attributes
         if not key.startswith("_") and not callable(value):
             # set them as CharFields
-            class_body[key] = serializers.CharField(max_length=300)
+            class_body[key] = serializers.CharField(
+                max_length=300,
+                required=False
+            )
 
     newclass = type(class_name, (BaseClass,), class_body)
     return newclass
@@ -75,7 +78,7 @@ class FullStopTimeSerializer(serializers.Serializer):
     Stop = StopSerializer(required=False)
     Agency = AgencySerializer(required=False)
     Route = RouteSerializer(required=False)
-    RealTimeDeparture = RealTimeDepartureSerializer(required=False)
+    RealTime = RealTimeDepartureSerializer(required=False)
 
 
 class ResultSerializer():
