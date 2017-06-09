@@ -5,7 +5,7 @@ Two main parts:
     an important part is the ability to extend schedule results with realtime
     information.
 
-- FullStopTimeSerializer and directs Serializers: raw serializers:
+- NestedSerializer and directs Serializers: raw serializers:
     main ability is to provide a suitable serializer for django rest api,
     especially for pagination purposes.
 
@@ -18,67 +18,14 @@ import collections
 from datetime import datetime
 
 import pandas as pd
-from rest_framework import serializers
 
 from pynamodb.exceptions import DoesNotExist
 
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
 from api_etl.utils_mongo import mongo_async_upsert_items
-from api_etl.models import (
-    Calendar, CalendarDate, Trip, StopTime, Stop, Agency, Route,
-    RealTimeDeparture
-)
+from api_etl.models import RealTimeDeparture
 
 pd.options.mode.chained_assignment = None
-
-
-def ModelToSerializerFactory(class_name, ExtractedClass):
-    """ Transforms a model class in a corresponding Serializer class
-    """
-    BaseClass = serializers.Serializer
-
-    def __init__(self, **kwargs):
-        BaseClass.__init__(self, **kwargs)
-
-    class_body = {"__init__": __init__}
-
-    for key, value in ExtractedClass.__dict__.items():
-        # for all non-hidden attributes
-        if not key.startswith("_") and not callable(value):
-            # set them as CharFields
-            class_body[key] = serializers.CharField(
-                max_length=300,
-                required=False
-            )
-
-    newclass = type(class_name, (BaseClass,), class_body)
-    return newclass
-
-# Declaring my new serializers
-# Calendar, CalendarDate, Trip, StopTime, Stop, Agency, Route, RealTimeDeparture
-
-CalendarSerializer = ModelToSerializerFactory("CalendarSerializer", Calendar)
-CalendarDateSerializer = ModelToSerializerFactory(
-    "CalendarDateSerializer", CalendarDate)
-TripSerializer = ModelToSerializerFactory("TripSerializer", Trip)
-StopTimeSerializer = ModelToSerializerFactory("StopTimeSerializer", StopTime)
-StopSerializer = ModelToSerializerFactory("StopSerializer", Stop)
-AgencySerializer = ModelToSerializerFactory("AgencySerializer", Agency)
-RouteSerializer = ModelToSerializerFactory("RouteSerializer", Route)
-AgencySerializer = ModelToSerializerFactory("AgencySerializer", Agency)
-RealTimeDepartureSerializer = ModelToSerializerFactory(
-    "RealTimeDepartureSerializer", RealTimeDeparture)
-
-
-class FullStopTimeSerializer(serializers.Serializer):
-    Calendar = CalendarSerializer(required=False)
-    CalendarDate = CalendarDateSerializer(required=False)
-    Trip = TripSerializer(required=False)
-    StopTime = StopTimeSerializer()
-    Stop = StopSerializer(required=False)
-    Agency = AgencySerializer(required=False)
-    Route = RouteSerializer(required=False)
-    RealTime = RealTimeDepartureSerializer(required=False)
 
 
 class ResultSerializer():
