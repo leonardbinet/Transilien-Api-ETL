@@ -249,6 +249,8 @@ class ResultSetSerializer():
             return [x.get_flat_dict() for x in self.results]
 
     def batch_realtime_query(self, yyyymmdd=None):
+        logging.info(
+            "Trying to get realtime information from DynamoDB for %s items." % len(self.results))
         yyyymmdd = yyyymmdd or self.yyyymmdd
         # 1: get all elements that have StopTime
         # 2: build all indexes (station_id, day_train_num)
@@ -256,9 +258,14 @@ class ResultSetSerializer():
         # 3: send a batch request to get elements
         # 4: dispatch correcly answers
         item_keys = [key for key, value in self._indexed_results.items()]
+
+        i = 0
         for item in RealTimeDeparture.batch_get(item_keys):
             index = (item.station_id, item.day_train_num)
             self._indexed_results[index].set_realtime(yyyymmdd, item)
+            i += 1
+
+        logging.info("Found realtime information for %s items." % i)
         # 5: ResultSerializer instances objects are then already updated
         # and available under self.results
 

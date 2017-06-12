@@ -171,15 +171,15 @@ class DBQuerier():
         # QUERY
         session = self.provider.get_session()
 
+        results = session\
+            .query(*entities)
+
         # Query if no day filter
         if not on_day:
-            result = session\
-                .query(*entities)
-            return result.all()
+            return results.all()
 
         # Query if day filter
-        serv_regular = session\
-            .query(*entities)\
+        serv_regular = results\
             .filter(Calendar.start_date <= on_day)\
             .filter(Calendar.end_date >= on_day)
 
@@ -187,14 +187,12 @@ class DBQuerier():
         # 1 = service (instead of usually not)
         # 2 = no service (instead of usually yes)
 
-        serv_add = session\
-            .query(*entities)\
+        serv_add = results\
             .filter(CalendarDate.service_id == Calendar.service_id)\
             .filter(CalendarDate.date == on_day)\
             .filter(CalendarDate.exception_type == "1")
 
-        serv_rem = session\
-            .query(*entities)\
+        serv_rem = results\
             .filter(CalendarDate.service_id == Calendar.service_id)\
             .filter(CalendarDate.date == on_day)\
             .filter(CalendarDate.exception_type == "2")
@@ -208,7 +206,7 @@ class DBQuerier():
 
     def trips(
         self, on_day=None, active_at_time=None, has_begun_at_time=None,
-        not_yet_arrived_at_time=None, level=0, limit=None
+        not_yet_arrived_at_time=None, on_route_short_name=None, level=0, limit=None
     ):
         """Returns list of strings (trip_ids).
         Day is either specified or today.
@@ -268,7 +266,14 @@ class DBQuerier():
         session = self.provider.get_session()
 
         # All trips
-        results = session.query(*entities)
+        results = session.query(*entities)\
+            .filter(Calendar.service_id == Trip.service_id)\
+            .filter(Route.route_id == Trip.route_id)\
+            .filter(Agency.agency_id == Route.agency_id)
+
+        if on_route_short_name:
+            results = results\
+                .filter(Route.route_short_name == on_route_short_name)
 
         if on_day:
             results = results\
@@ -308,7 +313,7 @@ class DBQuerier():
 
     def stoptimes(
         self, on_day=None, trip_id_filter=None, uic_filter=None,
-        trip_active_at_time=None, level=0, limit=None
+        trip_active_at_time=None, on_route_short_name=None, level=0, limit=None
     ):
         """ Returns stoptimes
 
@@ -370,6 +375,10 @@ class DBQuerier():
             .filter(Calendar.service_id == Trip.service_id)\
             .filter(Route.route_id == Trip.route_id)\
             .filter(Agency.agency_id == Route.agency_id)
+
+        if on_route_short_name:
+            results = results\
+                .filter(Route.route_short_name == on_route_short_name)
 
         if on_day:
             results = results\
