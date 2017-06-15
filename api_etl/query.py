@@ -4,8 +4,6 @@ Module used to query schedule data contained in relational databases.
 
 import logging
 from datetime import datetime
-
-# from sqlalchemy.orm import aliased
 from sqlalchemy.sql import func
 
 from api_etl.utils_misc import get_paris_local_datetime_now
@@ -266,14 +264,16 @@ class DBQuerier():
         session = self.provider.get_session()
 
         # All trips
-        results = session.query(*entities)\
+        base_results = session.query(*entities)\
             .filter(Calendar.service_id == Trip.service_id)\
             .filter(Route.route_id == Trip.route_id)\
             .filter(Agency.agency_id == Route.agency_id)
 
         if on_route_short_name:
-            results = results\
+            base_results = base_results\
                 .filter(Route.route_short_name == on_route_short_name)
+
+        results = base_results
 
         if on_day:
             results = results\
@@ -283,19 +283,17 @@ class DBQuerier():
             # Begin constraint: "hh:mm:ss" up to 26 hours
             # trips having begun at time:
             # => first stop departure_time must be < time
-            begin_results = session\
-                .query(*entities)\
+            begin_results = base_results\
                 .filter(StopTime.trip_id == Trip.trip_id)\
                 .filter(StopTime.stop_sequence == "0")\
                 .filter(StopTime.departure_time <= has_begun_at_time)\
 
-            results = results.intersect(begin_results)
+            results = base_results.intersect(begin_results)
 
         if not_yet_arrived_at_time:
             # End constraint: trips not arrived at time
             # => last stop departure_time must be > time
-            end_results = session\
-                .query(*entities)\
+            end_results = base_results\
                 .filter(StopTime.trip_id == Trip.trip_id)\
                 .filter(
                     StopTime.stop_sequence == session

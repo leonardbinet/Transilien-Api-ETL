@@ -15,10 +15,8 @@ Two main parts:
 
 import logging
 import collections
-from datetime import datetime
 
 import pandas as pd
-
 from pynamodb.exceptions import DoesNotExist
 
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
@@ -26,6 +24,58 @@ from api_etl.utils_mongo import mongo_async_upsert_items
 from api_etl.models import RealTimeDeparture
 
 pd.options.mode.chained_assignment = None
+
+class StopTimeState:
+    """Used to compute StopTime state at a given time, comparing StopTime
+    (schedule) vs RealTime.
+
+    The output is:
+
+    """
+    def __init__(self, at_datetime, scheduled_day, StopTime, RealTime=None):
+        self._at_datetime = at_datetime
+        self.at_datetime = at_datetime.strftime("%Y%m%d-%H:%M:%S")
+        self._scheduled_day = scheduled_day
+        self._StopTime = StopTime
+        self._RealTime = RealTime
+
+        self.passed_schedule = self._StopTime\
+                ._has_passed(at_datetime=at_datetime)
+
+        if RealTime:
+            self.delay = self._compute_delay()
+            self.passed_realtime = self._RealTime\
+                ._has_passed(at_datetime=at_datetime)
+        else:
+            self.delay = None
+            self.passed_realtime = None
+
+    def _compute_delay(self):
+        """ Between scheduled 'stop time' departure time, and realtime expected
+        departure time.
+        """
+        assert self._RealTime is not None
+
+        sdt = self._StopTime.departure_time
+        # _realtime_query_day attribute is set when performing realtime query
+        sdd = self._scheduled_day
+        rtdt = self._RealTime.expected_passage_time
+        rtdd = self._RealTime.expected_passage_day
+        # Schedule and realtime are both in special format
+        # allowing hour to go up to 27
+        delay = DateConverter(special_date=rtdd, special_time=rtdt)\
+            .compute_delay_from(special_date=sdd, special_time=sdt)
+        self.delay = delay
+
+    def to_dict(self):
+        d = {
+            "at_datetime": self.at_datetime,
+            "delay": self.delay,
+            "passed_schedule": self.passed_schedule,
+            "passed_realtime": self.passed_realtime,
+        }
+        return d
+
 
 
 class ResultSerializer():
@@ -35,11 +85,13 @@ class ResultSerializer():
     - an object containing rdb models instances: (StopTime,Trip,Calendar)
     - a model instance: StopTime or Trip or Calendar, etc
 
-    If a StopTime is present, it can request RealTime to dynamo database,
+    If a StopTime is present, it has multiple capabilities:
+    - it can request RealTime to dynamo database,
     for the day given as parameter (today if none provided)
+    - it can compute TripState based on realtime information
     """
 
-    def __init__(self, raw_result):
+    def __init__(self, raw_result, scheduled_day):
         self._raw = raw_result
 
         if hasattr(raw_result, "_asdict"):
@@ -52,26 +104,13 @@ class ResultSerializer():
 
         self._realtime_query_day = None
         self._realtime_found = None
+        self._scheduled_day = scheduled_day
 
     def get_nested_dict(self):
         return self._clean_extend_dict(self.__dict__)
 
     def get_flat_dict(self):
         return self._flatten(self.get_nested_dict())
-
-    def has_stoptime(self):
-        """Necessary to know if we should compute realtime requests.
-        """
-        return hasattr(self, "StopTime")
-
-    def has_realtime(self):
-        """ Returns:
-        \n- None, if request not made (no stoptime, or not requested yet)
-        \n- False, if request made (stoptime is present), but no realtime found
-        \n- True, if stoptime is present, request has been made, and realtime
-        has been found
-        """
-        return self._realtime_found
 
     def _clean_extend_dict(self, odict):
         ndict = {}
@@ -100,12 +139,27 @@ class ResultSerializer():
                 items.append((new_key, v))
         return dict(items)
 
+    def has_stoptime(self):
+        """Necessary to know if we should compute realtime requests.
+        """
+        return hasattr(self, "StopTime")
+
+    def has_realtime(self):
+        """ Returns:
+        \n- None, if request not made (no stoptime, or not requested yet)
+        \n- False, if request made (stoptime is present), but no realtime found
+        \n- True, if stoptime is present, request has been made, and realtime
+        has been found
+        """
+        return self._realtime_found
+
+
     def get_realtime_query_index(self, yyyymmdd):
         """Return (station_id, day_train_num) query index for real departures
         dynamo table.
         """
         assert self.has_stoptime()
-        return self.StopTime.get_realtime_index(yyyymmdd=yyyymmdd)
+        return self.StopTime._get_realtime_index(yyyymmdd=yyyymmdd)
 
     def set_realtime(self, yyyymmdd, realtime_object=None):
         """This method is used to propagate results when batch queries are
@@ -117,9 +171,7 @@ class ResultSerializer():
 
         if realtime_object:
             assert isinstance(realtime_object, RealTimeDeparture)
-            # setattr(self._raw, 'RealTime', realtime_object)
             self.RealTime = realtime_object
-            # self._raw.RealTime = realtime_object
             self._realtime_found = True
         else:
             self._realtime_found = False
@@ -163,68 +215,28 @@ class ResultSerializer():
         time passed as paramater (if none provided = now).
         - passed_realtime: has train passed based on realtime information.
         """
+
+        assert self.has_stoptime()
+
         if not at_datetime:
             at_datetime = get_paris_local_datetime_now()
-        assert isinstance(at_datetime, datetime)
-        self.TripState = {}
 
-        self.TripState["at_datetime"] = at_datetime.strftime("%Y%m%d-%H:%M:%S")
-
-        if self.has_stoptime():
-            self.TripState["passed_schedule"] = self.StopTime\
-                .has_passed(at_datetime=at_datetime)
-        else:
-            self.TripState["passed_schedule"] = "Unknown"
-
-        if self.has_realtime():
-            self.TripState["delay"] = self._delay_schedule_vs_realtime()
-            self.TripState["passed_realtime"] = self.RealTime\
-                .has_passed(at_datetime=at_datetime)
-        else:
-            self.TripState["delay"] = "Unknown"
-            self.TripState["passed_realtime"] = "Unknown"
-
-    def _delay_schedule_vs_realtime(self):
-        """ Between scheduled 'stop time' departure time, and realtime expected
-        departure time.
-        """
-        assert self.has_realtime()
-
-        sdt = self.StopTime.departure_time
-        # _realtime_query_day attribute is set when performing realtime query
-        sdd = self._realtime_query_day
-        rtdt = self.RealTime.expected_passage_time
-        rtdd = self.RealTime.expected_passage_day
-        # Schedule and realtime are both in special format
-        # allowing hour to go up to 27
-        delay = DateConverter(special_date=rtdd, special_time=rtdt)\
-            .compute_delay_from(special_date=sdd, special_time=sdt)
-        return delay
-
-    def _normalize_realtime(self, ndict):
-        """
-        In order to have consistent output, all missing attributes are set to
-        unknown if not present.
-        """
-        # Add all missing attributes of RealTimeDeparture object so all
-        # elements have the same shape
-        if "RealTime" not in ndict:
-            ndict["RealTime"] = {}
-
-        for key, value in RealTimeDeparture._get_attributes().items():
-            if key not in ndict:
-                ndict["RealTime"][key] = "Unknown"
+        self.StopTimeState = StopTimeState(
+            at_datetime,
+            self._scheduled_day,
+            self.StopTime,
+            self.RealTime if self.has_realtime() else None)
 
 
 class ResultSetSerializer():
 
     def __init__(self, raw_result, yyyymmdd=None):
         if isinstance(raw_result, list):
-            self.results = list(map(ResultSerializer, raw_result))
+            self.results = [ResultSerializer(raw, yyyymmdd) for raw in raw_result]
         else:
             self.results = [ResultSerializer(raw_result)]
 
-        self.yyyymmdd = yyyymmdd
+        self.yyyymmdd = yyyymmdd or get_paris_local_datetime_now().strftime("%Y%m%d")
         self.mongo_collection = "flat_stop_times"
 
     def _index_stoptime_results(self, yyyymmdd):
@@ -238,13 +250,15 @@ class ResultSetSerializer():
 
     def get_nested_dicts(self, realtime_only=False):
         if realtime_only:
-            return [x.get_nested_dict() for x in self.results if x.has_realtime()]
+            return [x.get_nested_dict() for x in self.results
+                    if x.has_realtime()]
         else:
             return [x.get_nested_dict() for x in self.results]
 
     def get_flat_dicts(self, realtime_only=False):
         if realtime_only:
-            return [x.get_flat_dict() for x in self.results if x.has_realtime()]
+            return [x.get_flat_dict() for x in self.results
+                    if x.has_realtime()]
         else:
             return [x.get_flat_dict() for x in self.results]
 

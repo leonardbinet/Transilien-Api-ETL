@@ -48,7 +48,7 @@ class RealTimeDeparture(DyModel):
     request_time = UnicodeAttribute()
     data_freshness = UnicodeAttribute()
 
-    def has_passed(self, at_datetime=None, seconds=False):
+    def _has_passed(self, at_datetime=None, seconds=False):
         """ Checks if train expected passage time has passed, compared to a
         given datetime. If none provided, compared to now.
         """
@@ -153,18 +153,18 @@ class StopTime(RdbModel):
     pickup_type = Column(String(50))
     drop_off_type = Column(String(50))
 
-    def get_partial_index(self):
+    def _get_partial_index(self):
         self._station_id = self.stop_id[-7:]
         self._train_num = self.trip_id[5:11]
         return (self._station_id, self._train_num)
 
-    def get_realtime_index(self, yyyymmdd):
-        self.get_partial_index()
+    def _get_realtime_index(self, yyyymmdd):
+        self._get_partial_index()
         self._yyyymmdd = yyyymmdd
         self._day_train_num = "%s_%s" % (yyyymmdd, self._train_num)
         return (self._station_id, self._day_train_num)
 
-    def has_passed(self, at_datetime=None, seconds=False):
+    def _has_passed(self, at_datetime=None, seconds=False):
         """ Checks if train expected passage time has passed, based on:
         - expected_passage_time we got from realtime api.
         - scheduled_departure_time from gtfs
