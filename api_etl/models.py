@@ -48,6 +48,20 @@ class RealTimeDeparture(DyModel):
     request_time = UnicodeAttribute()
     data_freshness = UnicodeAttribute()
 
+    def __repr__(self):
+        message = """
+        RealTime: for train number {train_num} on day {expected_passage_day} on station
+        {station_8d}, with data_freshness of {data_freshness}.
+        """
+        d = {
+            "train_num": self.train_num,
+            "station_8d": self.station_8d,
+            "expected_passage_day": self.expected_passage_day,
+            "data_freshness": self.data_freshness
+        }
+
+        return message.format(**d)
+
     def _has_passed(self, at_datetime=None, seconds=False):
         """ Checks if train expected passage time has passed, compared to a
         given datetime. If none provided, compared to now.
@@ -111,6 +125,7 @@ class Agency(RdbModel):
     agency_timezone = Column(String(50))
     agency_lang = Column(String(50))
 
+
     def __repr__(self):
         return "<Agency(agency_id='%s', agency_name='%s', agency_url='%s')>"\
             % (self.agency_id, self.agency_name, self.agency_url)
@@ -129,6 +144,10 @@ class Route(RdbModel):
     route_color = Column(String(50))
     route_text_color = Column(String(50))
 
+    def __repr__(self):
+        return "<Route(route_id='%s', route_short_name='%s', route_long_name='%s')>"\
+            % (self.route_id, self.route_short_name, self.route_long_name)
+
 
 class Trip(RdbModel):
     __tablename__ = 'trips'
@@ -139,6 +158,10 @@ class Trip(RdbModel):
     trip_headsign = Column(String(50))
     direction_id = Column(String(50))
     block_id = Column(String(50))
+
+    def __repr__(self):
+        return "<Trip(trip_id='%s', route_id='%s', trip_headsign='%s')>"\
+            % (self.trip_id, self.route_id, self.trip_headsign)
 
 
 class StopTime(RdbModel):
@@ -152,6 +175,10 @@ class StopTime(RdbModel):
     stop_headsign = Column(String(50))
     pickup_type = Column(String(50))
     drop_off_type = Column(String(50))
+
+    def __repr__(self):
+        return "<StopTime(trip_id='%s', stop_id='%s', stop_sequence='%s')>"\
+            % (self.trip_id, self.stop_id, self.stop_sequence)
 
     def _get_partial_index(self):
         self._station_id = self.stop_id[-7:]
@@ -199,6 +226,10 @@ class Stop(RdbModel):
     location_type = Column(String(50))
     parent_station = Column(String(50))
 
+    def __repr__(self):
+        return "<Stop(stop_id='%s', stop_name='%s')>"\
+            % (self.stop_id, self.stop_name)
+
 
 class Calendar(RdbModel):
     __tablename__ = 'calendars'
@@ -214,6 +245,10 @@ class Calendar(RdbModel):
     start_date = Column(String(50))
     end_date = Column(String(50))
 
+    def __repr__(self):
+        return "<Calendar(service_id='%s', start_date='%s', end_date='%s')>"\
+            % (self.service_id, self.start_date, self.end_date)
+
 
 class CalendarDate(RdbModel):
     __tablename__ = 'calendar_dates'
@@ -221,6 +256,13 @@ class CalendarDate(RdbModel):
     service_id = Column(String(50), primary_key=True)
     date = Column(String(50), primary_key=True)
     exception_type = Column(String(50), primary_key=True)
+
+    def __repr__(self):
+        return "<CalendarDate(service_id='%s', date='%s', exception_type='%s')>"\
+            % (self.service_id,
+               self.date,
+               "added (1)" if int(self.exception_type)==1 else "removed (2)"
+               )
 
 
 class FlatStopTime(DynamicDocument):
