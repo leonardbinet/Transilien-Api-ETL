@@ -24,6 +24,7 @@ boto3==1.4.4
 Sphinx
 sphinx_rtd_theme
 # Dynamo DB: custom commit because of bug: current PR
+pynamodb
 -e git://github.com/leonardbinet/PynamoDB.git@master#egg=pynamodb
 # For task scheduling
 celery
