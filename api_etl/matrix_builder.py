@@ -1,4 +1,10 @@
 """Module containing class to build feature matrices for prediction.
+
+There are two kinds of features:
+- either features for direct prediction model
+- either features for recursive prediction model
+
+Only the first one is used for now.
 """
 
 from os import path, makedirs
@@ -7,10 +13,6 @@ import logging
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
-
-if __name__ == '__main__':
-    import logging.config
-    logging.config.fileConfig('logging.conf')
 
 from api_etl.utils_misc import (
     get_paris_local_datetime_now, DateConverter, S3Bucket
@@ -22,7 +24,7 @@ from api_etl.settings import data_path, s3_buckets
 pd.options.mode.chained_assignment = None
 
 
-class DayMatrixBuilder():
+class DayMatrixBuilder:
     """Build features and label matrices from data available from schedule
     and from realtime info.
 
@@ -105,7 +107,6 @@ class DayMatrixBuilder():
         self._initial_df.loc[:, "D_stop_special_day"] = self.day
 
         # Scheduled stop datetime
-        # TODO: here error!! we don't have special date..
         self._initial_df.loc[:, "D_stop_scheduled_datetime"] = self._initial_df\
             .StopTime_departure_time\
             .apply(lambda x: DateConverter(
@@ -282,6 +283,7 @@ class DirectPredictionMatrix(DayMatrixBuilder):
         """Given the data obtained from schedule and realtime, this method will
         compute network state at a given time, and provide prediction and label
         matrices.
+        :param time:
         """
 
         # Parameters parsing
@@ -616,16 +618,30 @@ class DirectPredictionMatrix(DayMatrixBuilder):
             .query("(TS_trip_status > 0) & (TS_trip_status < 1) &(TS_trip_passed_observed_stop==False)")
             .Trip_trip_id.count(),
             "stoptimes_predictable": self.df
-            .query("(TS_trip_status > 0) & (TS_trip_status < 1) &(TS_trip_passed_scheduled_stop==False) & (TS_sequence_diff.notnull())")
+            .query("(TS_trip_status > 0) & (TS_trip_status < 1) &(TS_trip_passed_scheduled_stop==False) &"
+                   " (TS_sequence_diff.notnull())")
             .Trip_trip_id.count(),
             "stoptimes_predictable_labeled": self.df
-            .query("(TS_trip_status > 0) & (TS_trip_status < 1) &(TS_trip_passed_scheduled_stop==False) & (TS_sequence_diff.notnull()) &(label.notnull())")
+            .query("(TS_trip_status > 0) & (TS_trip_status < 1) &(TS_trip_passed_scheduled_stop==False) &"
+                   " (TS_sequence_diff.notnull()) &(label.notnull())")
             .Trip_trip_id.count(),
         }
         print(message % self.summary)
 
-    def get_predictable(self, all_features_required=True, labeled_only=True, col_filter_level=2, split_datasets=False, set_index=True, provided_df=None):
+    def get_predictable(self,
+                        all_features_required=True,
+                        labeled_only=True,
+                        col_filter_level=2,
+                        split_datasets=False,
+                        set_index=True,
+                        provided_df=None):
         """Return predictable stop times.
+        :param all_features_required:
+        :param labeled_only:
+        :param col_filter_level:
+        :param split_datasets:
+        :param set_index:
+        :param provided_df:
         """
         assert self._state_at_time_computed
 
@@ -711,6 +727,10 @@ class DirectPredictionMatrix(DayMatrixBuilder):
         """Compute dataframes for different times of day.
         Default: begins at 00:00:00 and ends at 23:59:00 with a step of one
         hour.
+        :param end:
+        :param min_diff:
+        :param flush_former:
+        :param begin:
         """
         assert isinstance(min_diff, int)
         diff = timedelta(minutes=min_diff)
@@ -746,6 +766,9 @@ class DirectPredictionMatrix(DayMatrixBuilder):
 
 
 class RecursivePredictionMatrix(DayMatrixBuilder):
+    """
+    NOT COMPLETED NOR USED FOR NOW
+    """
 
     def __init__(self, day=None, df=None):
         DayMatrixBuilder.__init__(self, day=day, df=df)
@@ -785,15 +808,6 @@ class RecursivePredictionMatrix(DayMatrixBuilder):
                 how="left", rsuffix="_previous_station"
             )
 
-    def _route_section_blocking_potential(self):
-        """ First: find previous trip.
-        Supposing multiple
-        """
-        pass
-
-    def _route_section_traffic(self):
-        pass
-
 
 class TripVizBuilder(DayMatrixBuilder):
 
@@ -813,11 +827,13 @@ class TripVizBuilder(DayMatrixBuilder):
         stop_id a sequence number.
 
         Ideally we would like to select by stop_name, but they are not unique.
+        :param passes_by_all:
+        :param passes_by_one:
         """
         pass
 
 
-class TrainingSetBuilder():
+class TrainingSetBuilder:
 
     def __init__(self, start, end, tempo=60):
         dti = pd.date_range(start=start, end=end, freq="D")

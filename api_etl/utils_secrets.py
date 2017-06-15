@@ -21,6 +21,9 @@ def get_secret(setting, my_secrets=secrets, env=True):
     Tries to find secrets either in secret file, or in environment variables.
     env > secret file
     Then, set it as environment variable and returns value.
+    :param setting:
+    :param my_secrets:
+    :param env:
     """
     value = None
     # Try to get value from env then from file

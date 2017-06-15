@@ -2,7 +2,6 @@
 Module used to query schedule data contained in relational databases.
 """
 
-import logging
 from datetime import datetime
 from sqlalchemy.sql import func
 
@@ -13,7 +12,7 @@ from api_etl.models import (
 )
 
 
-class DBQuerier():
+class DBQuerier:
     """ This class allows you to easily query information available in
     databases: both RDB containing schedules, and Dynamo DB containing
     real-time data.
@@ -35,6 +34,7 @@ class DBQuerier():
 
     def set_date(self, yyyymmdd):
         """Sets date that will define default date for requests.
+        :param yyyymmdd:
         """
         # Will raise error if wrong format
         datetime.strptime(yyyymmdd, "%Y%m%d")
@@ -47,6 +47,9 @@ class DBQuerier():
         - 0: only ids
         - 1: only routes
         - 2: routes, agencies
+        :param distinct_short_name:
+        :param level:
+        :param limit:
         """
         # ARGS PARSING
 
@@ -90,6 +93,9 @@ class DBQuerier():
         Entity levels:
         - 0: only ids
         - 1: Stop
+        :param on_route_short_name:
+        :param level:
+        :param limit:
         """
 
         # ARGS PARSING
@@ -143,6 +149,9 @@ class DBQuerier():
         Entity levels:
         - 0: only ids
         - 1: Service (Calendar)
+        :param on_day:
+        :param level:
+        :param limit:
         """
         # ARGS PARSING
         # on_day
@@ -220,6 +229,13 @@ class DBQuerier():
         - 2: Trip, Calendar
         - 3: Trip, Calendar, Route
         - 4: Trip, Calendar, Route, Agency
+        :param on_day:
+        :param active_at_time:
+        :param has_begun_at_time:
+        :param not_yet_arrived_at_time:
+        :param on_route_short_name:
+        :param level:
+        :param limit:
         """
         # ARGS PARSING
         # on_day:
@@ -323,6 +339,13 @@ class DBQuerier():
         - 2: stoptimes, trips
         - 3: stoptimes, trips, stops
         - 4: stoptimes, trips, stops, routes, calendar
+        :param on_day:
+        :param trip_id_filter:
+        :param uic_filter:
+        :param trip_active_at_time:
+        :param on_route_short_name:
+        :param level:
+        :param limit:
         """
         # ARGS PARSING
         # on_day

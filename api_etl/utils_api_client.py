@@ -83,6 +83,8 @@ class ApiClient:
         """
         This method process a single query.
 
+        :param verbose:
+        :param extra_params:
         :param station: station you want to query (8 digits format)
         :type station: str/int (8 digits format)
 

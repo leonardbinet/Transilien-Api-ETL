@@ -25,6 +25,7 @@ from api_etl.models import RealTimeDeparture
 
 pd.options.mode.chained_assignment = None
 
+
 class StopTimeState:
     """Used to compute StopTime state at a given time, comparing StopTime
     (schedule) vs RealTime.
@@ -77,8 +78,7 @@ class StopTimeState:
         return d
 
 
-
-class ResultSerializer():
+class ResultSerializer:
     """ This class transforms a sqlalchemy result in an easy to manipulate
     object.
     The result can be:
@@ -153,10 +153,10 @@ class ResultSerializer():
         """
         return self._realtime_found
 
-
     def get_realtime_query_index(self, yyyymmdd):
         """Return (station_id, day_train_num) query index for real departures
         dynamo table.
+        :param yyyymmdd:
         """
         assert self.has_stoptime()
         return self.StopTime._get_realtime_index(yyyymmdd=yyyymmdd)
@@ -166,6 +166,8 @@ class ResultSerializer():
         performed by the ResultSetSerializer, or when a single query is made.
 
         It will add some meta information about it.
+        :param yyyymmdd:
+        :param realtime_object:
         """
         self._realtime_query_day = yyyymmdd
 
@@ -180,6 +182,8 @@ class ResultSerializer():
         """This method will perform a query to dynamo to get realtime
         information about the StopTime in this result object only.
         \nIt requires a day, because a given trip_id can be on different dates.
+        :param yyyymmdd:
+        :param ignore_error:
         """
         assert self.has_stoptime()
         station_id, day_train_num = self.get_realtime_query_index(yyyymmdd)
@@ -214,6 +218,7 @@ class ResultSerializer():
         - passed_schedule: has train passed based on schedule information, at
         time passed as paramater (if none provided = now).
         - passed_realtime: has train passed based on realtime information.
+        :param at_datetime:
         """
 
         assert self.has_stoptime()
@@ -228,13 +233,19 @@ class ResultSerializer():
             self.RealTime if self.has_realtime() else None)
 
 
-class ResultSetSerializer():
+class ResultSetSerializer:
 
     def __init__(self, raw_result, yyyymmdd=None):
-        if isinstance(raw_result, list):
-            self.results = [ResultSerializer(raw, yyyymmdd) for raw in raw_result]
-        else:
-            self.results = [ResultSerializer(raw_result)]
+        """
+        Can accept raw_result either as single element, or as list
+        :param raw_result:
+        :param yyyymmdd:
+        :return:
+        """
+        if not isinstance(raw_result, list):
+            raw_result = [raw_result]
+
+        self.results = [ResultSerializer(raw, yyyymmdd) for raw in raw_result]
 
         self.yyyymmdd = yyyymmdd or get_paris_local_datetime_now().strftime("%Y%m%d")
         self.mongo_collection = "flat_stop_times"

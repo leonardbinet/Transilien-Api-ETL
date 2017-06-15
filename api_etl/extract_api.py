@@ -15,10 +15,6 @@ import json
 import xmltodict
 import pandas as pd
 
-if __name__ == '__main__':
-    import logging.config
-    logging.config.fileConfig('logging.conf')
-
 from api_etl.utils_misc import (
     get_paris_local_datetime_now, DateConverter, StationProvider
 )
@@ -33,7 +29,7 @@ from api_etl.settings import mongo_realtime_unique, mongo_realtime_all
 pd.options.mode.chained_assignment = None
 
 
-class ApiExtractor():
+class ApiExtractor:
     """ Made for unique usage
     """
 

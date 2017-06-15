@@ -18,10 +18,6 @@ import pandas as pd
 import boto3
 import botocore
 
-if __name__ == '__main__':
-    import logging.config
-    logging.config.fileConfig('logging.conf')
-
 from api_etl.settings import (
     data_path, responding_stations_path,
     all_stations_path, top_stations_path,
@@ -67,7 +63,7 @@ def chunks(l, n):
         yield l[i:i + n]
 
 
-class StationProvider():
+class StationProvider:
     """ Class to easily get lists of stations in gtfs format (7 digits) or
     transilien's format (8 digits).
 
@@ -84,6 +80,9 @@ class StationProvider():
     def get_stations_per_line(self, lines=None, UIC7=False, full_df=False):
         """
         Get stations of given line (multiple lines possible)
+        :param lines:
+        :param UIC7:
+        :param full_df:
         """
         if lines:
             assert isinstance(lines, list)
@@ -112,6 +111,8 @@ class StationProvider():
         Beware: two formats:
         - 8 digits format to query api
         - 7 digits format to query gtfs files
+        :param stations:
+        :param gtfs_format:
         """
         if stations == "all":
             station_path = self._all_stations_path
@@ -127,8 +128,8 @@ class StationProvider():
 
         else:
             raise ValueError(
-                "stations parameter should be either 'all', 'top',"
-                + " 'scheduled' or 'responding'"
+                "stations parameter should be either 'all', 'top'," +
+                " 'scheduled' or 'responding'"
             )
 
         station_ids = np.genfromtxt(station_path, delimiter=",", dtype=str)
@@ -140,7 +141,7 @@ class StationProvider():
         return list(station_ids)
 
 
-class DateConverter():
+class DateConverter:
     """Class to convert dates from and to our special format, from and to api
     date format, and to and from our regular format:
     \n- api_format: "16/02/2017 01:26"
@@ -169,10 +170,10 @@ class DateConverter():
         if self.api_date:
             self._api_date_to_dt()
 
-        elif (self.normal_date and self.normal_time):
+        elif self.normal_date and self.normal_time:
             self._normal_datetime_to_dt()
 
-        elif (self.special_time and self.special_date):
+        elif self.special_time and self.special_date:
             self._special_datetime_to_dt(force_regular_date)
 
         else:
@@ -197,7 +198,7 @@ class DateConverter():
     def _special_datetime_to_dt(self, force_regular_date):
         assert(self.special_date and self.special_time)
         hour = self.special_time[:2]
-        assert (int(hour) >= 0 and int(hour) < 29)
+        assert (0 <= int(hour) < 29)
         add_day = False
         if int(hour) in (24, 25, 26, 27):
             hour = str(int(hour) - 24)
@@ -238,6 +239,14 @@ class DateConverter():
         Return in seconds the delay:
         - positive if this one > 'from' (delayed)
         - negative if this one < 'from' (advance)
+        :param dc:
+        :param dt:
+        :param api_date:
+        :param normal_date:
+        :param normal_time:
+        :param special_date:
+        :param special_time:
+        :param force_regular_date:
         """
         if dc:
             assert isinstance(dc, DateConverter)
@@ -257,6 +266,7 @@ def get_paris_local_datetime_now(tz_naive=True):
     """
     Return paris local time (necessary for operations operated on other time
     zones)
+    :param tz_naive:
     """
     paris_tz = pytz.timezone('Europe/Paris')
     datetime_paris = datetime.now(tzlocal()).astimezone(paris_tz)
@@ -269,6 +279,8 @@ def get_paris_local_datetime_now(tz_naive=True):
 def set_logging_conf(log_name, level="INFO"):
     """
     This function sets the logging configuration.
+    :param log_name:
+    :param level:
     """
     if level == "INFO":
         level = logging.INFO
@@ -317,6 +329,8 @@ def get_responding_stations_from_sample(sample_loc=None, write_loc=None):
     "real_departures" sample, and to write it down so it can be used to query
     only necessary stations (and avoid to spend API credits on unnecessary
     stations)
+    :param sample_loc:
+    :param write_loc:
     """
     if not sample_loc:
         sample_loc = path.join(data_path, "20170131_real_departures.csv")
@@ -338,7 +352,7 @@ def s3_ressource():
     return s3
 
 
-class S3Bucket():
+class S3Bucket:
 
     def __init__(self, name, create_if_absent=False):
         self._s3 = s3_ressource()
@@ -360,7 +374,6 @@ class S3Bucket():
             # If it was a 404 error, then the bucket does not exist.
             self._accessible = False
             logging.info("Bucket %s does not exist." % self.bucket_name)
-            error_code = int(e.response['Error']['Code'])
             logging.debug("Could not access bucket %s: %s" %
                           (self.bucket_name, e.response))
             return False
@@ -396,6 +409,10 @@ class S3Bucket():
         """Will keep same names for files inside folder.
 
         Note: in S3, there is no folder, just files with names as path.
+        :param folder_path:
+        :param folder_name:
+        :param delete:
+        :param ignore_hidden:
         """
         # if no new name specified, use existing name
         if not folder_name:

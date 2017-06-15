@@ -72,43 +72,6 @@ class RealTimeDeparture(DyModel):
         return time_past_dep >= 0
 
 
-class ScheduledDeparture(DyModel):
-    """
-    Deprecated: not used anymore since schedule is stored in RDB.
-    """
-
-    class Meta:
-        table_name = dynamo_schedule["name"]
-        region = AWS_DEFAULT_REGION
-
-    # Fields added for indexing and identification
-    day_train_num = UnicodeAttribute(range_key=True)
-    station_id = UnicodeAttribute(hash_key=True)
-    # Train num and trip
-
-    # Necessary attributes
-    trip_id = UnicodeAttribute()
-    train_num = UnicodeAttribute()
-    stop_sequence = UnicodeAttribute()
-    # These dates are in 'weird' format -> 27h
-    scheduled_departure_time = UnicodeAttribute()
-    scheduled_departure_day = UnicodeAttribute()
-
-    route_id = UnicodeAttribute()
-    service_id = UnicodeAttribute()
-
-    # Optional attributes
-    pickup_type = UnicodeAttribute(null=True)
-    stop_id = UnicodeAttribute(null=True)
-    arrival_time = UnicodeAttribute(null=True)
-    route_short_name = UnicodeAttribute(null=True)
-    stop_headsign = UnicodeAttribute(null=True)
-    block_id = UnicodeAttribute(null=True)
-    drop_off_type = UnicodeAttribute(null=True)
-    trip_headsign = UnicodeAttribute(null=True)
-    direction_id = UnicodeAttribute(null=True)
-
-
 class Agency(RdbModel):
     __tablename__ = 'agencies'
 
