@@ -1,14 +1,11 @@
 """ Data Models for databases: relational databases, and Dynamo.
 """
-import logging
 
 from pynamodb.models import Model as DyModel
 from pynamodb.attributes import UnicodeAttribute
 
 from sqlalchemy.ext import declarative
 from sqlalchemy import Column, String, ForeignKey
-
-from mongoengine import DynamicDocument, StringField
 
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
 from api_etl.utils_secrets import get_secret
@@ -49,18 +46,11 @@ class RealTimeDeparture(DyModel):
     data_freshness = UnicodeAttribute()
 
     def __repr__(self):
-        message = """
-        RealTime: for train number {train_num} on day {expected_passage_day} on station
-        {station_8d}, with data_freshness of {data_freshness}.
-        """
-        d = {
-            "train_num": self.train_num,
-            "station_8d": self.station_8d,
-            "expected_passage_day": self.expected_passage_day,
-            "data_freshness": self.data_freshness
-        }
+        return "<RealTime(train_num='%s', station_8d='%s', expected_passage_day='%s', data_freshness='%s')>"\
+            % (self.train_num, self.station_8d, self.expected_passage_day, self.data_freshness)
 
-        return message.format(**d)
+    def __str__(self):
+        return self.__repr__()
 
     def _has_passed(self, at_datetime=None, seconds=False):
         """ Checks if train expected passage time has passed, compared to a
@@ -79,10 +69,13 @@ class RealTimeDeparture(DyModel):
             # return number of seconds instead of boolean
             return time_past_dep
 
-        return (time_past_dep >= 0)
+        return time_past_dep >= 0
 
 
 class ScheduledDeparture(DyModel):
+    """
+    Deprecated: not used anymore since schedule is stored in RDB.
+    """
 
     class Meta:
         table_name = dynamo_schedule["name"]
@@ -125,10 +118,12 @@ class Agency(RdbModel):
     agency_timezone = Column(String(50))
     agency_lang = Column(String(50))
 
-
     def __repr__(self):
         return "<Agency(agency_id='%s', agency_name='%s', agency_url='%s')>"\
             % (self.agency_id, self.agency_name, self.agency_url)
+
+    def __str__(self):
+        return self.__repr__()
 
 
 class Route(RdbModel):
@@ -148,6 +143,9 @@ class Route(RdbModel):
         return "<Route(route_id='%s', route_short_name='%s', route_long_name='%s')>"\
             % (self.route_id, self.route_short_name, self.route_long_name)
 
+    def __str__(self):
+        return self.__repr__()
+
 
 class Trip(RdbModel):
     __tablename__ = 'trips'
@@ -162,6 +160,9 @@ class Trip(RdbModel):
     def __repr__(self):
         return "<Trip(trip_id='%s', route_id='%s', trip_headsign='%s')>"\
             % (self.trip_id, self.route_id, self.trip_headsign)
+
+    def __str__(self):
+        return self.__repr__()
 
 
 class StopTime(RdbModel):
@@ -180,16 +181,19 @@ class StopTime(RdbModel):
         return "<StopTime(trip_id='%s', stop_id='%s', stop_sequence='%s')>"\
             % (self.trip_id, self.stop_id, self.stop_sequence)
 
+    def __str__(self):
+        return self.__repr__()
+
     def _get_partial_index(self):
         self._station_id = self.stop_id[-7:]
         self._train_num = self.trip_id[5:11]
-        return (self._station_id, self._train_num)
+        return self._station_id, self._train_num
 
     def _get_realtime_index(self, yyyymmdd):
         self._get_partial_index()
         self._yyyymmdd = yyyymmdd
         self._day_train_num = "%s_%s" % (yyyymmdd, self._train_num)
-        return (self._station_id, self._day_train_num)
+        return self._station_id, self._day_train_num
 
     def _has_passed(self, at_datetime=None, seconds=False):
         """ Checks if train expected passage time has passed, based on:
@@ -210,7 +214,7 @@ class StopTime(RdbModel):
             # return number of seconds instead of boolean
             return time_past_dep
 
-        return (time_past_dep >= 0)
+        return time_past_dep >= 0
 
 
 class Stop(RdbModel):
@@ -229,6 +233,9 @@ class Stop(RdbModel):
     def __repr__(self):
         return "<Stop(stop_id='%s', stop_name='%s')>"\
             % (self.stop_id, self.stop_name)
+
+    def __str__(self):
+        return self.__repr__()
 
 
 class Calendar(RdbModel):
@@ -249,6 +256,9 @@ class Calendar(RdbModel):
         return "<Calendar(service_id='%s', start_date='%s', end_date='%s')>"\
             % (self.service_id, self.start_date, self.end_date)
 
+    def __str__(self):
+            return self.__repr__()
+
 
 class CalendarDate(RdbModel):
     __tablename__ = 'calendar_dates'
@@ -261,52 +271,8 @@ class CalendarDate(RdbModel):
         return "<CalendarDate(service_id='%s', date='%s', exception_type='%s')>"\
             % (self.service_id,
                self.date,
-               "added (1)" if int(self.exception_type)==1 else "removed (2)"
+               "added (1)" if int(self.exception_type) == 1 else "removed (2)"
                )
 
-
-class FlatStopTime(DynamicDocument):
-    # Delay = StringField(max_length=200, required=True)
-    # Passed = StringField(max_length=200, required=True)
-
-    required_attributes = [
-        'Agency_agency_id', 'Agency_agency_lang', 'Agency_agency_name',
-        'Agency_agency_timezone', 'Agency_agency_url', 'Calendar_end_date',
-        'Calendar_friday', 'Calendar_monday', 'Calendar_saturday',
-        'Calendar_service_id', 'Calendar_start_date', 'Calendar_sunday',
-        'Calendar_thursday', 'Calendar_tuesday', 'Calendar_wednesday',
-        'RealTime_data_freshness', 'RealTime_date',
-        'RealTime_day_train_num', 'RealTime_etat',
-        'RealTime_expected_passage_day', 'RealTime_expected_passage_time',
-        'RealTime_miss', 'RealTime_request_day', 'RealTime_request_time',
-        'RealTime_station_8d', 'RealTime_station_id', 'RealTime_term',
-        'RealTime_train_num', 'Route_agency_id', 'Route_route_color',
-        'Route_route_desc', 'Route_route_id', 'Route_route_long_name',
-        'Route_route_short_name', 'Route_route_text_color',
-        'Route_route_type', 'Route_route_url', 'StopTime_arrival_time',
-        'StopTime_day_train_num',
-        'StopTime_departure_time', 'StopTime_drop_off_type',
-        'StopTime_pickup_type',
-        'StopTime_station_id',
-        'StopTime_stop_headsign', 'StopTime_stop_id',
-        'StopTime_stop_sequence', 'StopTime_train_num',
-        'StopTime_yyyymmdd', 'Stop_location_type', 'Stop_parent_station',
-        'Stop_stop_desc', 'Stop_stop_lat', 'Stop_stop_lon',
-        'Stop_stop_name', 'Stop_stop_url', 'Stop_zone_id', 'Trip_block_id',
-        'Trip_direction_id', 'Trip_route_id', 'Trip_service_id',
-        'Trip_trip_headsign', 'Trip_trip_id'
-    ]
-    for attribute in required_attributes:
-        # setattr(FlatStopTime, attribute, StringField(
-        #    max_length=200, required=True))
-        vars()[attribute] = StringField(
-            max_length=200, required=True
-        )
-    Delay = StringField(max_length=200, required=True)
-    Passed = StringField(max_length=200, required=True)
-
-    StopTime_trip_id = StringField(max_length=200, required=True)
-    Stop_stop_id = StringField(
-        max_length=200, required=True,
-        unique_with='StopTime_trip_id'
-    )
+    def __str__(self):
+        return self.__repr__()
