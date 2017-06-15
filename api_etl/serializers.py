@@ -258,7 +258,7 @@ class ResultSetSerializer:
         if not isinstance(raw_result, list):
             raw_result = [raw_result]
 
-        self.results = {ResultSerializer(raw, self.scheduled_day) for raw in raw_result}
+        self.results = tuple(ResultSerializer(raw, self.scheduled_day) for raw in raw_result)
 
 
     def __repr__(self):
