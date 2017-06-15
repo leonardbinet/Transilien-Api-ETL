@@ -94,7 +94,7 @@ class DayMatrixBuilder:
     def _compute_initial_dates(self):
         """ Adds following columns:
         - D_business_day: bool
-        - D_stop_special_day: yyyymmdd str, day in special date (25h)
+        - D_stop_special_day: scheduled_day str, day in special date (25h)
         - D_total_sequence: int: number of stops scheduled per trip
         - D_stop_scheduled_datetime: datetime of scheduled stoptime
         - D_trip_passed_scheduled_stop: bool

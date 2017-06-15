@@ -9,8 +9,8 @@ Two main parts:
     main ability is to provide a suitable serializer for django rest api,
     especially for pagination purposes.
 
-    These are created through a Class Factory transforming model classes into
-    serializer classes.
+    These are created through a Class Factory transforming models into
+    serializers.
 """
 
 import logging
@@ -20,7 +20,6 @@ import pandas as pd
 from pynamodb.exceptions import DoesNotExist
 
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
-from api_etl.utils_mongo import mongo_async_upsert_items
 from api_etl.models import RealTimeDeparture
 
 pd.options.mode.chained_assignment = None
@@ -29,9 +28,6 @@ pd.options.mode.chained_assignment = None
 class StopTimeState:
     """Used to compute StopTime state at a given time, comparing StopTime
     (schedule) vs RealTime.
-
-    The output is:
-
     """
     def __init__(self, at_datetime, scheduled_day, StopTime, RealTime=None):
         self._at_datetime = at_datetime
@@ -50,6 +46,13 @@ class StopTimeState:
         else:
             self.delay = None
             self.passed_realtime = None
+
+    def __repr__(self):
+        return "<StopTimeState(StopTime='%s', RealTime='%s', scheduled_day='%s', at_datetime='%s')>"\
+            % (self._StopTime, self._RealTime, self._scheduled_day, self.at_datetime)
+
+    def __str__(self):
+        return self.__repr__()
 
     def _compute_delay(self):
         """ Between scheduled 'stop time' departure time, and realtime expected
@@ -105,6 +108,14 @@ class ResultSerializer:
         self._realtime_query_day = None
         self._realtime_found = None
         self._scheduled_day = scheduled_day
+
+    def __repr__(self):
+        return "<ResultSerializer(has_stoptime='%s', has_realtime='%s', " \
+               "realtime_found='%s', scheduled_day='%s')>"\
+            % (self.has_stoptime(), self.has_realtime(), self._realtime_found, self._scheduled_day)
+
+    def __str__(self):
+        return self.__repr__()
 
     def get_nested_dict(self):
         return self._clean_extend_dict(self.__dict__)
@@ -235,26 +246,33 @@ class ResultSerializer:
 
 class ResultSetSerializer:
 
-    def __init__(self, raw_result, yyyymmdd=None):
+    def __init__(self, raw_result, scheduled_day=None):
         """
         Can accept raw_result either as single element, or as list
         :param raw_result:
-        :param yyyymmdd:
+        :param scheduled_day: yyyymmdd str format
         :return:
         """
+        self.scheduled_day = scheduled_day or get_paris_local_datetime_now().strftime("%Y%m%d")
+
         if not isinstance(raw_result, list):
             raw_result = [raw_result]
 
-        self.results = [ResultSerializer(raw, yyyymmdd) for raw in raw_result]
+        self.results = {ResultSerializer(raw, self.scheduled_day) for raw in raw_result}
 
-        self.yyyymmdd = yyyymmdd or get_paris_local_datetime_now().strftime("%Y%m%d")
-        self.mongo_collection = "flat_stop_times"
 
-    def _index_stoptime_results(self, yyyymmdd):
+    def __repr__(self):
+        return "<ResultSetSerializer(scheduled_day='%s', nb_elements='%s', sample='%s')>"\
+            % (self.scheduled_day, len(self.results), self.results[0])
+
+    def __str__(self):
+        return self.__repr__()
+
+    def _index_stoptime_results(self, scheduled_day):
         """ Index elements containing a StopTime object.
         """
         self._indexed_results = {
-            result.get_realtime_query_index(yyyymmdd): result
+            result.get_realtime_query_index(scheduled_day): result
             for result in self.results
             if result.has_stoptime()
         }
@@ -273,13 +291,13 @@ class ResultSetSerializer:
         else:
             return [x.get_flat_dict() for x in self.results]
 
-    def batch_realtime_query(self, yyyymmdd=None):
+    def batch_realtime_query(self, scheduled_day=None):
         logging.info(
             "Trying to get realtime information from DynamoDB for %s items." % len(self.results))
-        yyyymmdd = yyyymmdd or self.yyyymmdd
+        scheduled_day = scheduled_day or self.scheduled_day
         # 1: get all elements that have StopTime
         # 2: build all indexes (station_id, day_train_num)
-        self._index_stoptime_results(yyyymmdd)
+        self._index_stoptime_results(scheduled_day)
         # 3: send a batch request to get elements
         # 4: dispatch correcly answers
         item_keys = [key for key, value in self._indexed_results.items()]
@@ -287,7 +305,7 @@ class ResultSetSerializer:
         i = 0
         for item in RealTimeDeparture.batch_get(item_keys):
             index = (item.station_id, item.day_train_num)
-            self._indexed_results[index].set_realtime(yyyymmdd, item)
+            self._indexed_results[index].set_realtime(scheduled_day, item)
             i += 1
 
         logging.info("Found realtime information for %s items." % i)
@@ -306,11 +324,3 @@ class ResultSetSerializer:
         for res in self.results:
             res.compute_trip_state(at_datetime=at_datetime)
 
-    def save_in_mongo(self, collection=None, objects=None):
-        index_fields = ["StopTime_trip_id", "Stop_stop_id"]
-        collection = collection or self.mongo_collection
-        objects = objects or self.get_flat_dicts()
-        assert objects
-        mongo_async_upsert_items(
-            item_list=objects, collection=collection,
-            index_fields=index_fields)
