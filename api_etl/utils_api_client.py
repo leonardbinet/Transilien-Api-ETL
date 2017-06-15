@@ -19,10 +19,10 @@ BASE_DIR = path.dirname(
 API_USER = get_secret("API_USER")
 API_PASSWORD = get_secret("API_PASSWORD")
 
-_RETRIABLE_STATUSES = set([500, 503, 504])
+_RETRIABLE_STATUSES = {500, 503, 504}
 
 
-class ApiClient():
+class ApiClient:
     """
     This class provide a client to process requests to transilien's API.
     It provides methods to process either single queries, or asynchronous batch queries that rely on asyncio library.
@@ -70,7 +70,12 @@ class ApiClient():
         if response.status_code in _RETRIABLE_STATUSES:
             # Retry request.
             logging.debug("WARNING: retry number %d", retry_counter)
-            return self._get(url=url, extra_params=extra_params, first_request_time=first_request_time, retry_counter=retry_counter + 1, verbose=verbose)
+            return self._get(
+                url=url,
+                extra_params=extra_params,
+                first_request_time=first_request_time,
+                retry_counter=retry_counter + 1,
+                verbose=verbose)
 
         return response
 
@@ -103,9 +108,11 @@ class ApiClient():
 
     def request_stations(self, station_list):
         """
-        This method process asynchronous batch queries. It will return answers with station ids so that you can identify stations answers.
+        This method process asynchronous batch queries.
+        It will return answers with station ids so that you can identify stations answers.
 
-        :param station_list: list of station_ids in the 8 digits format used by transilien's API to identify stations (warning: different than station ids in GTFS files that are 7 digits).
+        :param station_list: list of station_ids in the 8 digits format used by transilien's API
+        to identify stations (warning: different than station ids in GTFS files that are 7 digits).
         :type station_list: list of str
 
         :rtype: list of tuples (api_response, station_id)
@@ -118,9 +125,9 @@ class ApiClient():
 
         async def fetch(url, session):
             async with session.get(url) as response:
+                station = url_to_station(url)
                 try:
                     resp = await response.read()
-                    station = url_to_station(url)
                     return [resp, station]
                 except:
                     logging.debug(
