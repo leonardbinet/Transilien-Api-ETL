@@ -23,22 +23,22 @@ class DBQuerier:
     format:7 digits).
     """
 
-    def __init__(self, yyyymmdd=None):
+    def __init__(self, scheduled_day=None):
         self.provider = RdbProvider()
-        if not yyyymmdd:
-            yyyymmdd = get_paris_local_datetime_now().strftime("%Y%m%d")
+        if not scheduled_day:
+            scheduled_day = get_paris_local_datetime_now().strftime("%Y%m%d")
         else:
             # Will raise an error if wrong format
-            datetime.strptime(yyyymmdd, "%Y%m%d")
-        self.yyyymmdd = yyyymmdd
+            datetime.strptime(scheduled_day, "%Y%m%d")
+        self.scheduled_day = scheduled_day
 
-    def set_date(self, yyyymmdd):
+    def set_date(self, scheduled_day):
         """Sets date that will define default date for requests.
-        :param yyyymmdd:
+        :param scheduled_day:
         """
         # Will raise error if wrong format
-        datetime.strptime(yyyymmdd, "%Y%m%d")
-        self.yyyymmdd = yyyymmdd
+        datetime.strptime(scheduled_day, "%Y%m%d")
+        self.scheduled_day = scheduled_day
 
     def routes(self, distinct_short_name=True, level=0, limit=None):
         """ Multiple options available.
@@ -84,7 +84,7 @@ class DBQuerier:
 
         return results.all()
 
-    def stations(self, on_route_short_name=None, level=0, limit=None):
+    def stations(self, stop_id=None, on_route_short_name=None, level=0, limit=None):
         """
         Return list of stations.
         You can specify filter on given route.
@@ -93,6 +93,8 @@ class DBQuerier:
         Entity levels:
         - 0: only ids
         - 1: Stop
+        :param stop_id:
+        :return:
         :param on_route_short_name:
         :param level:
         :param limit:
@@ -131,13 +133,15 @@ class DBQuerier:
         # Distinct, and only stop points (stop area are duplicates
         # of stop points)
         results = results.distinct(Stop.stop_id)\
-            .filter(Stop.stop_id.like("StopPoint%"))\
-            .all()
+            .filter(Stop.stop_id.like("StopPoint%"))
+
+        if stop_id:
+            results = results.filter(Stop.stop_id == stop_id)
 
         if limit:
             results = results.limit(limit)
 
-        return results
+        return results.all()
 
     def services(self, on_day=None, level=0, limit=None):
         """
@@ -156,7 +160,7 @@ class DBQuerier:
         # ARGS PARSING
         # on_day
         if on_day is True:
-            on_day = self.yyyymmdd
+            on_day = self.scheduled_day
         if on_day:
             # Will raise error if wrong format
             datetime.strptime(on_day, "%Y%m%d")
@@ -213,7 +217,7 @@ class DBQuerier:
 
     def trips(
         self, on_day=None, active_at_time=None, has_begun_at_time=None,
-        not_yet_arrived_at_time=None, on_route_short_name=None, level=0, limit=None
+        not_yet_arrived_at_time=None, trip_id=None, on_route_short_name=None, level=0, limit=None
     ):
         """Returns list of strings (trip_ids).
         Day is either specified or today.
@@ -229,6 +233,8 @@ class DBQuerier:
         - 2: Trip, Calendar
         - 3: Trip, Calendar, Route
         - 4: Trip, Calendar, Route, Agency
+
+        :param trip_id:
         :param on_day:
         :param active_at_time:
         :param has_begun_at_time:
@@ -236,11 +242,13 @@ class DBQuerier:
         :param on_route_short_name:
         :param level:
         :param limit:
+        :return:
         """
+
         # ARGS PARSING
         # on_day:
         if on_day is True:
-            on_day = self.yyyymmdd
+            on_day = self.scheduled_day
 
         if on_day:
             # Will raise error if wrong format
@@ -289,6 +297,9 @@ class DBQuerier:
             base_results = base_results\
                 .filter(Route.route_short_name == on_route_short_name)
 
+        if trip_id:
+            base_results = base_results.filter(Trip.trip_id == trip_id)
+
         results = base_results
 
         if on_day:
@@ -326,8 +337,9 @@ class DBQuerier:
         return results.all()
 
     def stoptimes(
-        self, on_day=None, trip_id_filter=None, uic_filter=None,
-        trip_active_at_time=None, on_route_short_name=None, level=0, limit=None
+        self, on_day=None, trip_id_filter=None, uic_filter=None, stop_id=None,
+        trip_active_at_time=None, on_route_short_name=None, level=0, limit=None,
+        departure_time_below=None, departure_time_above=None
     ):
         """ Returns stoptimes
 
@@ -339,6 +351,9 @@ class DBQuerier:
         - 2: stoptimes, trips
         - 3: stoptimes, trips, stops
         - 4: stoptimes, trips, stops, routes, calendar
+        :param stop_id:
+        :param departure_time_below:
+        :param departure_time_above:
         :param on_day:
         :param trip_id_filter:
         :param uic_filter:
@@ -346,11 +361,12 @@ class DBQuerier:
         :param on_route_short_name:
         :param level:
         :param limit:
+        :return:
         """
         # ARGS PARSING
         # on_day
         if on_day is True:
-            on_day = self.yyyymmdd
+            on_day = self.scheduled_day
         if on_day:
             # Will raise error if wrong format
             datetime.strptime(on_day, "%Y%m%d")
@@ -384,6 +400,12 @@ class DBQuerier:
             limit = int(limit)
         except (ValueError, TypeError):
             limit = False
+
+        # Departure times
+        if departure_time_above:
+            datetime.strptime(departure_time_above, "%H:%M:%S")
+        if departure_time_below:
+            datetime.strptime(departure_time_below, "%H:%M:%S")
 
         # QUERY
         session = self.provider.get_session()
@@ -424,7 +446,19 @@ class DBQuerier:
 
         if uic_filter:
             results = results\
-                .filter(Stop.stop_id.like("%"))\
+                .filter(Stop.stop_id.like("%"))
+
+        if stop_id:
+            results = results\
+                .filter(Stop.stop_id == stop_id)
+
+        if departure_time_below:
+            results = results\
+                .filter(StopTime.departure_time <= departure_time_below)
+
+        if departure_time_above:
+            results = results\
+                .filter(StopTime.departure_time <= departure_time_above)
 
         if limit:
             results = results.limit(limit)

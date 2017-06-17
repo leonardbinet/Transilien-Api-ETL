@@ -17,9 +17,9 @@ import pandas as pd
 from api_etl.utils_misc import (
     get_paris_local_datetime_now, DateConverter, S3Bucket
 )
-from api_etl.query import DBQuerier
-from api_etl.serializers import ResultSetSerializer
-from api_etl.settings import data_path, s3_buckets
+from api_etl.schedule_querier import DBQuerier
+from api_etl.realtime_querier import ResultsSet
+from api_etl.settings import __DATA_PATH__, __S3_BUCKETS__
 
 pd.options.mode.chained_assignment = None
 
@@ -58,10 +58,10 @@ class DayMatrixBuilder:
             logging.info("Dataframe provided for day %s" % self.day)
         else:
             logging.info("Requesting data for day %s" % self.day)
-            self.querier = DBQuerier(yyyymmdd=self.day)
+            self.querier = DBQuerier(scheduled_day=self.day)
             # Get schedule
             self.stops_results = self.querier.stoptimes_of_day(self.day)
-            self.serialized_stoptimes = ResultSetSerializer(self.stops_results)
+            self.serialized_stoptimes = ResultsSet(self.stops_results)
             logging.info("Schedule queried.")
             # Perform realtime queries
             dt_realtime_request = get_paris_local_datetime_now()
@@ -303,7 +303,7 @@ class DirectPredictionMatrix(DayMatrixBuilder):
 
         # Computing
         self._compute_trip_state()
-        logging.info("TripState computed.")
+        logging.info("TripPredictor computed.")
         self._trip_level()
         logging.info("Trip level computations performed.")
         self._line_level()
@@ -582,7 +582,7 @@ class DirectPredictionMatrix(DayMatrixBuilder):
         Representing %(stoptimes_predictable)s stop times for which we can provide a prediction.
 
         LABELED
-        Given that retroactive is %(retroactive)s, we have %(stoptimes_predictable_labeled)s labeled predictable stoptimes for training.
+        Given that retroactive is %(retroactive)s, we have %(stoptimes_predictable_labeled)s labeled to_predict stoptimes for training.
         """
 
         self.summary = {
@@ -635,7 +635,7 @@ class DirectPredictionMatrix(DayMatrixBuilder):
                         split_datasets=False,
                         set_index=True,
                         provided_df=None):
-        """Return predictable stop times.
+        """Return to_predict stop times.
         :param all_features_required:
         :param labeled_only:
         :param col_filter_level:
@@ -842,7 +842,7 @@ class TrainingSetBuilder:
         assert isinstance(tempo, int)
         self.tempo = tempo
 
-        self.bucket_name = s3_buckets["training-sets"]
+        self.bucket_name = __S3_BUCKETS__["training-sets"]
 
         self._bucket_provider = S3Bucket(
             self.bucket_name,
@@ -875,7 +875,7 @@ class TrainingSetBuilder:
             self._bucket_provider.send_file(file_path=pred_file_path)
 
     def create_training_sets(self, save_in=None, save_s3=True):
-        save_in = save_in or path.relpath(data_path)
+        save_in = save_in or path.relpath(__DATA_PATH__)
 
         for day in self.days:
             self._create_day_training_set(

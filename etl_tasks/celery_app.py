@@ -7,20 +7,21 @@ from celery import Celery
 from celery.schedules import crontab
 from celery.utils.log import get_task_logger
 
-# import logging
-# import logging.config
-# logging.config.fileConfig('logging.conf')
-# logger = logging.getLogger('root')
 
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
 from api_etl.utils_rdb import uri
 from api_etl.extract_api import operate_one_cycle
 from api_etl.extract_schedule import ScheduleExtractorRDB
-from api_etl.query import DBQuerier
-from api_etl.utils_misc import StationProvider, get_paris_local_datetime_now
+
 
 logger = get_task_logger(__name__)
+
+# OR
+# import logging
+# import logging.config
+# logging.config.fileConfig('logging.conf')
+# logger = logging.getLogger('root')
 
 app = Celery('etl_tasks.celery_app',
              broker='amqp://guest:guest@localhost',

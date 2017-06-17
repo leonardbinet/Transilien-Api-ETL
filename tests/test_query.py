@@ -5,8 +5,8 @@ Tests for extract_api module.
 import unittest
 import logging
 
-# from api_etl.settings import BASE_DIR
-from api_etl.query import DBQuerier
+# from api_etl.settings import __BASE_DIR__
+from api_etl.schedule_querier import DBQuerier
 
 logger = logging.getLogger(__name__)
 

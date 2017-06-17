@@ -10,7 +10,7 @@ import logging
 
 import pandas as pd
 
-from api_etl.settings import data_path, gtfs_csv_url
+from api_etl.settings import __DATA_PATH__, __GTFS_CSV_URL__
 from api_etl.utils_rdb import RdbProvider
 from api_etl.models import (
     Agency,
@@ -22,7 +22,7 @@ from api_etl.models import (
     CalendarDate,
 )
 from api_etl.utils_misc import get_paris_local_datetime_now, S3Bucket
-from api_etl.settings import s3_buckets
+from api_etl.settings import __S3_BUCKETS__
 
 pd.options.mode.chained_assignment = None
 
@@ -35,7 +35,7 @@ class ScheduleExtractor:
         # Place where gtfs folder is supposed to be located
         # If none specified, takes default folder specified in settings
         if not data_folder:
-            data_folder = data_path
+            data_folder = __DATA_PATH__
         self.data_folder = data_folder
         # Gtfs folder
         self.gtfs_folder = path.join(self.data_folder, "gtfs-lines-last")
@@ -43,7 +43,7 @@ class ScheduleExtractor:
         # URL from which we download gtfs files
         # If none specified, takes default url specified in settings
         if not schedule_url:
-            schedule_url = gtfs_csv_url
+            schedule_url = __GTFS_CSV_URL__
         self.schedule_url = schedule_url
 
         self.files_present = None
@@ -120,7 +120,7 @@ class ScheduleExtractor:
         dt = get_paris_local_datetime_now()
         day = dt.strftime("%Y%m%d")
         prefix = "%s-gtfs" % day
-        sb = S3Bucket(s3_buckets["gtfs-files"], create_if_absent=True)
+        sb = S3Bucket(__S3_BUCKETS__["gtfs-files"], create_if_absent=True)
         new_name = path.join(prefix, path.relpath(self.data_folder))
         sb.send_folder(
             folder_path=self.data_folder,

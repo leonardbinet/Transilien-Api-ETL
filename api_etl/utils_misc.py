@@ -16,13 +16,12 @@ from urllib.parse import quote_plus
 import numpy as np
 import pandas as pd
 import boto3
-import botocore
 
 from api_etl.settings import (
-    data_path, responding_stations_path,
-    all_stations_path, top_stations_path,
-    scheduled_stations_path, logs_path,
-    stations_per_line_path
+    __DATA_PATH__, __RESPONDING_STATIONS_PATH__,
+    __ALL_STATIONS_PATH__, __TOP_STATIONS_PATH__,
+    __SCHEDULED_STATIONS_PATH__, __LOGS_PATH__,
+    __STATIONS_PER_LINE_PATH__
 )
 
 from api_etl.utils_secrets import get_secret
@@ -71,17 +70,17 @@ class StationProvider:
     """
 
     def __init__(self):
-        self._all_stations_path = all_stations_path
-        self._responding_stations_path = responding_stations_path
-        self._top_stations_path = top_stations_path
-        self._scheduled_stations_path = scheduled_stations_path
-        self._stations_per_line_path = stations_per_line_path
+        self._all_stations_path = __ALL_STATIONS_PATH__
+        self._responding_stations_path = __RESPONDING_STATIONS_PATH__
+        self._top_stations_path = __TOP_STATIONS_PATH__
+        self._scheduled_stations_path = __SCHEDULED_STATIONS_PATH__
+        self._stations_per_line_path = __STATIONS_PER_LINE_PATH__
 
-    def get_stations_per_line(self, lines=None, UIC7=False, full_df=False):
+    def get_stations_per_line(self, lines=None, uic7=False, full_df=False):
         """
         Get stations of given line (multiple lines possible)
         :param lines:
-        :param UIC7:
+        :param uic7:
         :param full_df:
         """
         if lines:
@@ -97,7 +96,7 @@ class StationProvider:
             return matching_stop_times
 
         stations = matching_stop_times.Code_UIC.apply(str).tolist()
-        if not UIC7:
+        if not uic7:
             return stations
 
         return list(map(lambda x: x[0: -1], stations))
@@ -294,8 +293,8 @@ def set_logging_conf(log_name, level="INFO"):
         logger.removeHandler(handler)
 
     # Set config
-    # logging_file_path = os.path.join(logs_path, log_name)
-    logging_file_path = path.join(logs_path, log_name)
+    # logging_file_path = os.path.join(__LOGS_PATH__, log_name)
+    logging_file_path = path.join(__LOGS_PATH__, log_name)
 
     # création d'un handler qui va rediriger une écriture du log vers
     # un fichier en mode 'append', avec 1 backup et une taille max de 1Mo
@@ -333,9 +332,9 @@ def get_responding_stations_from_sample(sample_loc=None, write_loc=None):
     :param write_loc:
     """
     if not sample_loc:
-        sample_loc = path.join(data_path, "20170131_real_departures.csv")
+        sample_loc = path.join(__DATA_PATH__, "20170131_real_departures.csv")
     if not write_loc:
-        write_loc = responding_stations_path
+        write_loc = __RESPONDING_STATIONS_PATH__
 
     df = pd.read_csv(sample_loc)
     resp_stations = df["station"].unique()
@@ -357,6 +356,7 @@ class S3Bucket:
     def __init__(self, name, create_if_absent=False):
         self._s3 = s3_ressource()
         self.bucket_name = name
+        self.bucket_objects = []
         self._check_if_accessible()
         if create_if_absent and not self._accessible:
             self._create_bucket()
@@ -369,13 +369,13 @@ class S3Bucket:
             logging.info("Bucket %s is accessible." % self.bucket_name)
             return True
 
-        except botocore.exceptions.ClientError as e:
+        except Exception as e:
             # If a client error is thrown, then check that it was a 404 error.
             # If it was a 404 error, then the bucket does not exist.
             self._accessible = False
             logging.info("Bucket %s does not exist." % self.bucket_name)
             logging.debug("Could not access bucket %s: %s" %
-                          (self.bucket_name, e.response))
+                          (self.bucket_name, e))
             return False
 
     def _create_bucket(self):
@@ -452,7 +452,6 @@ class S3Bucket:
             os.rmdir(folder_path)
 
     def list_bucket_objects(self):
-        self.bucket_objects = []
         for obj in self.bucket.objects.all():
             self.bucket_objects.append(obj.key)
             print(obj.key)

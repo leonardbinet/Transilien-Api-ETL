@@ -9,7 +9,7 @@ from sqlalchemy import Column, String, ForeignKey
 
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
 from api_etl.utils_secrets import get_secret
-from api_etl.settings import dynamo_realtime, dynamo_schedule
+from api_etl.settings import __DYNAMO_REALTIME__
 
 # Set as environment variable: boto takes it directly
 AWS_DEFAULT_REGION = get_secret("AWS_DEFAULT_REGION", env=True)
@@ -22,7 +22,7 @@ RdbModel = declarative.declarative_base()
 class RealTimeDeparture(DyModel):
 
     class Meta:
-        table_name = dynamo_realtime["name"]
+        table_name = __DYNAMO_REALTIME__["name"]
         region = AWS_DEFAULT_REGION
 
     # Raw data from API
@@ -152,10 +152,10 @@ class StopTime(RdbModel):
         self._train_num = self.trip_id[5:11]
         return self._station_id, self._train_num
 
-    def _get_realtime_index(self, yyyymmdd):
+    def _get_realtime_index(self, scheduled_day):
         self._get_partial_index()
-        self._yyyymmdd = yyyymmdd
-        self._day_train_num = "%s_%s" % (yyyymmdd, self._train_num)
+        self._scheduled_day = scheduled_day
+        self._day_train_num = "%s_%s" % (scheduled_day, self._train_num)
         return self._station_id, self._day_train_num
 
     def _has_passed(self, at_datetime=None, seconds=False):
@@ -164,11 +164,17 @@ class StopTime(RdbModel):
         - scheduled_departure_time from gtfs
         And sets it as attributes.
         """
+
+        if not hasattr(self, "_scheduled_day"):
+            # if realtime query not made
+            self._scheduled_day = at_datetime.strftime("%Y%m%d")
+
         if not at_datetime:
             at_datetime = get_paris_local_datetime_now().replace(tzinfo=None)
 
         dt = self.departure_time
-        dd = self._yyyymmdd
+        # either provided, either one saved through previous realtime request
+        dd = self._scheduled_day
 
         time_past_dep = DateConverter(dt=at_datetime)\
             .compute_delay_from(special_date=dd, special_time=dt)

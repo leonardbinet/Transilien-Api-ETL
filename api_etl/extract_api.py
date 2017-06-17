@@ -1,12 +1,9 @@
 """
 Core module using other modules to:
 - extract data from the Transilien's API (use utils_api_client)
-- update it with GTFS data (use query_schedule, if data was previously saved
-with extract_schedule)
-- save it in databases, Mongo or/and Dynamo (use utils_dynamo, utils_mongo)
+- save it in databases Dynamo
 """
 
-import copy
 import logging
 import time
 from datetime import datetime
@@ -19,13 +16,8 @@ from api_etl.utils_misc import (
     get_paris_local_datetime_now, DateConverter, StationProvider
 )
 from api_etl.utils_api_client import ApiClient
-from api_etl.utils_mongo import (
-    mongo_async_save_items, mongo_async_upsert_items
-)
 from api_etl.models import RealTimeDeparture
-from api_etl.settings import mongo_realtime_unique, mongo_realtime_all
 
-# To avoid some pandas warnings
 pd.options.mode.chained_assignment = None
 
 
@@ -202,45 +194,7 @@ class ApiExtractor:
         # Previously:
         # dynamo_insert_batches(items_list, table_name = dynamo_real_dep)
 
-    def save_in_mongo(self, mongo_unique, mongo_all):
-        """
-        This function will save items in Mongo.
-
-        :param mongo_unique: save items in dynamo table that save unique
-        passages
-        :type mongo_unique: boolean
-
-        :param mongo_all: save items in dynamo table that save all passages
-        :type mongo_all: boolean
-        """
-        assert (mongo_unique or mongo_all)
-
-        # Make deep copies, because mongo will add _ids
-        items_list2 = copy.deepcopy(self.json_objects)
-        items_list3 = copy.deepcopy(self.json_objects)
-
-        if mongo_all:
-            # Save items in collection without compound primary key
-            logging.info("Saving  %d items in Mongo departures collection",
-                         len(items_list2))
-            mongo_async_save_items(mongo_realtime_all["name"], items_list2)
-
-        if mongo_unique:
-            # Save items in collection with compound primary key
-            index_fields = mongo_realtime_unique["unique_index"]
-            logging.info(
-                "Upsert of %d items of json data in Mongo %s collection",
-                len(items_list3),
-                mongo_realtime_unique["name"]
-            )
-            mongo_async_upsert_items(
-                mongo_realtime_unique["name"], items_list3, index_fields)
-
-
-def operate_one_cycle(
-    station_filter=False, dynamo_unique=True, mongo_unique=False,
-    mongo_all=False
-):
+def operate_one_cycle(station_filter=False, dynamo_unique=True):
     """
     This function performs the extract_save_stations operation in two steps.
     First half of stations, then second half of stations. This is made so that
@@ -254,12 +208,6 @@ def operate_one_cycle(
 
     :param dynamo_unique: save items in dynamo table that save unique passages
     :type dynamo_unique: boolean
-
-    :param mongo_unique: save items in dynamo table that save unique passages
-    :type mongo_unique: boolean
-
-    :param mongo_all: save items in dynamo table that save all passages
-    :type mongo_all: boolean
     """
     if not station_filter:
         station_list = StationProvider().get_stations_per_line()
@@ -278,12 +226,6 @@ def operate_one_cycle(
 
         if dynamo_unique:
             extractor.save_in_dynamo()
-
-        if mongo_unique or mongo_all:
-            extractor.save_in_mongo(
-                mongo_unique=mongo_unique,
-                mongo_all=mongo_all
-            )
 
         time_passed = (datetime.now() - chunk_begin_time).seconds
         logging.info("Time spent: %d seconds", int(time_passed))

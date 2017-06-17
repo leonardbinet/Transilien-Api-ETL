@@ -6,10 +6,10 @@ import os
 from os import path
 import json
 import logging
-from api_etl.settings import BASE_DIR
+from api_etl.settings import __BASE_DIR__
 
 try:
-    with open(path.join(BASE_DIR, 'secret.json')) as secrets_file:
+    with open(path.join(__BASE_DIR__, 'secret.json')) as secrets_file:
         secrets = json.load(secrets_file)
 except FileNotFoundError:
     secrets = {}

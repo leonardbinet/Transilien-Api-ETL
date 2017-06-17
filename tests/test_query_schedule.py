@@ -9,7 +9,7 @@ import datetime
 import logging
 import random
 
-from api_etl.settings import BASE_DIR
+from api_etl.settings import __BASE_DIR__
 from api_etl.extract_schedule import build_stop_times_ext_df
 from api_etl.query_schedule import trip_scheduled_departure_time
 

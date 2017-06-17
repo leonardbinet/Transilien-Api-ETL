@@ -1,4 +1,4 @@
-""" Classes used to serialize results of db queries.
+""" Classes used to manipulate results of db queries.
 
 Two main parts:
 - ResultSerializer, ResultSetSerializer: serializers to serialize DB queries:
@@ -20,7 +20,7 @@ import pandas as pd
 from pynamodb.exceptions import DoesNotExist
 
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
-from api_etl.models import RealTimeDeparture
+from api_etl.models import RealTimeDeparture, StopTime
 
 pd.options.mode.chained_assignment = None
 
@@ -29,18 +29,31 @@ class StopTimeState:
     """Used to compute StopTime state at a given time, comparing StopTime
     (schedule) vs RealTime.
     """
-    def __init__(self, at_datetime, scheduled_day, StopTime, RealTime=None):
+
+    # define required fields used to build serializer
+    # these class attributes will be overriden by instances attributes
+    at_datetime = None
+    passed_schedule = None
+    passed_realtime = None
+    delay = None
+
+    def __init__(self, at_datetime, scheduled_day, stoptime, realtime=None):
+        assert isinstance(stoptime, StopTime)
+        if realtime:
+            assert isinstance(realtime, RealTimeDeparture)
         self._at_datetime = at_datetime
         self.at_datetime = at_datetime.strftime("%Y%m%d-%H:%M:%S")
         self._scheduled_day = scheduled_day
-        self._StopTime = StopTime
-        self._RealTime = RealTime
+        self._StopTime = stoptime
+        if realtime:
+            assert isinstance(realtime, RealTimeDeparture)
+        self._RealTime = realtime
 
         self.passed_schedule = self._StopTime\
                 ._has_passed(at_datetime=at_datetime)
 
-        if RealTime:
-            self.delay = self._compute_delay()
+        if realtime:
+            self._compute_delay()
             self.passed_realtime = self._RealTime\
                 ._has_passed(at_datetime=at_datetime)
         else:
@@ -48,11 +61,15 @@ class StopTimeState:
             self.passed_realtime = None
 
     def __repr__(self):
-        return "<StopTimeState(StopTime='%s', RealTime='%s', scheduled_day='%s', at_datetime='%s')>"\
-            % (self._StopTime, self._RealTime, self._scheduled_day, self.at_datetime)
+        return "<StopTimeState(delay='%s', passed_schedule='%s', passed_realtime='%s',  at_datetime='%s', " \
+               "_scheduled_day='%s')>"\
+            % (self.delay, self.passed_schedule, self.passed_realtime, self.at_datetime, self._scheduled_day)
 
     def __str__(self):
         return self.__repr__()
+
+    def _has_realtime(self):
+        return not not self._RealTime
 
     def _compute_delay(self):
         """ Between scheduled 'stop time' departure time, and realtime expected
@@ -71,17 +88,8 @@ class StopTimeState:
             .compute_delay_from(special_date=sdd, special_time=sdt)
         self.delay = delay
 
-    def to_dict(self):
-        d = {
-            "at_datetime": self.at_datetime,
-            "delay": self.delay,
-            "passed_schedule": self.passed_schedule,
-            "passed_realtime": self.passed_realtime,
-        }
-        return d
 
-
-class ResultSerializer:
+class SingleResult:
     """ This class transforms a sqlalchemy result in an easy to manipulate
     object.
     The result can be:
@@ -91,14 +99,14 @@ class ResultSerializer:
     If a StopTime is present, it has multiple capabilities:
     - it can request RealTime to dynamo database,
     for the day given as parameter (today if none provided)
-    - it can compute TripState based on realtime information
+    - it can compute TripPredictor based on realtime information
     """
 
     def __init__(self, raw_result, scheduled_day):
         self._raw = raw_result
 
         if hasattr(raw_result, "_asdict"):
-            # if sqlalchemy result, has _asdict method
+            # if sqlalchemy nested result, has _asdict method
             for key, value in raw_result._asdict().items():
                 setattr(self, key, value)
         else:
@@ -110,7 +118,7 @@ class ResultSerializer:
         self._scheduled_day = scheduled_day
 
     def __repr__(self):
-        return "<ResultSerializer(has_stoptime='%s', has_realtime='%s', " \
+        return "<SingleResult(has_stoptime='%s', has_realtime='%s', " \
                "realtime_found='%s', scheduled_day='%s')>"\
             % (self.has_stoptime(), self.has_realtime(), self._realtime_found, self._scheduled_day)
 
@@ -164,23 +172,23 @@ class ResultSerializer:
         """
         return self._realtime_found
 
-    def get_realtime_query_index(self, yyyymmdd):
+    def get_realtime_query_index(self, scheduled_day):
         """Return (station_id, day_train_num) query index for real departures
         dynamo table.
-        :param yyyymmdd:
+        :param scheduled_day:
         """
         assert self.has_stoptime()
-        return self.StopTime._get_realtime_index(yyyymmdd=yyyymmdd)
+        return self.StopTime._get_realtime_index(scheduled_day=scheduled_day)
 
-    def set_realtime(self, yyyymmdd, realtime_object=None):
+    def set_realtime(self, scheduled_day, realtime_object=None):
         """This method is used to propagate results when batch queries are
-        performed by the ResultSetSerializer, or when a single query is made.
+        performed by the ResultsSet, or when a single query is made.
 
         It will add some meta information about it.
-        :param yyyymmdd:
+        :param scheduled_day:
         :param realtime_object:
         """
-        self._realtime_query_day = yyyymmdd
+        self._realtime_query_day = scheduled_day
 
         if realtime_object:
             assert isinstance(realtime_object, RealTimeDeparture)
@@ -189,15 +197,15 @@ class ResultSerializer:
         else:
             self._realtime_found = False
 
-    def perform_realtime_query(self, yyyymmdd, ignore_error=True):
+    def perform_realtime_query(self, scheduled_day, ignore_error=True):
         """This method will perform a query to dynamo to get realtime
         information about the StopTime in this result object only.
         \nIt requires a day, because a given trip_id can be on different dates.
-        :param yyyymmdd:
+        :param scheduled_day:
         :param ignore_error:
         """
         assert self.has_stoptime()
-        station_id, day_train_num = self.get_realtime_query_index(yyyymmdd)
+        station_id, day_train_num = self.get_realtime_query_index(scheduled_day)
 
         # Try to get it from dynamo
         try:
@@ -206,13 +214,13 @@ class ResultSerializer:
                 range_key=day_train_num
             )
             self.set_realtime(
-                yyyymmdd=yyyymmdd,
+                scheduled_day=scheduled_day,
                 realtime_object=realtime_object
             )
 
         except DoesNotExist:
             self.set_realtime(
-                yyyymmdd=yyyymmdd,
+                scheduled_day=scheduled_day,
                 realtime_object=False
             )
             logging.info("Realtime not found for %s, %s" %
@@ -220,8 +228,8 @@ class ResultSerializer:
             if not ignore_error:
                 raise DoesNotExist
 
-    def compute_trip_state(self, at_datetime=None):
-        """ This method will add a dictionary in the "TripState" attribute.
+    def compute_stoptime_state(self, at_datetime=None):
+        """ This method will add a dictionary in the "TripPredictor" attribute.
 
         It will be made of:
         - at_time: the time considered
@@ -244,13 +252,13 @@ class ResultSerializer:
             self.RealTime if self.has_realtime() else None)
 
 
-class ResultSetSerializer:
+class ResultsSet:
 
     def __init__(self, raw_result, scheduled_day=None):
         """
         Can accept raw_result either as single element, or as list
         :param raw_result:
-        :param scheduled_day: yyyymmdd str format
+        :param scheduled_day: scheduled_day str format
         :return:
         """
         self.scheduled_day = scheduled_day or get_paris_local_datetime_now().strftime("%Y%m%d")
@@ -258,11 +266,10 @@ class ResultSetSerializer:
         if not isinstance(raw_result, list):
             raw_result = [raw_result]
 
-        self.results = tuple(ResultSerializer(raw, self.scheduled_day) for raw in raw_result)
-
+        self.results = tuple(SingleResult(raw, self.scheduled_day) for raw in raw_result)
 
     def __repr__(self):
-        return "<ResultSetSerializer(scheduled_day='%s', nb_elements='%s', sample='%s')>"\
+        return "<ResultsSet(scheduled_day='%s', nb_elements='%s', sample='%s')>"\
             % (self.scheduled_day, len(self.results), self.results[0])
 
     def __str__(self):
@@ -309,18 +316,27 @@ class ResultSetSerializer:
             i += 1
 
         logging.info("Found realtime information for %s items." % i)
-        # 5: ResultSerializer instances objects are then already updated
+        # 5: SingleResult instances objects are then already updated
         # and available under self.results
 
-    def first_realtime_index(self):
-        """Mostly for debugging: returns index of first result which has
+    def first_with_realtime(self):
+        """Mostly for debugging: returns first result which has
         realtime.
         """
-        for i, el in enumerate(self.results):
+        for el in self.results:
             if el.has_realtime():
-                return i
+                return el
 
-    def compute_trip_states(self, at_datetime=None):
+    def number_of_found_realtime(self):
+        """Returns number of elements that have realtime.
+        """
+        i = 0
+        for el in self.results:
+            if el.has_realtime():
+                i += 1
+        return i
+
+    def compute_stoptimes_states(self, at_datetime=None):
         for res in self.results:
-            res.compute_trip_state(at_datetime=at_datetime)
+            res.compute_stoptime_state(at_datetime=at_datetime)
 
