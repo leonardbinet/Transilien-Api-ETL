@@ -2,33 +2,28 @@
 """
 
 from os import sys, path
+import logging
+import logging.config
 
 from celery import Celery
 from celery.schedules import crontab
-from celery.utils.log import get_task_logger
 
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
+from api_etl.settings import __LOGGING_CONFIG__
 from api_etl.utils_rdb import uri
 from api_etl.extract_api import operate_one_cycle
 from api_etl.extract_schedule import ScheduleExtractorRDB
 
-
-logger = get_task_logger(__name__)
-
-# OR
-# from api_etl.settings import __LOGGING_CONFIG__
-# import logging
-# import logging.config
-# logging.config.dictConfig(__LOGGING_CONFIG__)
-# logger = logging.getLogger('root')
+logging.config.dictConfig(__LOGGING_CONFIG__)
+logger = logging.getLogger(__name__)
 
 app = Celery('etl_tasks.celery_app',
              broker='amqp://guest:guest@localhost',
              backend='db+' + uri,  # 'amqp://guest:guest@localhost',
              )
 
-# Optional configuration, see the application user guide.
+# Optional configuration
 app.conf.update(
     result_expires=3600,
 )

@@ -8,12 +8,9 @@ A repository details how this project is deployed through Vagrant and Salt autom
 
 Another details details how the website and the API built for this project work.
 
+## Overview
+![overview](ressources/overview.png)
 
-#### Tasks overview
-![tasks](ressources/ETL_SNCF_tasks.png)
-
-#### Diagram
-![diagram](ressources/ETL_SNCF_diagram.png)
 
 ## What it does
 
