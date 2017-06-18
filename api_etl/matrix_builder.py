@@ -21,6 +21,7 @@ from api_etl.schedule_querier import DBQuerier
 from api_etl.realtime_querier import ResultsSet
 from api_etl.settings import __DATA_PATH__, __S3_BUCKETS__
 
+logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
 
 
@@ -50,35 +51,35 @@ class DayMatrixBuilder:
             dt_today = get_paris_local_datetime_now()
             self.day = dt_today.strftime("%Y%m%d")
 
-        logging.info("Day considered: %s" % self.day)
+        logger.info("Day considered: %s" % self.day)
 
         if isinstance(df, pd.DataFrame):
             self._initial_df = df
             self._builder_realtime_request_time = None
-            logging.info("Dataframe provided for day %s" % self.day)
+            logger.info("Dataframe provided for day %s" % self.day)
         else:
-            logging.info("Requesting data for day %s" % self.day)
+            logger.info("Requesting data for day %s" % self.day)
             self.querier = DBQuerier(scheduled_day=self.day)
             # Get schedule
             self.stops_results = self.querier.stoptimes_of_day(self.day)
             self.serialized_stoptimes = ResultsSet(self.stops_results)
-            logging.info("Schedule queried.")
+            logger.info("Schedule queried.")
             # Perform realtime queries
             dt_realtime_request = get_paris_local_datetime_now()
             self._builder_realtime_request_time = dt_realtime_request\
                 .strftime("%H:%M:%S")
             self.serialized_stoptimes.batch_realtime_query(self.day)
-            logging.info("RealTime queried.")
+            logger.info("RealTime queried.")
             # Export flat dict as dataframe
             self._initial_df = pd\
                 .DataFrame(self.serialized_stoptimes.get_flat_dicts())
-            logging.info("Initial dataframe created.")
+            logger.info("Initial dataframe created.")
             # Datetime considered as now
             self.paris_datetime_now = get_paris_local_datetime_now()
             self._clean_initial_df()
-            logging.info("Initial dataframe cleaned.")
+            logger.info("Initial dataframe cleaned.")
             self._compute_initial_dates()
-            logging.info("Initial dataframe calculations computed.")
+            logger.info("Initial dataframe calculations computed.")
 
     def _clean_initial_df(self):
         """ Set Nan values, and convert necessary columns as float.
@@ -293,7 +294,7 @@ class DirectPredictionMatrix(DayMatrixBuilder):
             .strptime(full_str_dt, "%Y%m%d%H:%M:%S")
         self.time = time
 
-        logging.info(
+        logger.info(
             "Building Matrix for day %s and time %s" % (
                 self.day, self.time)
         )
@@ -303,18 +304,18 @@ class DirectPredictionMatrix(DayMatrixBuilder):
 
         # Computing
         self._compute_trip_state()
-        logging.info("TripPredictor computed.")
+        logger.info("TripPredictor computed.")
         self._trip_level()
-        logging.info("Trip level computations performed.")
+        logger.info("Trip level computations performed.")
         self._line_level()
-        logging.info("Line level computations performed.")
+        logger.info("Line level computations performed.")
         # Will add labels if information is available
         self._compute_labels()
-        logging.info("Labels assigned.")
+        logger.info("Labels assigned.")
         self._compute_api_pred()
-        logging.info("Api and naive predictions assigned.")
+        logger.info("Api and naive predictions assigned.")
         self._compute_pred_scores()
-        logging.info("Naive predictions scored.")
+        logger.info("Naive predictions scored.")
 
     def _compute_trip_state(self):
         """Computes:
@@ -678,7 +679,7 @@ class DirectPredictionMatrix(DayMatrixBuilder):
             # return dict
             rdf = self._split_datasets(rdf)
 
-        logging.info("Predictable with labeled_only=%s, has a total of %s rows." % (labeled_only, len(rdf))
+        logger.info("Predictable with labeled_only=%s, has a total of %s rows." % (labeled_only, len(rdf))
                      )
         return rdf
 
@@ -866,7 +867,7 @@ class TrainingSetBuilder:
         raw_file_path = path.join(raw_folder_path, "raw_%s.pickle" % day)
         pred_file_path = path.join(train_folder_path, "%s.pickle" % day)
 
-        logging.info("Saving data in %s." % raw_folder_path)
+        logger.info("Saving data in %s." % raw_folder_path)
         mat._initial_df.to_pickle(raw_file_path)
         mat.result_concat.to_pickle(pred_file_path)
 

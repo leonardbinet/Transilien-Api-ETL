@@ -42,3 +42,52 @@ __DYNAMO_REALTIME__ = {
         "write": 80
     }
 }
+
+# LOGGING
+
+__LOGGING_CONFIG__ = {
+    'version': 1,
+    'disable_existing_loggers': True,
+    'formatters': {
+        'standard': {
+            'format': '[%(levelname)s] %(name)s: %(message)s'
+        },
+        'detailed': {
+            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+        },
+    },
+    'handlers': {
+        'defaultStream': {
+            'level': 'INFO',
+            'formatter': 'standard',
+            'class': 'logging.StreamHandler',
+        },
+        'detailedStream': {
+            'level': 'DEBUG',
+            'formatter': 'detailed',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        '': {
+            'handlers': ['defaultStream'],
+            'level': 'INFO',
+            'propagate': False
+        },
+        'api_etl': {
+            'handlers': ['defaultStream'],
+            'level': 'INFO',
+            'propagate': False
+        },
+        'pynamodb': {
+            'handlers': ['detailedStream'],
+            'level': 'WARN',
+            'propagate': False
+        },
+        'botocore': {
+            'handlers': ['detailedStream'],
+            'level': 'WARN',
+            'propagate': False
+        },
+    }
+}

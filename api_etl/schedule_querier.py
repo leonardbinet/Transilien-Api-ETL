@@ -2,15 +2,17 @@
 Module used to query schedule data contained in relational databases.
 """
 
+import logging
 from datetime import datetime
 from sqlalchemy.sql import func
 
 from api_etl.utils_misc import get_paris_local_datetime_now
-from api_etl.utils_rdb import RdbProvider
+from api_etl.utils_rdb import rdb_provider
 from api_etl.models import (
     Calendar, CalendarDate, Trip, StopTime, Stop, Agency, Route
 )
 
+logger = logging.getLogger(__name__)
 
 class DBQuerier:
     """ This class allows you to easily query information available in
@@ -24,7 +26,7 @@ class DBQuerier:
     """
 
     def __init__(self, scheduled_day=None):
-        self.provider = RdbProvider()
+        self.provider = rdb_provider
         if not scheduled_day:
             scheduled_day = get_paris_local_datetime_now().strftime("%Y%m%d")
         else:
@@ -82,7 +84,9 @@ class DBQuerier:
         if limit:
             results = results.limit(limit)
 
-        return results.all()
+        end_result = results.all()
+        session.close()
+        return end_result
 
     def stations(self, stop_id=None, on_route_short_name=None, level=0, limit=None):
         """
@@ -141,7 +145,9 @@ class DBQuerier:
         if limit:
             results = results.limit(limit)
 
-        return results.all()
+        end_result = results.all()
+        session.close()
+        return end_result
 
     def services(self, on_day=None, level=0, limit=None):
         """
@@ -187,7 +193,9 @@ class DBQuerier:
 
         # Query if no day filter
         if not on_day:
-            return results.all()
+            end_result = results.all()
+            session.close()
+            return end_result
 
         # Query if day filter
         serv_regular = results\
@@ -213,11 +221,13 @@ class DBQuerier:
         if limit:
             results = results.limit(limit)
 
-        return results.all()
+        end_result = results.all()
+        session.close()
+        return end_result
 
     def trips(
         self, on_day=None, active_at_time=None, has_begun_at_time=None,
-        not_yet_arrived_at_time=None, trip_id=None, on_route_short_name=None, level=0, limit=None
+        not_yet_arrived_at_time=None, trip_id=None, on_route_short_name=None, level=0, limit=None, count=None
     ):
         """Returns list of strings (trip_ids).
         Day is either specified or today.
@@ -334,12 +344,19 @@ class DBQuerier:
         if limit:
             results = results.limit(limit)
 
-        return results.all()
+        if count:
+            end_result = results.count()
+            session.close()
+            return end_result
+
+        end_result = results.all()
+        session.close()
+        return end_result
 
     def stoptimes(
         self, on_day=None, trip_id_filter=None, uic_filter=None, stop_id=None,
         trip_active_at_time=None, on_route_short_name=None, level=0, limit=None,
-        departure_time_below=None, departure_time_above=None
+        departure_time_below=None, departure_time_above=None, count=None
     ):
         """ Returns stoptimes
 
@@ -463,4 +480,11 @@ class DBQuerier:
         if limit:
             results = results.limit(limit)
 
-        return results.all()
+        if count:
+            end_result = results.count()
+            session.close()
+            return end_result
+
+        end_result = results.all()
+        session.close()
+        return end_result

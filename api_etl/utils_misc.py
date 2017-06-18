@@ -23,9 +23,9 @@ from api_etl.settings import (
     __SCHEDULED_STATIONS_PATH__, __LOGS_PATH__,
     __STATIONS_PER_LINE_PATH__
 )
-
 from api_etl.utils_secrets import get_secret
 
+logger = logging.getLogger(__name__)
 
 AWS_DEFAULT_REGION = get_secret("AWS_DEFAULT_REGION", env=True)
 AWS_ACCESS_KEY_ID = get_secret("AWS_ACCESS_KEY_ID", env=True)
@@ -276,46 +276,12 @@ def get_paris_local_datetime_now(tz_naive=True):
 
 
 def set_logging_conf(log_name, level="INFO"):
-    """
-    This function sets the logging configuration.
-    :param log_name:
-    :param level:
-    """
-    if level == "INFO":
-        level = logging.INFO
-    elif level == "DEBUG":
-        level = logging.DEBUG
-    else:
-        level = logging.INFO
-    # Delete all previous potential handlers
-    logger = logging.getLogger()
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
-
-    # Set config
-    # logging_file_path = os.path.join(__LOGS_PATH__, log_name)
-    logging_file_path = path.join(__LOGS_PATH__, log_name)
-
-    # création d'un handler qui va rediriger une écriture du log vers
-    # un fichier en mode 'append', avec 1 backup et une taille max de 1Mo
-    file_handler = RotatingFileHandler(logging_file_path, 'a', 1000000, 1)
-
-    # création d'un second handler qui va rediriger chaque écriture de log
-    # sur la console
-    stream_handler = logging.StreamHandler()
-
-    handlers = [file_handler, stream_handler]
-
-    logging.basicConfig(
-        format='%(asctime)s-- %(name)s -- %(levelname)s -- %(message)s',
-        level=level, handlers=handlers
-    )
 
     # Python crashes or captured as well (beware of ipdb imports)
     def handle_exception(exc_type, exc_value, exc_traceback):
         # if issubclass(exc_type, KeyboardInterrupt):
         #    sys.__excepthook__(exc_type, exc_value, exc_traceback)
-        logging.error("Uncaught exception : ", exc_info=(
+        logger.error("Uncaught exception : ", exc_info=(
             exc_type, exc_value, exc_traceback))
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
 
@@ -366,21 +332,21 @@ class S3Bucket:
             self._s3.meta.client.head_bucket(Bucket=self.bucket_name)
             self._accessible = True
             self.bucket = self._s3.Bucket(self.bucket_name)
-            logging.info("Bucket %s is accessible." % self.bucket_name)
+            logger.info("Bucket %s is accessible." % self.bucket_name)
             return True
 
         except Exception as e:
             # If a client error is thrown, then check that it was a 404 error.
             # If it was a 404 error, then the bucket does not exist.
             self._accessible = False
-            logging.info("Bucket %s does not exist." % self.bucket_name)
-            logging.debug("Could not access bucket %s: %s" %
+            logger.info("Bucket %s does not exist." % self.bucket_name)
+            logger.debug("Could not access bucket %s: %s" %
                           (self.bucket_name, e))
             return False
 
     def _create_bucket(self):
         assert not self._accessible
-        logging.info("Creating bucket %s" % self.bucket_name)
+        logger.info("Creating bucket %s" % self.bucket_name)
         self._s3.create_bucket(
             Bucket=self.bucket_name,
             CreateBucketConfiguration={
@@ -397,7 +363,7 @@ class S3Bucket:
             if n.startswith("."):
                 return None
 
-        logging.info("Saving file '%s', as '%s' in bucket '%s'." %
+        logger.info("Saving file '%s', as '%s' in bucket '%s'." %
                      (file_path, file_name, self.bucket_name))
         self._s3.Object(self.bucket_name, file_name)\
             .put(Body=open(file_path, 'rb'))
@@ -424,7 +390,7 @@ class S3Bucket:
             if n.startswith("."):
                 return None
 
-        logging.info("Saving folder '%s', as '%s' in bucket '%s'." %
+        logger.info("Saving folder '%s', as '%s' in bucket '%s'." %
                      (folder_path, folder_name, self.bucket_name))
 
         files = [f for f in listdir(

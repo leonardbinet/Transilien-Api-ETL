@@ -24,6 +24,7 @@ from api_etl.models import (
 from api_etl.utils_misc import get_paris_local_datetime_now, S3Bucket
 from api_etl.settings import __S3_BUCKETS__
 
+logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
 
 
@@ -66,7 +67,7 @@ class ScheduleExtractor:
                 )
 
             except FileNotFoundError:
-                logging.warning("File %s not found in data folder %s" %
+                logger.warning("File %s not found in data folder %s" %
                                 (file_check, self.gtfs_folder))
                 self.files_present = False
 
@@ -86,7 +87,7 @@ class ScheduleExtractor:
 
         :rtype: boolean
         """
-        logging.info(
+        logger.info(
             "Download of csv containing links of zip files, at url %s", self.schedule_url)
         df_links_gtfs = pd.read_csv(self.schedule_url)
 
@@ -94,10 +95,10 @@ class ScheduleExtractor:
         # Check if one is "gtfs-lines-last" (necessary)
         gtfs_lines_last_present = False
         for link in df_links_gtfs["file"].values:
-            logging.info("Download of %s", link)
+            logger.info("Download of %s", link)
             local_filename, headers = urlretrieve(link)
 
-            logging.info("File name is %s", headers.get_filename())
+            logger.info("File name is %s", headers.get_filename())
             # Get name in header and remove the ".zip"
             extracted_data_folder_name = headers.get_filename().split(".")[0]
             if extracted_data_folder_name == "gtfs-lines-last":
@@ -109,10 +110,10 @@ class ScheduleExtractor:
                 zip_ref.extractall(path=full_path)
 
             if gtfs_lines_last_present:
-                logging.info("The 'gtfs-lines-last' folder has been found.")
+                logger.info("The 'gtfs-lines-last' folder has been found.")
                 return True
             else:
-                logging.error(
+                logger.error(
                     "The 'gtfs-lines-last' folder has not been found! Schedules will not be updated.")
                 return False
 
@@ -160,7 +161,7 @@ class ScheduleExtractorRDB(ScheduleExtractor):
             df = df.applymap(str)
             dicts = df.to_dict(orient="records")
             objects = list(map(lambda x: model(**x), dicts))
-            logging.info("Saving %s file in database, containing %s objects." % (
+            logger.info("Saving %s file in database, containing %s objects." % (
                 name, len(objects)))
             session = self.rdb_provider.get_session()
             try:
@@ -168,7 +169,7 @@ class ScheduleExtractorRDB(ScheduleExtractor):
                 chunks = [objects[i:i + 100]
                           for i in range(0, len(objects), 100)]
                 for chunk in chunks:
-                    logging.debug("Bulk of 100 items saved.")
+                    logger.debug("Bulk of 100 items saved.")
                     session.bulk_save_objects(chunk)
                     session.commit()
             except Exception:

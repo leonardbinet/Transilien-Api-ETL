@@ -22,6 +22,7 @@ from pynamodb.exceptions import DoesNotExist
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
 from api_etl.models import RealTimeDeparture, StopTime
 
+logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
 
 
@@ -223,7 +224,7 @@ class SingleResult:
                 scheduled_day=scheduled_day,
                 realtime_object=False
             )
-            logging.info("Realtime not found for %s, %s" %
+            logger.info("Realtime not found for %s, %s" %
                          (station_id, day_train_num))
             if not ignore_error:
                 raise DoesNotExist
@@ -299,8 +300,10 @@ class ResultsSet:
             return [x.get_flat_dict() for x in self.results]
 
     def batch_realtime_query(self, scheduled_day=None):
-        logging.info(
-            "Trying to get realtime information from DynamoDB for %s items." % len(self.results))
+        logger.debug(
+            "Trying to get realtime information from DynamoDB for %s items."
+            % len(self.results)
+        )
         scheduled_day = scheduled_day or self.scheduled_day
         # 1: get all elements that have StopTime
         # 2: build all indexes (station_id, day_train_num)
@@ -315,7 +318,7 @@ class ResultsSet:
             self._indexed_results[index].set_realtime(scheduled_day, item)
             i += 1
 
-        logging.info("Found realtime information for %s items." % i)
+        logger.debug("Found realtime information for %s items." % i)
         # 5: SingleResult instances objects are then already updated
         # and available under self.results
 

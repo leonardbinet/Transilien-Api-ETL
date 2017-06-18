@@ -2,6 +2,7 @@
 Module used to interact with relational databases.
 """
 
+import logging
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
 
@@ -9,6 +10,7 @@ from api_etl.utils_secrets import get_secret
 from api_etl.models import RdbModel
 from api_etl.utils_misc import build_uri
 
+logger = logging.getLogger(__name__)
 
 RDB_USER = get_secret("RDB_USER")
 RDB_DB_NAME = get_secret("RDB_DB_NAME")
@@ -46,6 +48,7 @@ class RdbProvider:
         )
         # session maker is a class
         self._session_class = sessionmaker(bind=self._engine)
+        logger.info("Created DB provider.")
 
     def get_engine(self):
         """ Return an :class:`sqlalchemy.engine.Engine` object.
@@ -63,3 +66,5 @@ class RdbProvider:
         """ Creates table if not already present.
         """
         RdbModel.metadata.create_all(self._engine)
+
+rdb_provider = RdbProvider()

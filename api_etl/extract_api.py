@@ -18,6 +18,7 @@ from api_etl.utils_misc import (
 from api_etl.utils_api_client import ApiClient
 from api_etl.models import RealTimeDeparture
 
+logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
 
 
@@ -57,7 +58,7 @@ class ApiExtractor:
         response being a tuple (string response, station).
         """
 
-        logging.info("Extraction of %d stations" % len(self.stations))
+        logger.info("Extraction of %d stations" % len(self.stations))
         client = ApiClient()
         self.raw_responses = client.request_stations(self.stations)
 
@@ -81,14 +82,14 @@ class ApiExtractor:
         self.dict_objects = []
         self.dynamo_objects = []
         # Parse responses in JSON format
-        logging.info("Parsing")
+        logger.info("Parsing")
         for response in self.raw_responses:
             try:
                 xml_string = response[0]
                 station = response[1]
                 self._parse_response(xml_string, station)
             except Exception as e:
-                logging.debug("Cannot parse station %s: %s" %
+                logger.debug("Cannot parse station %s: %s" %
                               (response[1], e))
                 continue
 
@@ -186,7 +187,7 @@ class ApiExtractor:
         """
         Saves objects in dynamo database.
         """
-        logging.info("Upsert of %d objects in dynamo",
+        logger.info("Upsert of %d objects in dynamo",
                      len(self.dynamo_objects))
         with RealTimeDeparture.batch_write() as batch:
             for obj in self.dynamo_objects:
@@ -228,11 +229,11 @@ def operate_one_cycle(station_filter=False, dynamo_unique=True):
             extractor.save_in_dynamo()
 
         time_passed = (datetime.now() - chunk_begin_time).seconds
-        logging.info("Time spent: %d seconds", int(time_passed))
+        logger.info("Time spent: %d seconds", int(time_passed))
 
         # Max per minute: so have to wait
         if time_passed > 60:
-            logging.warning(
+            logger.warning(
                 "Chunk time took more than one minute: %d seconds",
                 time_passed
             )
@@ -266,7 +267,7 @@ def operate_multiple_cycles(
     :type stop_time_sec: int
     """
 
-    logging.info(
+    logger.info(
         "BEGINNING OPERATION WITH LIMIT OF %d SECONDS",
         stop_time_sec
     )
@@ -275,24 +276,24 @@ def operate_multiple_cycles(
     while (datetime.now() - begin_time).seconds < stop_time_sec:
         # Set cycle loop
         loop_begin_time = datetime.now()
-        logging.info("BEGINNING CYCLE OF %d SECONDS", cycle_time_sec)
+        logger.info("BEGINNING CYCLE OF %d SECONDS", cycle_time_sec)
 
         operate_one_cycle(station_filter=station_filter)
 
         # Wait until beginning of next cycle
         time_passed = (datetime.now() - loop_begin_time).seconds
-        logging.info("Time spent on cycle: %d seconds", int(time_passed))
+        logger.info("Time spent on cycle: %d seconds", int(time_passed))
         if time_passed < cycle_time_sec:
             time_to_wait = cycle_time_sec - time_passed
-            logging.info("Waiting %d seconds till next cycle.", time_to_wait)
+            logger.info("Waiting %d seconds till next cycle.", time_to_wait)
             time.sleep(time_to_wait)
         else:
-            logging.warning(
+            logger.warning(
                 "Cycle time took more than expected: %d seconds", time_passed)
 
         # Information about general timing
         time_from_begin = (datetime.now() - begin_time).seconds
-        logging.info(
+        logger.info(
             "Time spent from beginning: %d seconds. (stop at %d seconds)",
             time_from_begin, stop_time_sec
         )

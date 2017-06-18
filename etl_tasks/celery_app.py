@@ -7,7 +7,6 @@ from celery import Celery
 from celery.schedules import crontab
 from celery.utils.log import get_task_logger
 
-
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
 from api_etl.utils_rdb import uri
@@ -18,9 +17,10 @@ from api_etl.extract_schedule import ScheduleExtractorRDB
 logger = get_task_logger(__name__)
 
 # OR
+# from api_etl.settings import __LOGGING_CONFIG__
 # import logging
 # import logging.config
-# logging.config.fileConfig('logging.conf')
+# logging.config.dictConfig(__LOGGING_CONFIG__)
 # logger = logging.getLogger('root')
 
 app = Celery('etl_tasks.celery_app',

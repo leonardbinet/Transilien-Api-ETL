@@ -12,8 +12,7 @@ import time
 
 from api_etl.utils_secrets import get_secret
 
-BASE_DIR = path.dirname(
-    path.dirname(path.abspath(__file__)))
+logger = logging.getLogger(__name__)
 
 
 API_USER = get_secret("API_USER")
@@ -40,7 +39,7 @@ class ApiClient:
         Low level function to process single queries with retries.
         """
         if verbose and not first_request_time:
-            logging.debug("Import on url %s ", url)
+            logger.debug("Import on url %s ", url)
 
         if not first_request_time:
             first_request_time = datetime.now()
@@ -64,12 +63,12 @@ class ApiClient:
 
         # Warn if not 200
         if response.status_code != 200:
-            logging.debug("WARNING: response status_code is %s",
+            logger.debug("WARNING: response status_code is %s",
                           response.status_code)
 
         if response.status_code in _RETRIABLE_STATUSES:
             # Retry request.
-            logging.debug("WARNING: retry number %d", retry_counter)
+            logger.debug("WARNING: retry number %d", retry_counter)
             return self._get(
                 url=url,
                 extra_params=extra_params,
@@ -132,7 +131,7 @@ class ApiClient:
                     resp = await response.read()
                     return [resp, station]
                 except:
-                    logging.debug(
+                    logger.debug(
                         "Error getting station %s information", station)
                     return [False, station]
 

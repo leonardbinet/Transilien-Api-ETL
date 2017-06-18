@@ -1,5 +1,6 @@
-# For datetimes with time zones
+# For datetimes with time zones or business days
 pytz
+bdateutil
 # For safe XML extraction from Transilien API
 xmltodict
 defusedxml
@@ -7,10 +8,6 @@ defusedxml
 pandas==0.19.0
 numpy
 sklearn
-# MongoDB: not used anymore: should be cleaned
-motor
-pymongo
-mongoengine
 # Asynchronous requests
 requests
 asyncio
