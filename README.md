@@ -9,7 +9,7 @@ A repository details how this project is deployed through Vagrant and Salt autom
 Another details details how the website and the API built for this project work.
 
 ## Overview
-![overview](ressources/overview.png)
+![overview](ressources/Overview.png)
 
 
 ## What it does
