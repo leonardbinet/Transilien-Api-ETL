@@ -10,7 +10,6 @@ hidden/*
 secret.json
 secret.json.real
 secret.json.template
-taskrunner_credentials.json
 
 # All Data
 data/*
@@ -21,6 +20,7 @@ data/*
 !data/scheduled_station_20170215.csv
 !data/all_stations.csv
 !data/sncf-lignes-par-gares-idf.csv
+!data/README.md
 
 # Zip files
 *.zip
