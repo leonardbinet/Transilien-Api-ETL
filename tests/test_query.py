@@ -6,7 +6,7 @@ import unittest
 import logging
 
 # from api_etl.settings import __BASE_DIR__
-from api_etl.schedule_querier import DBQuerier
+from api_etl.querier_schedule import DBQuerier
 
 logger = logging.getLogger(__name__)
 

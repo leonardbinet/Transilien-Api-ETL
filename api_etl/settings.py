@@ -128,3 +128,6 @@ __FEATURE_MAPPING__ = {
     "TS_rolling_trips_on_line": "rolling_trips_on_line",
     "D_business_day": "business_day",
 }
+
+# possible lines
+__ACCEPTED_LINES__ = ['C', 'D', 'E', 'H', 'J', 'K', 'L', 'N', 'P', 'R', 'U']

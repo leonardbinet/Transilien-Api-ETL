@@ -17,8 +17,8 @@ import pandas as pd
 from api_etl.utils_misc import (
     get_paris_local_datetime_now, DateConverter, S3Bucket
 )
-from api_etl.schedule_querier import DBQuerier
-from api_etl.realtime_querier import ResultsSet
+from api_etl.querier_schedule import DBQuerier
+from api_etl.querier_realtime import ResultsSet
 from api_etl.settings import __DATA_PATH__, __S3_BUCKETS__
 
 logger = logging.getLogger(__name__)

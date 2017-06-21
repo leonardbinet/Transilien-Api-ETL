@@ -16,13 +16,12 @@ from bdateutil import isbday
 
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
 from api_etl.models import Trip, Stop
-from api_etl.realtime_querier import StopTimeState, ResultsSet
-from api_etl.schedule_querier import DBQuerier
+from api_etl.querier_realtime import StopTimeState, ResultsSet
+from api_etl.querier_schedule import DBQuerier
 from api_etl.feature_vector import StopTimeFeatureVector
-from api_etl.prediction import RegressorPredictor
+from api_etl.regressor_predict import RegressorPredictor
 
 logger = logging.getLogger(__name__)
-
 
 
 class StationState:
@@ -101,7 +100,7 @@ class StationState:
         high_limit = (self.at_datetime + timedelta(minutes=5)).strftime("%H:%M:%S")
 
         logger.info("DB Query to get stoptimes at station {}, on day {} between {} and {}"
-                     .format(self.stop.stop_name, self.scheduled_day, low_limit, high_limit))
+                    .format(self.stop.stop_name, self.scheduled_day, low_limit, high_limit))
 
         schedule_results = self._dbq.stoptimes(
             on_day=self.scheduled_day,
@@ -136,9 +135,9 @@ class StationState:
 
     def __repr__(self):
         return "<StationState(stop_id='%s', stop_name='%s', number_stoptimes_schedule='%s', " \
-               "number_stoptimes_with_realtime='%s')>"\
-            % (self.stop.stop_id, self.stop.stop_name, self.number_stoptimes_schedule,
-               self.number_stoptimes_with_realtime)
+               "number_stoptimes_with_realtime='%s')>" \
+               % (self.stop.stop_id, self.stop.stop_name, self.number_stoptimes_schedule,
+                  self.number_stoptimes_with_realtime)
 
     def __str__(self):
         return self.__repr__()
@@ -223,10 +222,10 @@ class StopTimePredictor:
     def __repr__(self):
         return "<StopTimePredictor(trip_id='%s', stop_name='%s', stop_sequence='%s', departure_time='%s', " \
                "at_datetime='%s', passed_schedule='%s', has_realtime='%s', passed_realtime='%s', to_predict='%s', " \
-               "predictable='%s')>"\
-            % (self._StopTime.trip_id, self._Stop.stop_name, self._StopTime.stop_sequence,
-               self._StopTime.departure_time, self._StopTimeState.at_datetime, self._StopTimeState.passed_schedule,
-               self.has_realtime(), self.has_passed_realtime(), self.to_predict, self.is_predictable())
+               "predictable='%s')>" \
+               % (self._StopTime.trip_id, self._Stop.stop_name, self._StopTime.stop_sequence,
+                  self._StopTime.departure_time, self._StopTimeState.at_datetime, self._StopTimeState.passed_schedule,
+                  self.has_realtime(), self.has_passed_realtime(), self.to_predict, self.is_predictable())
 
     def __str__(self):
         return self.__repr__()
@@ -264,10 +263,10 @@ class StopTimePredictor:
         # could use static method
         self.time_diff = DateConverter(
             normal_date=self._StopTimeState._scheduled_day,
-            normal_time=self._StopTime.departure_time)\
+            normal_time=self._StopTime.departure_time) \
             .compute_delay_from(
-               special_date=self._StopTimeState._scheduled_day,
-               special_time=last_observed_scheduled_departure_time,
+            special_date=self._StopTimeState._scheduled_day,
+            special_time=last_observed_scheduled_departure_time,
         )
         self.sequence_diff = int(self._StopTime.stop_sequence) - int(last_observed_stop_sequence)
 
@@ -294,7 +293,7 @@ class StopTimePredictor:
             last_observed_delay=delay,
             between_stations_scheduled_trip_time=self.time_diff,
             sequence_diff=self.sequence_diff
-            )
+        )
 
     def label_as_to_predict(self):
         self.to_predict = True
@@ -307,8 +306,8 @@ class StopTimePredictor:
             "number_stoptimes_schedule": self._predicted_station_state.number_stoptimes_schedule,
             "number_stoptimes_with_realtime": self._predicted_station_state.number_stoptimes_with_realtime
         }
-        self.stoptime_feature_vector.set_features(predicted_station_median_delay=self\
-            .predicted_station_stats["median_delay"])
+        self.stoptime_feature_vector.set_features(
+            predicted_station_median_delay=self.predicted_station_stats["median_delay"])
 
     def _set_business_day_feature(self):
         self.stoptime_feature_vector.set_features(business_day=isbday(self.scheduled_day))
@@ -378,7 +377,7 @@ class TripPredictor:
         self.line = line
 
         logger.info("TripPredictor __init__ for trip {} on day {}"
-                     .format(self.trip.trip_id, self.scheduled_day))
+                    .format(self.trip.trip_id, self.scheduled_day))
 
         # ATTRIBUTES INIT
         self._stoptime_predictors = {}
@@ -402,7 +401,7 @@ class TripPredictor:
         # propage last observation
         self._build_prediction_vectors_for_stoptimes_to_predict()
 
-        if sum(el.is_predictable() for el in self._stoptime_predictors.values())>0:
+        if sum(el.is_predictable() for el in self._stoptime_predictors.values()) > 0:
             self.get_predictor()
             self.predict_stoptimes()
 
@@ -437,7 +436,7 @@ class TripPredictor:
         :return:
         """
         i = 0
-        while i <= self.number_of_stops-1:
+        while i <= self.number_of_stops - 1:
             if self._stoptime_predictors[i].has_realtime():
                 self.first_observed_stop = i
                 return i
@@ -450,7 +449,7 @@ class TripPredictor:
 
         :return:
         """
-        i = self.number_of_stops-1
+        i = self.number_of_stops - 1
         while i >= 0:
             if self._stoptime_predictors[i].has_realtime():
                 self.last_observed_stop = i
@@ -464,7 +463,7 @@ class TripPredictor:
 
         :return:
         """
-        i = self.number_of_stops-1
+        i = self.number_of_stops - 1
         while i >= 0:
             if self._stoptime_predictors[i].has_passed_realtime():
                 self.last_observed_passed_stop = i
@@ -505,18 +504,18 @@ class TripPredictor:
         if self.first_observed_stop is None:
             return None
 
-        for i in range(self.last_observed_passed_stop+1, self.number_of_stops):
+        for i in range(self.last_observed_passed_stop + 1, self.number_of_stops):
             if not self._stoptime_predictors[i].has_passed_realtime():
                 self.to_predict_stoptimes.add(i)
 
         logger.info("There are {} stoptimes to predict (from {} to {})"
-                     .format(len(self.to_predict_stoptimes),
-                             min(self.to_predict_stoptimes),
-                             max(self.to_predict_stoptimes))
-                     )
+                    .format(len(self.to_predict_stoptimes),
+                            min(self.to_predict_stoptimes),
+                            max(self.to_predict_stoptimes))
+                    )
 
     def _number_of_trips_rolling_at(self):
-        self.trips_rolling_at_time = self\
+        self.trips_rolling_at_time = self \
             ._dbq.trips(on_day=self.scheduled_day, active_at_time=True, count=True)
         return self.trips_rolling_at_time
 
@@ -560,9 +559,9 @@ class TripPredictor:
 
     def __repr__(self):
         return "<TripPredictor(trip_id='%s', at_datetime='%s', number_of_stops='%s', number_to_predict='%s', " \
-               "number_predictable='%s')>"\
-            % (self.trip.trip_id, self.at_datetime, self.number_of_stops, len(self.to_predict_stoptimes),
-               sum(el.is_predictable() for el in self._stoptime_predictors.values()))
+               "number_predictable='%s')>" \
+               % (self.trip.trip_id, self.at_datetime, self.number_of_stops, len(self.to_predict_stoptimes),
+                  sum(el.is_predictable() for el in self._stoptime_predictors.values()))
 
     def __str__(self):
         return self.__repr__()

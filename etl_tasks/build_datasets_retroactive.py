@@ -5,7 +5,7 @@ if __name__ == '__main__':
 
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
-    from api_etl.matrix_builder import TrainingSetBuilder
+    from api_etl.builder_feature_matrix import TrainingSetBuilder
 
     logger = logging.getLogger(__name__)
 
