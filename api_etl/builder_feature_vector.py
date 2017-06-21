@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from bdateutil import isbday
 
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
-from api_etl.models import Trip, Stop
+from api_etl.data_models import Trip, Stop
 from api_etl.querier_realtime import StopTimeState, ResultsSet
 from api_etl.querier_schedule import DBQuerier
 from api_etl.feature_vector import StopTimeFeatureVector

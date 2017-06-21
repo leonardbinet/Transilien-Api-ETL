@@ -20,7 +20,7 @@ import pandas as pd
 from pynamodb.exceptions import DoesNotExist
 
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
-from api_etl.models import RealTimeDeparture, StopTime
+from api_etl.data_models import RealTimeDeparture, StopTime
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None

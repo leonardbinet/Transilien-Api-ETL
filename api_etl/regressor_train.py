@@ -1,5 +1,5 @@
 """
-This module contains functions and classes to train regressors and make predictions.
+This module contains functions and classes to train regressors and save them into SQL database.
 """
 
 import logging
@@ -19,10 +19,9 @@ from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline
 
 from api_etl.settings import __DATA_PATH__, __TRAINING_FEATURE_NAMES__, __ACCEPTED_LINES__
-from api_etl.utils_misc import S3Bucket
+# from api_etl.utils_misc import S3Bucket
 from api_etl.utils_rdb import rdb_provider
-from api_etl.models import Predictor
-from api_etl.feature_vector import StopTimeFeatureVector
+from api_etl.data_models import Predictor
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None

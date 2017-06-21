@@ -10,7 +10,7 @@ import sklearn
 
 from api_etl.settings import __FEATURE_MAPPING__, __ACCEPTED_LINES__
 from api_etl.utils_rdb import rdb_provider
-from api_etl.models import Predictor
+from api_etl.data_models import Predictor
 from api_etl.feature_vector import StopTimeFeatureVector
 
 logger = logging.getLogger(__name__)

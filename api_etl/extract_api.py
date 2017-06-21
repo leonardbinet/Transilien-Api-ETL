@@ -16,7 +16,7 @@ from api_etl.utils_misc import (
     get_paris_local_datetime_now, DateConverter, StationProvider
 )
 from api_etl.utils_api_client import ApiClient
-from api_etl.models import RealTimeDeparture
+from api_etl.data_models import RealTimeDeparture
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None

@@ -7,7 +7,7 @@ import sqlalchemy
 from sqlalchemy.orm import sessionmaker
 
 from api_etl.utils_secrets import get_secret
-from api_etl.models import RdbModel
+from api_etl.data_models import RdbModel
 from api_etl.utils_misc import build_uri
 
 logger = logging.getLogger(__name__)

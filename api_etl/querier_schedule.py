@@ -8,7 +8,7 @@ from sqlalchemy.sql import func
 
 from api_etl.utils_misc import get_paris_local_datetime_now
 from api_etl.utils_rdb import rdb_provider
-from api_etl.models import (
+from api_etl.data_models import (
     Calendar, CalendarDate, Trip, StopTime, Stop, Agency, Route
 )
 

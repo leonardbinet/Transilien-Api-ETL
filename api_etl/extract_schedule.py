@@ -12,7 +12,7 @@ import pandas as pd
 
 from api_etl.settings import __DATA_PATH__, __GTFS_CSV_URL__
 from api_etl.utils_rdb import RdbProvider
-from api_etl.models import (
+from api_etl.data_models import (
     Agency,
     Route,
     Trip,
