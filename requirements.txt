@@ -4,6 +4,8 @@ bdateutil
 # For safe XML extraction from Transilien API
 xmltodict
 defusedxml
+# Numerical packages
+scipy
 # Pandas version 0.20 causing some issues
 pandas==0.19.0
 numpy
@@ -15,6 +17,8 @@ aiohttp
 # Relational DB
 psycopg2
 sqlalchemy
+# DB migrations
+alembic
 # AWS
 boto3==1.4.4
 # Documentation

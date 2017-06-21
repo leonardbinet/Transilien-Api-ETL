@@ -61,7 +61,7 @@ class DayMatrixBuilder:
             logger.info("Requesting data for day %s" % self.day)
             self.querier = DBQuerier(scheduled_day=self.day)
             # Get schedule
-            self.stops_results = self.querier.stoptimes_of_day(self.day)
+            self.stops_results = self.querier.stoptimes(on_day=self.day, level=4)
             self.serialized_stoptimes = ResultsSet(self.stops_results)
             logger.info("Schedule queried.")
             # Perform realtime queries
@@ -364,6 +364,8 @@ class DirectPredictionMatrix(DayMatrixBuilder):
         self.df.loc[:, "TS_expected_delay"] = self\
             .df.query("(TS_trip_passed_observed_stop != True) & (RealTime_data_freshness.notnull())")\
             .D_trip_delay
+
+        self._state_at_time_computed = True
 
     def _trip_level(self):
         """Compute trip level information:
@@ -864,7 +866,7 @@ class TrainingSetBuilder:
         if not path.exists(train_folder_path):
             makedirs(train_folder_path)
 
-        raw_file_path = path.join(raw_folder_path, "raw_%s.pickle" % day)
+        raw_file_path = path.join(raw_folder_path, "%s.pickle" % day)
         pred_file_path = path.join(train_folder_path, "%s.pickle" % day)
 
         logger.info("Saving data in %s." % raw_folder_path)

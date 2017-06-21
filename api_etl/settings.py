@@ -91,3 +91,40 @@ __LOGGING_CONFIG__ = {
         },
     }
 }
+
+# Feature columns names mapping from training to real-time predict
+__TRAINING_FEATURE_NAMES__ = [
+    # "Route_route_short_name",
+    # "TS_line_median_delay",
+    # "Trip_direction_id",
+    # "RealTime_miss",
+    "TS_last_observed_delay",
+    "TS_line_station_median_delay",
+    "TS_sequence_diff",
+    "TS_stations_scheduled_trip_time",
+    "TS_rolling_trips_on_line",
+    "D_business_day"
+]
+
+__PREDICT_FEATURE_COLUMNS__ = [
+    "last_observed_delay",
+    "predicted_station_median_delay",
+    "line_median_delay",
+    "Trip_direction_id",
+    "sequence_diff",
+    "stations_scheduled_trip_time",
+    "rolling_trips_on_line",
+    "business_day"
+]
+
+# matrix_building_names: vector_building_names
+__FEATURE_MAPPING__ = {
+    "TS_last_observed_delay": "last_observed_delay",
+    "TS_line_station_median_delay": "predicted_station_median_delay",
+    "TS_line_median_delay": "line_median_delay",
+    "Trip_direction_id": "Trip_direction_id",
+    "TS_sequence_diff": "sequence_diff",
+    "TS_stations_scheduled_trip_time": "between_stations_scheduled_trip_time",
+    "TS_rolling_trips_on_line": "rolling_trips_on_line",
+    "D_business_day": "business_day",
+}

@@ -5,7 +5,7 @@ from pynamodb.models import Model as DyModel
 from pynamodb.attributes import UnicodeAttribute
 
 from sqlalchemy.ext import declarative
-from sqlalchemy import Column, String, ForeignKey
+from sqlalchemy import Column, String, ForeignKey, Text, DateTime, ARRAY, Integer, LargeBinary
 
 from api_etl.utils_misc import get_paris_local_datetime_now, DateConverter
 from api_etl.utils_secrets import get_secret
@@ -242,6 +242,33 @@ class CalendarDate(RdbModel):
                self.date,
                "added (1)" if int(self.exception_type) == 1 else "removed (2)"
                )
+
+    def __str__(self):
+        return self.__repr__()
+
+
+class Predictor(RdbModel):
+    """
+    A predictor consists of a vector scaler, and a regressor.
+    """
+    __tablename__ = 'predictor'
+
+    id = Column(Integer(), primary_key=True, autoincrement=True)
+
+    created_date = Column(DateTime, default=get_paris_local_datetime_now())
+    line = Column(String(50))
+    training_set_start = Column(String(50))
+    training_set_end = Column(String(50))
+    features = Column(ARRAY(String(50)))
+    pipeline = Column(LargeBinary(), nullable=False)
+    sklearn_version = Column(Text())
+    pipeline_steps = Column(Text())
+    score_description = Column(Text())
+    delay_threshold = Column(Integer())
+
+    def __repr__(self):
+        return "<Predictor()>"\
+            % ()
 
     def __str__(self):
         return self.__repr__()
