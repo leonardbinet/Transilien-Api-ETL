@@ -517,8 +517,8 @@ class TripPredictor:
 
         logger.info("There are {} stoptimes to predict (from {} to {})"
                     .format(len(self.to_predict_stoptimes),
-                            min(self.to_predict_stoptimes),
-                            max(self.to_predict_stoptimes))
+                            min(self.to_predict_stoptimes) if self.to_predict_stoptimes else None,
+                            max(self.to_predict_stoptimes) if self.to_predict_stoptimes else None)
                     )
 
     def _number_of_trips_rolling_at(self):
@@ -550,7 +550,7 @@ class TripPredictor:
             self._stoptime_predictors[i].label_as_to_predict()
             self._stoptime_predictors[i].set_last_observed_information(*ini_info)
             self._stoptime_predictors[i].get_predicted_station_stats()
-            self._stoptime_predictors[i].stoptime_feature_vector.set_features(rolling_trips_on_line=rolling_at_time)
+            self._stoptime_predictors[i].StopTimeFeatureVector.set_features(rolling_trips_on_line=rolling_at_time)
 
     def get_predictor(self):
         if self.line is None:
@@ -568,9 +568,9 @@ class TripPredictor:
             return
 
         for stoptime_predictor in [el for el in self._stoptime_predictors.values() if el.is_predictable()]:
-            stoptime_predictor.prediction = self.regressor_predictor.predict_one(stoptime_predictor.stoptime_feature_vector)
+            stoptime_predictor.prediction = self.regressor_predictor.predict_one(stoptime_predictor.StopTimeFeatureVector)
             logger.info("Predicted delay of %s seconds for stop at station %s"
-                        % (stoptime_predictor.prediction, stoptime_predictor._Stop.stop_name))
+                        % (stoptime_predictor.prediction, stoptime_predictor.Stop.stop_name))
 
     def __repr__(self):
         return "<TripPredictor(trip_id='%s', at_datetime='%s', number_of_stops='%s', number_to_predict='%s', " \
