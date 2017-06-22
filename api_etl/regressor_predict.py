@@ -21,7 +21,7 @@ class RegressorPredictor:
     Class used to apply regressor pipeline on feature vectors.
     """
 
-    def __init__(self, line="C", filter_sklearn_version=False):
+    def __init__(self, line="C", filter_sklearn_version=False, regressor=None):
         self.predictor = None
         self.vector_requested_features = None
         self.unpickled_pipeline = None
@@ -41,7 +41,10 @@ class RegressorPredictor:
             .first()
         session.close()
 
-        assert isinstance(predictor, Predictor)
+        if not isinstance(predictor, Predictor):
+            logger.warn("Could not find any predictor in database for line %s." % line)
+            return
+
         logger.info("Queried last predictor for line %s and got %s" % (line, predictor))
         self.predictor = predictor
         # check that you are using same version of sklearn
@@ -89,5 +92,4 @@ class RegressorPredictor:
         requested_vector = [getattr(feature_vector, feature) for feature in self.vector_requested_features]
         requested_vector = np.array(requested_vector).reshape(1, -1)
         prediction = self.unpickled_pipeline.predict(requested_vector)
-        logger.info("Predicted delay of %s seconds" % prediction[0])
         return prediction[0]

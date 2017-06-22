@@ -112,7 +112,7 @@ __PREDICT_FEATURE_COLUMNS__ = [
     "line_median_delay",
     "Trip_direction_id",
     "sequence_diff",
-    "stations_scheduled_trip_time",
+    "between_stations_scheduled_trip_time",
     "rolling_trips_on_line",
     "business_day"
 ]

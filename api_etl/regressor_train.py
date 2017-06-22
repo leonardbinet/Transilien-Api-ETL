@@ -9,6 +9,7 @@ import pickle
 from datetime import datetime
 import codecs
 
+import numpy as np
 import pandas as pd
 
 import sklearn
@@ -26,6 +27,10 @@ from api_etl.data_models import Predictor
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
 
+import matplotlib
+matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 class RegressorTrainer:
@@ -46,7 +51,8 @@ class RegressorTrainer:
         self.sel = None  # selection
 
         self._fitted = False
-        self._big_delay_mask = None
+        self._big_label_delay_mask = None
+        self._big_last_delay_mask = None
         self.delay_threshold = None
 
         if auto:
@@ -101,6 +107,7 @@ class RegressorTrainer:
         self._split_train_test()
 
     def _load_files_from_s3(self):
+        # TODO
         df = pd.DataFrame()
         return df
 
@@ -167,17 +174,26 @@ class RegressorTrainer:
 
         self.pipeline = Pipeline(steps=steps)
 
-    def train_pipeline(self, delay_threshold=600):
+    def train_pipeline(self, delay_threshold=None, last_delay_threshold=600):
+        # accepts only one of two
         assert isinstance(delay_threshold, int) or delay_threshold is None
+        assert isinstance(last_delay_threshold, int) or last_delay_threshold is None
+        assert not ((last_delay_threshold is not None) and (delay_threshold is not None))
+
         X_train = self.X_train
         y_train = self.y_train
 
         if delay_threshold is not None:
             # Per delay
-            self._big_delay_mask = (self.sel["label"] >= delay_threshold)
-            X_train = X_train[self._big_delay_mask]
-            y_train = y_train[self._big_delay_mask]
+            self._big_label_delay_mask = (self.sel["label"] >= delay_threshold)
+            X_train = X_train[self._big_label_delay_mask]
+            y_train = y_train[self._big_label_delay_mask]
             self.delay_threshold = delay_threshold
+
+        if last_delay_threshold is not None:
+            self._big_last_delay_mask = self.sel.loc[:,"TS_last_observed_delay"] >= last_delay_threshold
+            X_train = X_train[self._big_last_delay_mask]
+            y_train = y_train[self._big_last_delay_mask]
 
         self.pipeline.fit(X_train, y_train)
         self._fitted = True
@@ -192,19 +208,34 @@ class RegressorTrainer:
         message += self.show_scores(name="Regressor", y_true=self.y_test, y_pred=y_pred)
         message += self.show_scores(name="Naive", y_true=self.y_test, y_pred=self.y_naive_pred_test)
 
-        if self._big_delay_mask is not None:
-            y_pred_bd = self.pipeline.predict(self.X_test[self._big_delay_mask])
-            y_naive_pred_test_bd = self.y_naive_pred_test[self._big_delay_mask]
-            y_pred_sd = self.pipeline.predict(self.X_test[~self._big_delay_mask])
-            y_naive_pred_test_sd = self.y_naive_pred_test[~self._big_delay_mask]
+        if self._big_label_delay_mask is not None:
+            y_pred_bd = self.pipeline.predict(self.X_test[self._big_label_delay_mask])
+            y_naive_pred_test_bd = self.y_naive_pred_test[self._big_label_delay_mask]
+            y_pred_sd = self.pipeline.predict(self.X_test[~self._big_label_delay_mask])
+            y_naive_pred_test_sd = self.y_naive_pred_test[~self._big_label_delay_mask]
 
             message += "\n\nPREDICTIONS BIG DELAYS:"
-            message += self.show_scores(name="Regressor", y_true=self.y_test[self._big_delay_mask], y_pred=y_pred_bd)
-            message += self.show_scores(name="Naive", y_true=self.y_test[self._big_delay_mask], y_pred=y_naive_pred_test_bd)
+            message += self.show_scores(name="Regressor", y_true=self.y_test[self._big_label_delay_mask], y_pred=y_pred_bd)
+            message += self.show_scores(name="Naive", y_true=self.y_test[self._big_label_delay_mask], y_pred=y_naive_pred_test_bd)
 
             message += "\n\nPREDICTIONS SMALL DELAYS:"
-            message += self.show_scores(name="Regressor", y_true=self.y_test[~self._big_delay_mask], y_pred=y_pred_sd)
-            message += self.show_scores(name="Naive", y_true=self.y_test[~self._big_delay_mask], y_pred=y_naive_pred_test_sd)
+            message += self.show_scores(name="Regressor", y_true=self.y_test[~self._big_label_delay_mask], y_pred=y_pred_sd)
+            message += self.show_scores(name="Naive", y_true=self.y_test[~self._big_label_delay_mask], y_pred=y_naive_pred_test_sd)
+
+        if self._big_last_delay_mask is not None:
+            y_pred_bd = self.pipeline.predict(self.X_test[self._big_last_delay_mask])
+            y_naive_pred_test_bd = self.y_naive_pred_test[self._big_last_delay_mask]
+            y_pred_sd = self.pipeline.predict(self.X_test[~self._big_last_delay_mask])
+            y_naive_pred_test_sd = self.y_naive_pred_test[~self._big_last_delay_mask]
+
+            message += "\n\nPREDICTIONS BIG DELAYS:"
+            message += self.show_scores(name="Regressor", y_true=self.y_test[self._big_last_delay_mask], y_pred=y_pred_bd)
+            message += self.show_scores(name="Naive", y_true=self.y_test[self._big_last_delay_mask], y_pred=y_naive_pred_test_bd)
+
+            message += "\n\nPREDICTIONS SMALL DELAYS:"
+            message += self.show_scores(name="Regressor", y_true=self.y_test[~self._big_last_delay_mask], y_pred=y_pred_sd)
+            message += self.show_scores(name="Naive", y_true=self.y_test[~self._big_last_delay_mask], y_pred=y_naive_pred_test_sd)
+
 
         return message
 
@@ -244,3 +275,44 @@ class RegressorTrainer:
         except:
             session.rollback()
         session.close()
+
+    def analyze_scores(self):
+        y_pred = self.pipeline.predict(self.X_test)
+
+        comparison_df = pd.DataFrame(
+            data={"r": self.y_test.values, "p": y_pred},
+            index=self.y_test.index)
+
+        comparison_df["reg_abs_error"] = np.abs(comparison_df.r - comparison_df.p)
+        comparison_df["reg_sqr_error"] = comparison_df["reg_abs_error"]**2
+        comparison_df = pd.concat([self.X_test, comparison_df], axis=1)
+
+        comparison_df["naive_abs_error"] = np.abs(comparison_df.r - comparison_df.TS_last_observed_delay)
+        comparison_df["naive_sqr_error"] = comparison_df["naive_abs_error"]**2
+
+        # PLOTS
+        # per sequence diff
+        comparison_df.groupby(level=5)[["reg_abs_error","naive_abs_error"]].mean().plot()
+        plt.title("Regressor prediction mean square error, per sequence_diff")
+        plt.show()
+
+        # per label
+        comparison_df.groupby("r")[["reg_abs_error","naive_abs_error"]].mean().plot()
+        plt.title("Regressor prediction mean square error, per label delay")
+        plt.show()
+
+        # per last_observed_delay
+        comparison_df.groupby("TS_last_observed_delay")[["reg_abs_error","naive_abs_error"]].mean().plot()
+        plt.title("Regressor prediction mean square error, per label delay")
+        plt.show()
+
+        # per number_of_trains
+        comparison_df.groupby("TS_rolling_trips_on_line")[["reg_abs_error","naive_abs_error"]].mean().plot()
+        plt.title("Regressor prediction mean square error, per label delay")
+        plt.show()
+
+        comparison_df.groupby(level=[2, 5]).reg_abs_error.mean().unstack().T.plot()
+        plt.title("Regressor prediction mean square error, per sequence_diff and mission code")
+        plt.show()
+
+

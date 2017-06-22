@@ -158,6 +158,15 @@ class StopTimePredictor:
     - working_day
     - nb of rolling trips on line
     - sequence diff (or stations_scheduled_trip_time)
+
+
+    On the API, the serializer we want to show will have:
+    - Stop information
+    - StopTime information
+    - StopTimeState
+    - next_stop_passed_realtime
+    - feature_vector
+    - prediction
     """
     at_datetime = None
     scheduled_day = None
@@ -184,7 +193,7 @@ class StopTimePredictor:
         self._StopTime = stoptimestate._StopTime
 
         assert isinstance(stop, Stop)
-        self._Stop = stop
+        self.Stop = stop
 
         assert isinstance(at_datetime, datetime)
         self.at_datetime = at_datetime
@@ -196,7 +205,7 @@ class StopTimePredictor:
             self.scheduled_day = self.at_datetime.strftime("%Y%m%d")
 
         logger.debug("StopTimePredictor __init__ for stoptime of trip {} at station {} (sequence {})"
-                     .format(self._StopTime.trip_id, self._Stop.stop_name, self._StopTime.stop_sequence))
+                     .format(self._StopTime.trip_id, self.Stop.stop_name, self._StopTime.stop_sequence))
 
         # ATTRIBUTES INIT
         # will be used in case realtime information is missing on stoptime, and that next station know that realtime
@@ -223,7 +232,7 @@ class StopTimePredictor:
         return "<StopTimePredictor(trip_id='%s', stop_name='%s', stop_sequence='%s', departure_time='%s', " \
                "at_datetime='%s', passed_schedule='%s', has_realtime='%s', passed_realtime='%s', to_predict='%s', " \
                "predictable='%s')>" \
-               % (self._StopTime.trip_id, self._Stop.stop_name, self._StopTime.stop_sequence,
+               % (self._StopTime.trip_id, self.Stop.stop_name, self._StopTime.stop_sequence,
                   self._StopTime.departure_time, self._StopTimeState.at_datetime, self._StopTimeState.passed_schedule,
                   self.has_realtime(), self.has_passed_realtime(), self.to_predict, self.is_predictable())
 
@@ -299,7 +308,7 @@ class StopTimePredictor:
         self.to_predict = True
 
     def get_predicted_station_stats(self):
-        self._predicted_station_state = StationState(stop=self._Stop, scheduled_day=self.scheduled_day)
+        self._predicted_station_state = StationState(stop=self.Stop, scheduled_day=self.scheduled_day)
         self.predicted_station_stats = {
             "median_delay": self._predicted_station_state.median_delay,
             "mean_delay": self._predicted_station_state.mean_delay,
@@ -352,20 +361,16 @@ class TripPredictor:
     # sequence numbers to know which are to be predicted
     to_predict_stoptimes = set()
 
-    def __init__(self, trip_id=None, trip=None, scheduled_day=None, line="C"):
+    def __init__(self, trip_id=None, scheduled_day=None):
         # TODO find line from trip_id
 
         self._dbq = DBQuerier(scheduled_day=scheduled_day)
 
         # ARGS PARSING
-        if trip:
-            assert isinstance(trip, Trip)
-            self.trip = trip
+        if not trip_id:
+            return
 
-        else:
-            assert trip_id
-            self._get_trip(trip_id)
-
+        self.trip_id = trip_id
         self.at_datetime = get_paris_local_datetime_now()
 
         if scheduled_day:
@@ -374,10 +379,10 @@ class TripPredictor:
         else:
             self.scheduled_day = self.at_datetime.strftime("%Y%m%d")
 
-        self.line = line
-
         logger.info("TripPredictor __init__ for trip {} on day {}"
-                    .format(self.trip.trip_id, self.scheduled_day))
+                    .format(self.trip_id, self.scheduled_day))
+
+        self._get_trip_line(self.trip_id)
 
         # ATTRIBUTES INIT
         self._stoptime_predictors = {}
@@ -386,7 +391,7 @@ class TripPredictor:
         self.last_observed_stop = None
         self.last_observed_passed_stop = None
         self.to_predict_stoptimes = set()
-        self.predictor = None
+        self.regressor_predictor = None
 
         # COMPUTATIONS
         # find stoptimes with realtime
@@ -405,16 +410,19 @@ class TripPredictor:
             self.get_predictor()
             self.predict_stoptimes()
 
-    def _get_trip(self, trip_id):
+    def _get_trip_line(self, trip_id):
         logger.info("DB Query to get trip {}".format(trip_id))
-        trip = self._dbq.trips(trip_id=trip_id, level=1, limit=1)[0]
-        assert isinstance(trip, Trip)
-        self.trip = trip
+        trip_result = self._dbq.trips(trip_id=trip_id, level=3, limit=1)[0]
+        if trip_result:
+            self.line = trip_result.Route.route_short_name
+        else:
+            logger.warn("Impossible to get trip line!")
+            self.line = None
 
     def _query_stoptimes(self):
         # gets schedule and then realtime information
-        logger.info("DB Query to get stoptimes of trip {}.".format(self.trip.trip_id))
-        schedule_results = self._dbq.stoptimes(on_day=self._scheduled_day, trip_id_filter=self.trip.trip_id, level=3)
+        logger.info("DB Query to get stoptimes of trip {}.".format(self.trip_id))
+        schedule_results = self._dbq.stoptimes(on_day=self._scheduled_day, trip_id_filter=self.trip_id, level=3)
         realtime_results = ResultsSet(schedule_results, scheduled_day=self._scheduled_day)
         realtime_results.batch_realtime_query()
         realtime_results.compute_stoptimes_states(at_datetime=self.at_datetime)
@@ -546,21 +554,29 @@ class TripPredictor:
             self._stoptime_predictors[i].stoptime_feature_vector.set_features(rolling_trips_on_line=rolling_at_time)
 
     def get_predictor(self):
-        self.predictor = RegressorPredictor(line=self.line, filter_sklearn_version=False)
+        if self.line is None:
+            return
+
+        self.regressor_predictor = RegressorPredictor(line=self.line, filter_sklearn_version=False)
 
     def predict_stoptimes(self):
         """
         Make prediction for all stoptimes that are predictable
         :return:
         """
-        assert self.predictor is not None
+        # not yet called get_predictor
+        if self.regressor_predictor is None:
+            return
+
         for stoptime_predictor in [el for el in self._stoptime_predictors.values() if el.is_predictable()]:
-            stoptime_predictor.prediction = self.predictor.predict(stoptime_predictor.stoptime_feature_vector)
+            stoptime_predictor.prediction = self.regressor_predictor.predict_one(stoptime_predictor.stoptime_feature_vector)
+            logger.info("Predicted delay of %s seconds for stop at station %s"
+                        % (stoptime_predictor.prediction, stoptime_predictor._Stop.stop_name))
 
     def __repr__(self):
         return "<TripPredictor(trip_id='%s', at_datetime='%s', number_of_stops='%s', number_to_predict='%s', " \
                "number_predictable='%s')>" \
-               % (self.trip.trip_id, self.at_datetime, self.number_of_stops, len(self.to_predict_stoptimes),
+               % (self.trip_id, self.at_datetime, self.number_of_stops, len(self.to_predict_stoptimes),
                   sum(el.is_predictable() for el in self._stoptime_predictors.values()))
 
     def __str__(self):
