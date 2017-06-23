@@ -838,7 +838,14 @@ class TripVizBuilder(DayMatrixBuilder):
 
 class TrainingSetBuilder:
 
-    def __init__(self, start, end, tempo=60):
+    def __init__(self, start, end, tempo=30):
+        """
+        Start and end included.
+        :param start:
+        :param end:
+        :param tempo:
+        :return:
+        """
         dti = pd.date_range(start=start, end=end, freq="D")
         self.days = dti.map(lambda x: x.strftime("%Y%m%d")).tolist()
 
@@ -877,8 +884,9 @@ class TrainingSetBuilder:
             self._bucket_provider.send_file(file_path=raw_file_path)
             self._bucket_provider.send_file(file_path=pred_file_path)
 
-    def create_training_sets(self, save_in=None, save_s3=True):
-        save_in = save_in or path.relpath(__DATA_PATH__)
+    def create_training_sets(self, save_in=False, save_s3=True):
+        if save_in is True:
+            save_in = path.relpath(__DATA_PATH__)
 
         for day in self.days:
             self._create_day_training_set(
