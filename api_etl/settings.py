@@ -19,7 +19,7 @@ __S3_BUCKETS__ = {
 
 # ##### DATA PATH #####
 __DATA_PATH__ = path.join(__BASE_DIR__, "data")
-__GTFS_PATH__ = path.join(__DATA_PATH__, "gtfs-lines-last")
+__GTFS_PATH__ = path.join(__DATA_PATH__, "gtfs-folder")
 
 __GTFS_CSV_URL__ = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien-gtfs/' \
                    + 'download/?format=csv&timezone=Europe/Berlin&use_labels_for_header=true'

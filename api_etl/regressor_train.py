@@ -38,8 +38,9 @@ class RegressorTrainer:
     This class allows you to easily load datasets and train regressors for a given line, and save it in a database.
     """
 
-    def __init__(self, auto=False):
-        self.line = None
+    def __init__(self, line="C", auto=False):
+        assert line in __ACCEPTED_LINES__
+        self.line = line
         self.scaler = None
         self.regressor = None
         self.pipeline = None
@@ -66,7 +67,7 @@ class RegressorTrainer:
         self.features = args
 
     def build_training_set(self, start_date="20170215", end_date="20170401",
-                           tempo=30, from_folder=None, line="C", **kwargs):
+                           tempo=30, from_folder=None, **kwargs):
         """
         Either from folder, either from S3
         :param start_date:
@@ -99,7 +100,7 @@ class RegressorTrainer:
         # Line selection
         self.sel = dfm.copy()
         # Apply line selection
-        self._filter_line(line=line)
+        self._filter_line(line=self.line)
         # Apply other filter
         self._apply_filter_to_selection(**kwargs)
 
@@ -174,7 +175,7 @@ class RegressorTrainer:
 
         self.pipeline = Pipeline(steps=steps)
 
-    def train_pipeline(self, delay_threshold=None, last_delay_threshold=600):
+    def train_pipeline(self, delay_threshold=None, last_delay_threshold=None):
         # accepts only one of two
         assert isinstance(delay_threshold, int) or delay_threshold is None
         assert isinstance(last_delay_threshold, int) or last_delay_threshold is None

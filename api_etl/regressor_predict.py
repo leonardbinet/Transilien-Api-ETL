@@ -81,7 +81,8 @@ class RegressorPredictor:
         return list(map(self.predict_one, feature_vectors))
 
     def predict_one(self, feature_vector):
-        assert self.predictor is not None
+        if self.predictor is None:
+            return None
         assert isinstance(feature_vector, StopTimeFeatureVector)
         # if not all requested features are present, return None
         if not feature_vector.has_features(*self.vector_requested_features):

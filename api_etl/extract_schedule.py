@@ -10,7 +10,7 @@ import logging
 
 import pandas as pd
 
-from api_etl.settings import __DATA_PATH__, __GTFS_CSV_URL__
+from api_etl.settings import __GTFS_PATH__, __GTFS_CSV_URL__
 from api_etl.utils_rdb import RdbProvider
 from api_etl.data_models import (
     Agency,
@@ -36,7 +36,7 @@ class ScheduleExtractor:
         # Place where gtfs folder is supposed to be located
         # If none specified, takes default folder specified in settings
         if not data_folder:
-            data_folder = __DATA_PATH__
+            data_folder = __GTFS_PATH__
         self.data_folder = data_folder
         # Gtfs folder
         self.gtfs_folder = path.join(self.data_folder, "gtfs-lines-last")
