@@ -30,4 +30,7 @@ pynamodb
 # For task scheduling
 celery
 flower
+# Display if needed
+matplotlib
+seaborn
 
