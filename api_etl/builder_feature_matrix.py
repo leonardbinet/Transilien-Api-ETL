@@ -19,7 +19,7 @@ from api_etl.utils_misc import (
 )
 from api_etl.querier_schedule import DBQuerier
 from api_etl.querier_realtime import ResultsSet
-from api_etl.settings import __DATA_PATH__, __S3_BUCKETS__
+from api_etl.settings import __S3_BUCKETS__, __TRAINING_SET_FOLDER__, __RAW_DAYS_FOLDER__
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
@@ -859,40 +859,43 @@ class TrainingSetBuilder:
             create_if_absent=True
         )
 
-    def _create_day_training_set(self, day, save_s3, save_in):
+    def _create_day_training_set(self, day, save_s3):
         mat = DirectPredictionMatrix(day)
         mat.compute_multiple_times_of_day(min_diff=self.tempo)
 
-        raw_folder_path = path.join(save_in, "raw_days")
-        train_folder_path = path.join(save_in, "training_set-tempo-%s-min" %
-                                      self.tempo)
+        __FULL_TRAINING_SET_FOLDER__ = __TRAINING_SET_FOLDER__ % self.tempo
 
-        if not path.exists(raw_folder_path):
-            makedirs(raw_folder_path)
+        if not path.exists(__RAW_DAYS_FOLDER__):
+            makedirs(__RAW_DAYS_FOLDER__)
 
-        if not path.exists(train_folder_path):
-            makedirs(train_folder_path)
+        if not path.exists(__FULL_TRAINING_SET_FOLDER__):
+            makedirs(__FULL_TRAINING_SET_FOLDER__)
 
-        raw_file_path = path.join(raw_folder_path, "%s.pickle" % day)
-        pred_file_path = path.join(train_folder_path, "%s.pickle" % day)
+        __RAW_FILE_NAME__ = "%s.pickle" % day
+        __RAW_FILE_PATH__ = path.join(__RAW_DAYS_FOLDER__, __RAW_FILE_NAME__)
+        __TRAINING_SET_FILE_NAME__ = "%s.pickle" % day
+        __TRAINING_SET_FILE_PATH__ = path.join(__FULL_TRAINING_SET_FOLDER__, __TRAINING_SET_FILE_NAME__)
 
-        logger.info("Saving data in %s." % raw_folder_path)
-        mat._initial_df.to_pickle(raw_file_path)
-        mat.result_concat.to_pickle(pred_file_path)
+        logger.info("Saving data in %s." % __RAW_DAYS_FOLDER__)
+        mat._initial_df.to_pickle(__RAW_FILE_PATH__)
+        mat.result_concat.to_pickle(__TRAINING_SET_FILE_PATH__)
 
         if save_s3:
-            self._bucket_provider.send_file(file_path=raw_file_path)
-            self._bucket_provider.send_file(file_path=pred_file_path)
+            self._bucket_provider.send_file(
+                file_local_path=__RAW_FILE_PATH__,
+                file_remote_path=__RAW_FILE_NAME__)
 
-    def create_training_sets(self, save_in=False, save_s3=True):
-        if save_in is True:
-            save_in = path.relpath(__DATA_PATH__)
+            self._bucket_provider.send_file(
+                file_local_path=__TRAINING_SET_FILE_PATH__,
+                file_remote_path=__TRAINING_SET_FILE_NAME__)
+
+    def create_training_sets(self, save_s3=True):
 
         for day in self.days:
             self._create_day_training_set(
                 day=day,
-                save_s3=save_s3,
-                save_in=save_in)
+                save_s3=save_s3
+            )
 
 
 # TODO

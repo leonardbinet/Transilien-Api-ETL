@@ -3,8 +3,7 @@ Module containing some useful functions that might be used by all other
 modules.
 """
 
-import os
-from os import sys, path, listdir
+from os import sys, path, listdir, rmdir, remove
 from os.path import isfile, join
 import logging
 from logging.handlers import RotatingFileHandler
@@ -354,70 +353,76 @@ class S3Bucket:
         )
         self._check_if_accessible()
 
-    def send_file(self, file_path, file_name=None, delete=False, ignore_hidden=False):
-        if not file_name:
-            file_name = file_path
+    def send_file(self, file_local_path, file_remote_path=None, delete=False, ignore_hidden=False):
+        if not file_remote_path:
+            file_remote_path = path.relpath(file_local_path, start=__DATA_PATH__)
 
         if ignore_hidden:
-            n = os.path.basename(os.path.normpath(file_path))
-            if n.startswith("."):
+            # get file name (without path)
+            file_name = path.basename(path.normpath(file_local_path))
+            if file_name.startswith("."):
                 return None
 
         logger.info("Saving file '%s', as '%s' in bucket '%s'." %
-                     (file_path, file_name, self.bucket_name))
-        self._s3.Object(self.bucket_name, file_name)\
-            .put(Body=open(file_path, 'rb'))
+                    (file_local_path, file_remote_path, self.bucket_name))
+        self._s3.Object(self.bucket_name, file_remote_path)\
+            .put(Body=open(file_local_path, 'rb'))
 
         if delete:
-            os.remove(file_path)
+            remove(file_local_path)
 
-    def send_folder(self, folder_path, folder_name=None, delete=False, ignore_hidden=True):
+    def send_folder(self, folder_local_path, folder_remote_path=None, delete=False, ignore_hidden=True):
         """Will keep same names for files inside folder.
 
         Note: in S3, there is no folder, just files with names as path.
-        :param folder_path:
-        :param folder_name:
+        :param folder_local_path:
+        :param folder_remote_path:
         :param delete:
         :param ignore_hidden:
         """
         # if no new name specified, use existing name
-        if not folder_name:
-            n = path.relpath(folder_path)
-            folder_name = n
+        if not folder_remote_path:
+            folder_remote_path = path.relpath(folder_local_path, start=__DATA_PATH__)
 
         if ignore_hidden:
-            n = os.path.basename(os.path.normpath(folder_path))
-            if n.startswith("."):
+            folder_name = path.basename(path.normpath(folder_local_path))
+            if folder_name.startswith("."):
                 return None
 
         logger.info("Saving folder '%s', as '%s' in bucket '%s'." %
-                     (folder_path, folder_name, self.bucket_name))
+                    (folder_local_path, folder_remote_path, self.bucket_name))
 
         files = [f for f in listdir(
-            folder_path) if isfile(join(folder_path, f))]
+            folder_local_path) if isfile(join(folder_local_path, f))]
         subfolders = [f for f in listdir(
-            folder_path) if not isfile(join(folder_path, f))]
+            folder_local_path) if not isfile(join(folder_local_path, f))]
 
         # new file names:
 
         for f in files:
             self.send_file(
-                file_path=join(folder_path, f),
-                file_name=join(folder_name, f),
+                file_local_path=join(folder_local_path, f),
+                file_remote_path=join(folder_remote_path, f),
                 delete=delete
             )
 
         for subf in subfolders:
             self.send_folder(
-                folder_path=join(folder_path, subf),
-                folder_name=join(folder_name, subf),
+                folder_local_path=join(folder_local_path, subf),
+                folder_remote_path=join(folder_remote_path, subf),
                 delete=delete
             )
 
         if delete:
-            os.rmdir(folder_path)
+            rmdir(folder_local_path)
 
     def list_bucket_objects(self):
         for obj in self.bucket.objects.all():
             self.bucket_objects.append(obj.key)
             print(obj.key)
+
+    def download_file(self, file_remote_path, file_local_path=None, ignore_hidden=False):
+        pass
+
+    def download_folder(self, folder_remote_path, folder_local_path=None, ignore_hidden=True):
+        pass

@@ -3,14 +3,14 @@ Module used to download from SNCF website trains schedules and save it in the ri
 in different databases (Dynamo or relational database)
 """
 
-from os import path
+from os import path, makedirs
 import zipfile
 from urllib.request import urlretrieve
 import logging
 
 import pandas as pd
 
-from api_etl.settings import __GTFS_PATH__, __GTFS_CSV_URL__
+from api_etl.settings import __GTFS_FOLDER_PATH__, __GTFS_CSV_URL__, __DATA_PATH__
 from api_etl.utils_rdb import RdbProvider
 from api_etl.data_models import (
     Agency,
@@ -32,20 +32,10 @@ class ScheduleExtractor:
     """ Common class for schedule extractors
     """
 
-    def __init__(self, data_folder=None, schedule_url=None):
-        # Place where gtfs folder is supposed to be located
-        # If none specified, takes default folder specified in settings
-        if not data_folder:
-            data_folder = __GTFS_PATH__
-        self.data_folder = data_folder
-        # Gtfs folder
-        self.gtfs_folder = path.join(self.data_folder, "gtfs-lines-last")
+    def __init__(self):
 
-        # URL from which we download gtfs files
-        # If none specified, takes default url specified in settings
-        if not schedule_url:
-            schedule_url = __GTFS_CSV_URL__
-        self.schedule_url = schedule_url
+        self.gtfs_folder = __GTFS_FOLDER_PATH__
+        self.schedule_url = __GTFS_CSV_URL__
 
         self.files_present = None
         self._check_files()
@@ -89,16 +79,22 @@ class ScheduleExtractor:
         """
         logger.info(
             "Download of csv containing links of zip files, at url %s", self.schedule_url)
-        df_links_gtfs = pd.read_csv(self.schedule_url)
+        gtfs_links = pd.read_csv(self.schedule_url)
+
+        # Create data folder if necessary
+        if not path.exists(self.gtfs_folder):
+            makedirs(self.gtfs_folder)
 
         # Download and unzip all files
-        # Check if one is "gtfs-lines-last" (necessary)
+        # Check if one is "gtfs-lines-last"
         gtfs_lines_last_present = False
-        for link in df_links_gtfs["file"].values:
-            logger.info("Download of %s", link)
-            local_filename, headers = urlretrieve(link)
 
+        for link in gtfs_links["file"].values:
+            logger.info("Download of %s", link)
+
+            local_filename, headers = urlretrieve(link)
             logger.info("File name is %s", headers.get_filename())
+
             # Get name in header and remove the ".zip"
             extracted_data_folder_name = headers.get_filename().split(".")[0]
             if extracted_data_folder_name == "gtfs-lines-last":
@@ -106,26 +102,24 @@ class ScheduleExtractor:
 
             with zipfile.ZipFile(local_filename, "r") as zip_ref:
                 full_path = path.join(
-                    self.data_folder, extracted_data_folder_name)
+                    self.gtfs_folder, extracted_data_folder_name)
                 zip_ref.extractall(path=full_path)
 
             if gtfs_lines_last_present:
                 logger.info("The 'gtfs-lines-last' folder has been found.")
-                return True
             else:
                 logger.error(
                     "The 'gtfs-lines-last' folder has not been found! Schedules will not be updated.")
-                return False
+
+        return gtfs_lines_last_present
 
     def save_gtfs_in_s3(self):
-        dt = get_paris_local_datetime_now()
-        day = dt.strftime("%Y%m%d")
-        prefix = "%s-gtfs" % day
+        day = get_paris_local_datetime_now().strftime("%Y%m%d")
         sb = S3Bucket(__S3_BUCKETS__["gtfs-files"], create_if_absent=True)
-        new_name = path.join(prefix, path.relpath(self.data_folder))
+
         sb.send_folder(
-            folder_path=self.data_folder,
-            folder_name=new_name
+            folder_local_path=self.gtfs_folder,
+            folder_remote_path="%s-gtfs" % day
         )
 
 
@@ -133,9 +127,8 @@ class ScheduleExtractorRDB(ScheduleExtractor):
     """ For relational database
     """
 
-    def __init__(self, data_folder=None, schedule_url=None, dsn=None):
-        ScheduleExtractor.__init__(
-            self, data_folder=data_folder, schedule_url=schedule_url)
+    def __init__(self, dsn=None):
+        ScheduleExtractor.__init__(self)
 
         self.dsn = dsn
         self.rdb_provider = RdbProvider(self.dsn)
