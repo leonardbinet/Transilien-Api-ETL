@@ -50,10 +50,21 @@ Another details details how the website and the API built for this project work.
 
 ## Getting started
 
+### Requirements
+
+You will need:
+- one AWS account
+- with one user credential having access to following ressources:
+    - S3 (storage)
+    - Dynamo (low latency database)
+    - RDS (relational database)
+    - EC2 (computing ressources)
+
+### Deployement
 There are two main methods: either you set up your working environment manually on your machine, or you can
 use a solution to deploy it on AWS.
 
-### Manual method
+#### Manual method
 
 Clone repository:
 ```
@@ -92,7 +103,7 @@ Then setup secret file `secret.json`:
 
 Then either create cron job, or set celery app.
 
-### Automated service on AWS
+#### Automated service on AWS
 
 This [repository](https://github.com/leonardbinet/Salt-Vagrant-master-mode) provides a method to set up two machine on AWS:
   - one having all scheduled jobs running
