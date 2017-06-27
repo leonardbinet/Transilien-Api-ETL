@@ -19,8 +19,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline
 
-from api_etl.settings import __DATA_PATH__, __TRAINING_FEATURE_NAMES__, __ACCEPTED_LINES__
-# from api_etl.utils_misc import S3Bucket
+from api_etl.settings import (
+    __S3_BUCKETS__, __TRAINING_FEATURE_NAMES__, __ACCEPTED_LINES__,
+    __TRAINING_SET_FOLDER_PATH__, __TRAINING_SET_FOLDER_NAME__, __DATA_PATH__)
+from api_etl.utils_misc import S3Bucket
 from api_etl.utils_rdb import rdb_provider
 from api_etl.data_models import Predictor
 
@@ -38,7 +40,9 @@ class RegressorTrainer:
     This class allows you to easily load datasets and train regressors for a given line, and save it in a database.
     """
 
-    def __init__(self, line="C", auto=False):
+    def __init__(self, start_date="20170101", end_date="20170701", line="C",
+        tempo=30, auto=False, **kwargs):
+
         assert line in __ACCEPTED_LINES__
         self.line = line
         self.scaler = None
@@ -58,7 +62,7 @@ class RegressorTrainer:
 
         if auto:
             self.set_feature_cols()
-            self.build_training_set(from_folder=True)
+            self.build_training_set(start_date=start_date, end_date=end_date, tempo=tempo, **kwargs)
             self.build_pipeline()
             self.train_pipeline()
 
@@ -67,7 +71,7 @@ class RegressorTrainer:
         self.features = args
 
     def build_training_set(self, start_date="20170215", end_date="20170401",
-                           tempo=30, from_folder=None, **kwargs):
+                           tempo=30, **kwargs):
         """
         Either from folder, either from S3
         :param start_date:
@@ -87,11 +91,8 @@ class RegressorTrainer:
         dti = pd.date_range(start_date, end_date, freq="D")
         days = dti.map(lambda x: x.strftime("%Y%m%d")).tolist()
 
-        if from_folder:
-            dfm = self._load_files_from_folder(tempo=tempo, days=days)
-
-        else:
-            dfm = self._load_files_from_s3()
+        self._load_files_from_s3(tempo=tempo)
+        dfm = self._load_files_from_folder(tempo=tempo, days=days)
 
         # delete duplicated columns
         dfm = dfm.loc[:, ~dfm.columns.duplicated()]
@@ -107,21 +108,38 @@ class RegressorTrainer:
         # Train and test
         self._split_train_test()
 
-    def _load_files_from_s3(self):
-        # TODO
-        df = pd.DataFrame()
-        return df
+    def _load_files_from_s3(self, tempo):
+        """
+        1 - Download training sets from S3 in data folder.
+        2 - Build from folder
+        :return:
+        """
+        # Load relevant bucket
+        bucket_provider = S3Bucket(__S3_BUCKETS__["training-sets"], create_if_absent=True)
+
+        # Download files from S3
+        logger.info("Get training sets from folder %s, and download them in %s" %
+                    (__TRAINING_SET_FOLDER_NAME__ % tempo, __TRAINING_SET_FOLDER_PATH__ % tempo))
+        bucket_provider.download_folder(
+            remote_prefix=__TRAINING_SET_FOLDER_NAME__ % tempo,
+            local_folder_root=__DATA_PATH__
+        )
+
+        return True
 
     def _load_files_from_folder(self, tempo, days):
-        # Load training sets either from S3 or from local
-        __TRAINING_SETS_FOLDER_PATH__ = path.join(__DATA_PATH__, "training_set-tempo-%s-min" % tempo)
-        training_set_pickles = glob(path.join(__TRAINING_SETS_FOLDER_PATH__, "*"))
+        # Load training sets from folder
+        __FULL_TRAINING_SETS_FOLDER_PATH__ = __TRAINING_SET_FOLDER_PATH__ % tempo
 
+        # All files in folder
+        training_set_pickles = glob(path.join(__FULL_TRAINING_SETS_FOLDER_PATH__, "*"))
+
+        # Select days
         training_set_pickles = [p for p in training_set_pickles if path.splitext(path.basename(p))[0] in days]
+
         # Load and concatenate training sets
-        dfs = list(map(pd.read_pickle, training_set_pickles))
-        dfm = pd.concat(dfs)
-        return dfm
+        dataframes = list(map(pd.read_pickle, training_set_pickles))
+        return pd.concat(dataframes)
 
     def _filter_line(self, line):
         assert line in __ACCEPTED_LINES__

@@ -24,8 +24,10 @@ __GTFS_FOLDER_PATH__ = path.join(__DATA_PATH__, "gtfs-folder")
 __GTFS_CSV_URL__ = 'https://ressources.data.sncf.com/explore/dataset/sncf-transilien-gtfs/' \
                    + 'download/?format=csv&timezone=Europe/Berlin&use_labels_for_header=true'
 
-__RAW_DAYS_FOLDER__ = path.join(__DATA_PATH__, "raw_days")
-__TRAINING_SET_FOLDER__ = path.join(__DATA_PATH__, "training_set-tempo-%s-min")
+__RAW_DAYS_FOLDER_NAME__ = "raw_days"
+__RAW_DAYS_FOLDER_PATH__ = path.join(__DATA_PATH__, __RAW_DAYS_FOLDER_NAME__)
+__TRAINING_SET_FOLDER_NAME__ = "training_set-tempo-%s-min"
+__TRAINING_SET_FOLDER_PATH__ = path.join(__DATA_PATH__, __TRAINING_SET_FOLDER_NAME__)
 
 
 # Stations files paths
@@ -74,6 +76,11 @@ __LOGGING_CONFIG__ = {
     },
     'loggers': {
         '': {
+            'handlers': ['defaultStream'],
+            'level': 'INFO',
+            'propagate': False
+        },
+        '__main__': {
             'handlers': ['defaultStream'],
             'level': 'INFO',
             'propagate': False

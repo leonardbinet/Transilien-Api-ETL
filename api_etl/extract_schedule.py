@@ -41,12 +41,13 @@ class ScheduleExtractor:
         self._check_files()
 
     def _check_files(self):
+
         files_to_check = [
-            "calendar.txt",
-            "trips.txt",
-            "stop_times.txt",
-            "stops.txt",
-            "calendar_dates.txt",
+            "gtfs-lines-last/calendar.txt",
+            "gtfs-lines-last/trips.txt",
+            "gtfs-lines-last/stop_times.txt",
+            "gtfs-lines-last/stops.txt",
+            "gtfs-lines-last/calendar_dates.txt",
         ]
         # Default: True, and if one missing -> False
         self.files_present = True
@@ -60,6 +61,7 @@ class ScheduleExtractor:
                 logger.warning("File %s not found in data folder %s" %
                                 (file_check, self.gtfs_folder))
                 self.files_present = False
+        return self.files_present
 
     def download_gtfs_files(self):
         """
@@ -119,7 +121,7 @@ class ScheduleExtractor:
 
         sb.send_folder(
             folder_local_path=self.gtfs_folder,
-            folder_remote_path="%s-gtfs" % day
+            folder_remote_path=day
         )
 
 

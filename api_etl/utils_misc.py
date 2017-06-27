@@ -3,7 +3,7 @@ Module containing some useful functions that might be used by all other
 modules.
 """
 
-from os import sys, path, listdir, rmdir, remove
+from os import sys, path, listdir, rmdir, remove, makedirs
 from os.path import isfile, join
 import logging
 from logging.handlers import RotatingFileHandler
@@ -321,7 +321,7 @@ class S3Bucket:
     def __init__(self, name, create_if_absent=False):
         self._s3 = s3_ressource()
         self.bucket_name = name
-        self.bucket_objects = []
+        self._selected_bucket_objects_keys = []
         self._check_if_accessible()
         if create_if_absent and not self._accessible:
             self._create_bucket()
@@ -416,13 +416,64 @@ class S3Bucket:
         if delete:
             rmdir(folder_local_path)
 
-    def list_bucket_objects(self):
-        for obj in self.bucket.objects.all():
-            self.bucket_objects.append(obj.key)
-            print(obj.key)
+    def list_bucket_objects(self, prefix=None):
+        self._selected_bucket_objects_keys = []
 
-    def download_file(self, file_remote_path, file_local_path=None, ignore_hidden=False):
-        pass
+        if not prefix:
+            objects_summaries = self.bucket.objects.all()
+        else:
+            objects_summaries = self.bucket.objects.filter(Prefix=prefix)
 
-    def download_folder(self, folder_remote_path, folder_local_path=None, ignore_hidden=True):
-        pass
+        for obj in objects_summaries:
+            self._selected_bucket_objects_keys.append(obj.key)
+
+        return self._selected_bucket_objects_keys
+
+    def download_file(self, file_remote_key, file_local_path=None, ignore_hidden=False):
+        file_local_path = file_local_path or path.join(__DATA_PATH__, file_remote_key)
+
+        if ignore_hidden:
+            file_name = path.basename(path.normpath(file_remote_key))
+            if file_name.startswith("."):
+                return None
+        logger.info("Download of '%s' as '%s'." % (file_remote_key, file_local_path))
+        self.bucket.download_file(Key=file_remote_key, Filename=file_local_path)
+
+
+    def download_folder(self, remote_prefix=None, local_folder_root=None, ignore_hidden=True):
+        """
+        Everything is saved in data folder, according to key hierarchy.
+
+        :param remote_prefix:
+        :param ignore_hidden:
+        :return:
+        """
+
+        if ignore_hidden:
+            folder_name = path.basename(path.normpath(remote_prefix))
+            if folder_name.startswith("."):
+                return None
+
+        local_folder_root = local_folder_root or path.join(__DATA_PATH__, "downloads")
+
+        # check all files in <remote_prefix> (key beginning with <remote_prefix>)
+        # if None, takes everything in bucket
+        keys_to_download = self.list_bucket_objects(prefix=remote_prefix)
+
+        # download
+        for key in keys_to_download:
+            file_local_path = path.join(local_folder_root, key)
+            file_dir = path.dirname(file_local_path)
+            if not path.exists(file_dir):
+                logger.info("Creating directory %s" % file_dir)
+                makedirs(file_dir)
+
+            self.download_file(file_remote_key=key, file_local_path=file_local_path)
+
+
+    def __repr__(self):
+        return "<S3Bucket(name='%s', accessible='%s')>"\
+            % (self.bucket_name, self._accessible)
+
+    def __str__(self):
+        return self.__repr__()

@@ -19,7 +19,7 @@ from api_etl.utils_misc import (
 )
 from api_etl.querier_schedule import DBQuerier
 from api_etl.querier_realtime import ResultsSet
-from api_etl.settings import __S3_BUCKETS__, __TRAINING_SET_FOLDER__, __RAW_DAYS_FOLDER__
+from api_etl.settings import __S3_BUCKETS__, __TRAINING_SET_FOLDER_PATH__, __RAW_DAYS_FOLDER_PATH__, __DATA_PATH__
 
 logger = logging.getLogger(__name__)
 pd.options.mode.chained_assignment = None
@@ -863,31 +863,33 @@ class TrainingSetBuilder:
         mat = DirectPredictionMatrix(day)
         mat.compute_multiple_times_of_day(min_diff=self.tempo)
 
-        __FULL_TRAINING_SET_FOLDER__ = __TRAINING_SET_FOLDER__ % self.tempo
+        __FULL_TRAINING_SET_FOLDER__ = __TRAINING_SET_FOLDER_PATH__ % self.tempo
 
-        if not path.exists(__RAW_DAYS_FOLDER__):
-            makedirs(__RAW_DAYS_FOLDER__)
+        if not path.exists(__RAW_DAYS_FOLDER_PATH__):
+            makedirs(__RAW_DAYS_FOLDER_PATH__)
 
         if not path.exists(__FULL_TRAINING_SET_FOLDER__):
             makedirs(__FULL_TRAINING_SET_FOLDER__)
 
         __RAW_FILE_NAME__ = "%s.pickle" % day
-        __RAW_FILE_PATH__ = path.join(__RAW_DAYS_FOLDER__, __RAW_FILE_NAME__)
+        __RAW_FILE_PATH__ = path.join(__RAW_DAYS_FOLDER_PATH__, __RAW_FILE_NAME__)
         __TRAINING_SET_FILE_NAME__ = "%s.pickle" % day
         __TRAINING_SET_FILE_PATH__ = path.join(__FULL_TRAINING_SET_FOLDER__, __TRAINING_SET_FILE_NAME__)
 
-        logger.info("Saving data in %s." % __RAW_DAYS_FOLDER__)
+        logger.info("Saving data in %s." % __RAW_DAYS_FOLDER_PATH__)
         mat._initial_df.to_pickle(__RAW_FILE_PATH__)
         mat.result_concat.to_pickle(__TRAINING_SET_FILE_PATH__)
 
         if save_s3:
             self._bucket_provider.send_file(
                 file_local_path=__RAW_FILE_PATH__,
-                file_remote_path=__RAW_FILE_NAME__)
+                file_remote_path=path.relpath(__RAW_FILE_PATH__, __DATA_PATH__)
+            )
 
             self._bucket_provider.send_file(
                 file_local_path=__TRAINING_SET_FILE_PATH__,
-                file_remote_path=__TRAINING_SET_FILE_NAME__)
+                file_remote_path=path.relpath(__TRAINING_SET_FILE_PATH__, __DATA_PATH__)
+            )
 
     def create_training_sets(self, save_s3=True):
 
