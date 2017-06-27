@@ -4,6 +4,7 @@
 from os import sys, path
 import logging
 import logging.config
+from datetime import timedelta
 
 from celery import Celery
 from celery.schedules import crontab
@@ -23,8 +24,7 @@ logger = logging.getLogger(__name__)
 
 app = Celery('etl_tasks.celery_app',
              broker='amqp://guest:guest@localhost',
-             backend='db+' + uri,  # 'amqp://guest:guest@localhost',
-             )
+             backend='db+' + uri)
 
 # Optional configuration
 app.conf.update(
@@ -41,6 +41,16 @@ app.conf.beat_schedule = {
     'extract_schedule_weekly': {
         'task': 'etl_tasks.celery_app.extract_schedule',
         'schedule': crontab(hour=7, minute=30, day_of_week=1),
+    },
+    # Executes every day morning at 4:00 a.m.
+    'build_training_sets_daily': {
+        'task': 'etl_tasks.celery_app.build_training_sets_last_day',
+        'schedule': crontab(hour=4, minute=0),
+    },
+    # Executes every day morning at 6:00 a.m.
+    'train_models_daily': {
+        'task': 'etl_tasks.celery_app.train_models',
+        'schedule': crontab(hour=6, minute=0),
     },
 }
 
@@ -85,7 +95,7 @@ def train_models(lines=None):
 
     for line in lines:
         logger.info("Line %s." % line)
-        rt = RegressorTrainer(line=line, auto=True)
+        rt = RegressorTrainer(line=line, auto=True, start_date="20170101", end_date="20170701", tempo=30)
         logger.info(rt.score_pipeline())
         rt.save_in_database()
 
@@ -95,8 +105,7 @@ def train_models(lines=None):
 def build_training_sets_last_day():
 
     logger.info("Beginning building training set for yesterday.")
-    day = get_paris_local_datetime_now().strftime("%Y%m%d")
+    day = (get_paris_local_datetime_now() - timedelta(days=1)).strftime("%Y%m%d")
     tsb = TrainingSetBuilder(start=day, end=day, tempo=30)
     tsb.create_training_sets()
-
     return True
